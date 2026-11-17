@@ -14,7 +14,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded pull request runs are cancelled; runs on main finish, so every commit gets a result.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # macOS needs 6.11 (6.10's headers do not compile with the macOS 26 compiler). aqtinstall 3.3.0 cannot find 6.11's
