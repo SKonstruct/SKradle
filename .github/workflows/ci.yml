@@ -51,6 +51,10 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    env:
+      # `--parallel` with Makefiles starts unlimited compile jobs; the UI shell has many large generated files and
+      # the Linux runner was killed (shutdown signal) while compiling it.
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
     # Experimental legs may fail without failing the workflow (runner labels and Qt arches not yet confirmed there).
     continue-on-error: ${{ matrix.experimental }}
     strategy:
