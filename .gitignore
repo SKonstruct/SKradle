@@ -20,3 +20,6 @@ CMakeUserPresets.json
 
 # Private notes and spike results (never pushed)
 .private/
+
+# Screenshots written by the UI shell in CI
+shots/

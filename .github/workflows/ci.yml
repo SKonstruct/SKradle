@@ -17,8 +17,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # 6.10.x, not 6.11.x: aqtinstall 3.3.0 (the newest) cannot find 6.11's Windows packages (new repository layout).
-  QT_VERSION: 6.10.3
+  # macOS needs 6.11 (6.10's headers do not compile with the macOS 26 compiler). aqtinstall 3.3.0 cannot find 6.11's
+  # Windows x64 packages, so the install uses a pinned commit of its master branch that can. Switch back to a released
+  # version once aqtinstall 3.4 is out.
+  QT_VERSION: 6.11.3
+  AQT_SOURCE: git+https://github.com/miurahr/aqtinstall.git@5a49f2b391ae8ee1d3c0dd87f8b33c1d49a4deb7
 
 defaults:
   run:
@@ -67,6 +70,7 @@ jobs:
           version: ${{ env.QT_VERSION }}
           host: ${{ matrix.qt_host }}
           arch: ${{ matrix.qt_arch }}
+          aqtsource: ${{ env.AQT_SOURCE }}
           cache: true
 
       - uses: dtolnay/rust-toolchain@stable
@@ -102,6 +106,9 @@ jobs:
       - name: Self-tests (Rust core through both bridges)
         timeout-minutes: 5
         working-directory: spikes/native-look
+        env:
+          # On Windows Qt logs to the debugger unless told otherwise, and the QML self-test reports through its log.
+          QT_FORCE_STDERR_LOGGING: "1"
         run: |
           if [ "$RUNNER_OS" = Linux ]; then export QT_QPA_PLATFORM=offscreen; fi
           find_exe() { find "$1" -maxdepth 5 -type f \( -name "$2" -o -name "$2.exe" \) -not -path '*CMakeFiles*' | head -1; }
@@ -137,6 +144,32 @@ jobs:
         with:
           name: native-look-${{ matrix.name }}
           path: spikes/native-look/shots
+          if-no-files-found: ignore
+
+      # The launcher UI prototype: its screenshots on each OS are how the Windows and Linux looks are reviewed.
+      - name: Build the UI shell
+        working-directory: spikes/ui-shell
+        run: |
+          cmake -S . -B build -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
+          cmake --build build --config Release --parallel
+
+      - name: UI shell screenshots
+        timeout-minutes: 10
+        working-directory: spikes/ui-shell
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then export QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software; fi
+          exe=$(find build -maxdepth 3 -type f \( -name skradle_ui -o -name skradle_ui.exe \) | head -1)
+          echo "ui shell: $exe"
+          mkdir -p shots
+          for scheme in dark light; do "$exe" --scheme "$scheme" --shots shots --prefix "$scheme"; done
+          ls shots
+
+      - name: Upload UI shell screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-shell-${{ matrix.name }}
+          path: spikes/ui-shell/shots
           if-no-files-found: ignore
 
       # Packaging smoke tests. The packaged app must start on its own, on the platform's real plugin.
