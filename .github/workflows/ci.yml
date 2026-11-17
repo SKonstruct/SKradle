@@ -106,7 +106,8 @@ jobs:
           if [ "$RUNNER_OS" = Linux ]; then export QT_QPA_PLATFORM=offscreen; fi
           find_exe() { find "$1" -maxdepth 5 -type f \( -name "$2" -o -name "$2.exe" \) -not -path '*CMakeFiles*' | head -1; }
           ffi=$(find_exe ffi/build nl_ffi)
-          cxxqt=$(find_exe cxxqt/target/release nl_cxxqt)
+          cxxqt=cxxqt/target/release/nl_cxxqt
+          if [ -f "$cxxqt.exe" ]; then cxxqt="$cxxqt.exe"; fi
           echo "ffi: $ffi"; echo "cxxqt: $cxxqt"
           out=$("$ffi" --selftest); echo "$out"
           echo "$out" | grep -q 'saved: render scale 150% with /usr/bin/java (computed in Rust)'
