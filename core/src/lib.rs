@@ -5,5 +5,6 @@ pub mod game;
 pub mod getdown;
 pub mod getdown_txt;
 pub mod install;
+pub mod net;
 pub mod runtime;
 pub mod vdf;
