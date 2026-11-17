@@ -14,8 +14,11 @@ QtObject {
 
     // brand
     readonly property color accent: "#AB4A81"
-    readonly property color accentHover: dark ? "#BC5A91" : "#9A3F72"
-    readonly property color accentPressed: dark ? "#9A4072" : "#873562"
+    // Hover/pressed keep white text at >= 4.5:1 (AA): #B04F86 = 4.9:1 on white text, #AB4A81 = 5.2:1
+    readonly property color accentHover: dark ? "#B04F86" : "#9A3F72"
+    readonly property color accentPressed: dark ? "#963F6E" : "#873562"
+    // pink used as text/icon/focus on surfaces: lighter on dark (6.8:1 on #1E1E1E), brand pink on light (5.2:1 on white)
+    readonly property color accentFg: dark ? "#E08BBB" : "#AB4A81"
     readonly property color accentText: "#FFFFFF"
     readonly property color accentTint: dark ? Qt.rgba(0.671, 0.290, 0.506, 0.22) : Qt.rgba(0.671, 0.290, 0.506, 0.13)
     readonly property color accentFocus: dark ? "#E08BBB" : "#AB4A81"
@@ -29,6 +32,12 @@ QtObject {
     readonly property color cardHover: dark ? "#242424" : "#FCFCFB"
     readonly property color raised: dark ? "#2B2B2B" : "#ECECE9"
     readonly property color track: dark ? "#2E2E2E" : "#E3E3E0"
+    readonly property color sliderRail: dark ? "#707070" : "#929292"      // >= 3:1 against card
+    readonly property color switchOff: dark ? "#6B6B6B" : "#8E8E8E"
+    readonly property color field: dark ? "#151515" : "#F7F7F5"
+    readonly property color fieldBorder: dark ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(0, 0, 0, 0.30)   // >= 3:1 vs card
+    readonly property color knob: "#FFFFFF"
+    readonly property color scrollThumb: dark ? Qt.rgba(1, 1, 1, 0.38) : Qt.rgba(0, 0, 0, 0.38)
     readonly property color border: dark ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.09)
     readonly property color borderStrong: dark ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(0, 0, 0, 0.22)
     readonly property color hoverTint: dark ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0, 0, 0, 0.055)

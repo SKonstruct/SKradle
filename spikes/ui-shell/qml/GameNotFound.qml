@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Shapes
+import QtQuick.Dialogs
 
 // First-run empty state: nothing to launch yet, two clear ways forward.
 Card {
@@ -25,15 +26,15 @@ Card {
                 anchors.fill: parent
                 preferredRendererType: Shape.CurveRenderer
                 ShapePath {
-                    strokeColor: Theme.mintOutline
+                    strokeColor: Theme.accentFg
                     strokeWidth: 2
-                    fillColor: Theme.dark ? Qt.rgba(0.753, 0.871, 0.863, 0.07) : Qt.rgba(0.459, 0.627, 0.612, 0.10)
+                    fillColor: Theme.accentTint
                     strokeStyle: ShapePath.DashLine
                     dashPattern: [3, 3.4]
                     PathAngleArc { centerX: 56; centerY: 56; radiusX: 52; radiusY: 52; startAngle: 0; sweepAngle: 360 }
                 }
             }
-            Icon { anchors.centerIn: parent; name: "folder"; size: 44; stroke: 1.5; color: Theme.dark ? Theme.mint : Theme.mintOutline }
+            Logo { anchors.centerIn: parent; size: 64 }
             Rectangle {
                 x: 70; y: 70; width: 30; height: 30; radius: 15
                 color: Theme.amber
@@ -58,16 +59,16 @@ Card {
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: Theme.s4
             spacing: Theme.s3
-            Button {
+            SButton {
                 text: L.t("Download Spiral Knights")
                 highlighted: true
                 Accessible.name: text
                 onClicked: root.download()
             }
-            Button {
+            SButton {
                 text: L.t("Locate existing install…")
                 Accessible.name: text
-                onClicked: root.locate()
+                onClicked: folderDialog.open()
             }
         }
         Txt {
@@ -78,5 +79,11 @@ Card {
             kind: "micro"
             color: Theme.textTertiary
         }
+    }
+
+    FolderDialog {
+        id: folderDialog
+        title: L.t("Choose the Spiral Knights folder")
+        onAccepted: root.locate()
     }
 }

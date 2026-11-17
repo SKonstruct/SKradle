@@ -157,4 +157,152 @@ PageScaffold {
             }
         }
     }
+
+    // ---- quick graphics preset ----------------------------------------------------------------------------
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Theme.s4
+        visible: Data.gameFound
+        Txt { text: L.t("Quick graphics preset"); kind: "heading"; Accessible.role: Accessible.Heading }
+        Card {
+            Layout.fillWidth: true
+            implicitHeight: presetRow.implicitHeight + 2 * Theme.s5
+            property int preset: 1
+            id: presetCard
+            GridLayout {
+                id: presetRow
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.margins: Theme.s5
+                columns: width > 640 ? 2 : 1
+                columnSpacing: Theme.s5
+                rowSpacing: Theme.s3
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    spacing: 4
+                    Txt { Layout.fillWidth: true; text: L.t(Data.presets[presetCard.preset].name); font.weight: Font.Medium }
+                    Txt { Layout.fillWidth: true; text: L.t(Data.presets[presetCard.preset].detail); kind: "caption" }
+                }
+                RowLayout {
+                    Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+                    spacing: Theme.s2
+                    Repeater {
+                        model: Data.presets
+                        Chip {
+                            required property int index
+                            required property var modelData
+                            text: L.t(modelData.name)
+                            selected: presetCard.preset === index
+                            onClicked: presetCard.preset = index
+                        }
+                    }
+                    SButton { variant: "ghost"; text: L.t("Fine-tune"); glyph: "graphics"; onClicked: Data.navigate(3) }
+                }
+            }
+        }
+    }
+
+    // ---- jump back in + mod updates -----------------------------------------------------------------------
+    GridLayout {
+        Layout.fillWidth: true
+        visible: Data.gameFound
+        columns: Math.min(Theme.pageMax, page.width - 2 * Theme.s8) > 700 ? 2 : 1
+        columnSpacing: Theme.s4
+        rowSpacing: Theme.s4
+        uniformCellWidths: true
+
+        Card {   // recent servers
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.alignment: Qt.AlignTop
+            implicitHeight: srv.implicitHeight + 2 * Theme.s5
+            ColumnLayout {
+                id: srv
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                anchors.margins: Theme.s5
+                spacing: Theme.s2
+                RowLayout {
+                    Layout.fillWidth: true
+                    Txt { Layout.fillWidth: true; text: L.t("Jump back in"); kind: "heading"; Accessible.role: Accessible.Heading }
+                    SButton { variant: "ghost"; text: L.t("All servers"); onClicked: Data.navigate(1) }
+                }
+                Repeater {
+                    model: Data.servers
+                    RowLayout {
+                        required property int index
+                        required property string name
+                        required property string status
+                        required property int players
+                        required property int ping
+                        visible: index < 3
+                        Layout.fillWidth: true
+                        spacing: Theme.s3
+                        StatusDot { color: status === "online" ? Theme.ok : status === "busy" ? Theme.amber : Theme.textTertiary; pulse: status === "online"; Layout.alignment: Qt.AlignVCenter }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 0
+                            spacing: 0
+                            Txt { Layout.fillWidth: true; text: name; font.weight: Font.Medium }
+                            Txt { Layout.fillWidth: true; text: L.t("%1 players").arg(players.toLocaleString(Qt.locale(), "f", 0)) + "  \u00b7  " + ping + " ms"; kind: "caption"; font.features: { "tnum": 1 } }
+                        }
+                        SButton { variant: "secondary"; text: L.t("Join"); enabled: status !== "offline"; onClicked: Data.toast(L.t("Joining %1\u2026").arg(name)) }
+                    }
+                }
+            }
+        }
+
+        Card {   // mod updates
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.alignment: Qt.AlignTop
+            implicitHeight: mods.implicitHeight + 2 * Theme.s5
+            ColumnLayout {
+                id: mods
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                anchors.margins: Theme.s5
+                spacing: Theme.s2
+                RowLayout {
+                    Layout.fillWidth: true
+                    Txt { Layout.fillWidth: true; text: L.t("Mods"); kind: "heading"; Accessible.role: Accessible.Heading }
+                    SButton { variant: "ghost"; text: L.t("Manage"); onClicked: Data.navigate(2) }
+                }
+                Txt { Layout.fillWidth: true; text: L.t("5 of 9 enabled"); color: Theme.textSecondary }
+                Txt {
+                    Layout.fillWidth: true
+                    Layout.topMargin: Theme.s2
+                    visible: Data.modUpdates.length === 0
+                    text: L.t("All mods are up to date.")
+                    kind: "caption"
+                }
+                Repeater {
+                    model: Data.modUpdates
+                    RowLayout {
+                        required property int index
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: Theme.s3
+                        Icon { name: "refresh"; size: 18; color: Theme.accentFg; Layout.alignment: Qt.AlignVCenter }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 0
+                            spacing: 0
+                            Txt { Layout.fillWidth: true; text: modelData.name; font.weight: Font.Medium }
+                            Txt { Layout.fillWidth: true; text: "v" + modelData.from + "  \u2192  v" + modelData.to; kind: "caption"; font.features: { "tnum": 1 } }
+                        }
+                        SButton {
+                            variant: "primary"
+                            text: L.t("Update")
+                            onClicked: {
+                                const list = Data.modUpdates.slice()
+                                list.splice(index, 1)
+                                Data.modUpdates = list
+                                Data.toast(L.t("%1 updated").arg(modelData.name))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

@@ -70,7 +70,7 @@ Control {
             Layout.alignment: Qt.AlignVCenter
             Layout.preferredWidth: 84
             spacing: 2
-            Switch {
+            SSwitch {
                 id: sw
                 Layout.alignment: Qt.AlignHCenter
                 checked: root.enabledState

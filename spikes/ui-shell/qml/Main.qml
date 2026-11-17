@@ -122,17 +122,23 @@ ApplicationWindow {
         x: content.x + (content.width - width) / 2
         y: win.height - height - 28
     }
-    Connections { target: Data; function onToast(text) { toast.show(text) } }
+    Connections {
+        target: Data
+        function onToast(text) { toast.show(text) }
+        function onNavigate(page) { win.go(page) }
+    }
 
     // ---- screenshot driver -----------------------------------------------------------------------------------
     readonly property var shotNames: ["home-ready", "home-updating", "home-launching", "home-running", "home-firstrun",
-        "home-collapsed", "servers", "servers-dialog", "mods", "mods-search", "mods-drop", "graphics", "graphics-running",
-        "about", "focus"]
+        "home-collapsed", "home-scrolled", "servers", "servers-dialog", "mods", "mods-search", "mods-drop", "graphics", "graphics-running",
+        "about", "focus", "focus-controls", "servers-menu", "graphics-combo", "mods-toggle"]
     function setupShot(name) {
         Data.gameFound = true
         win.collapsed = false
         LaunchModel.force("ready", 0)
+        const hp = pageItem(0); if (hp) hp.scroller.contentY = 0
         const sv = pageItem(1); if (sv) sv.closeAll()
+        const gp = pageItem(3); if (gp) gp.closeCombo()
         const md = pageItem(2); if (md) { md.dropForced = false; md.setSearch(""); md.filter = "all" }
         switch (name) {
         case "home-ready": go(0); break
@@ -141,6 +147,7 @@ ApplicationWindow {
         case "home-running": go(0); LaunchModel.force("running", 1); break
         case "home-firstrun": go(0); Data.gameFound = false; break
         case "home-collapsed": go(0); win.collapsed = true; break
+        case "home-scrolled": go(0); Qt.callLater(() => { const h = pageItem(0); if (h) h.scroller.contentY = Math.max(0, h.scroller.contentHeight - h.scroller.height) }); break
         case "servers": go(1); break
         case "servers-dialog": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.openAdd() }); break
         case "mods": go(2); break
@@ -149,6 +156,10 @@ ApplicationWindow {
         case "graphics": go(3); break
         case "graphics-running": go(3); LaunchModel.force("running", 1); break
         case "about": go(4); break
+        case "servers-menu": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.openMenu() }); break
+        case "graphics-combo": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.openCombo() }); break
+        case "focus-controls": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.focusSlider() }); break
+        case "mods-toggle": go(2); Qt.callLater(() => { const p = pageItem(2); if (p) { p.setOn(4, true); p.setOn(0, false) } }); break
         case "focus": go(1); Qt.callLater(() => side.focusItem(1)); break
         }
     }

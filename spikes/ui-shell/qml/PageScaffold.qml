@@ -11,16 +11,18 @@ Item {
     property alias actions: header.actions
     property alias scroller: sv
 
-    ScrollView {
+    Flickable {
         id: sv
         anchors.fill: parent
-        contentWidth: availableWidth
+        contentWidth: width
         contentHeight: holder.implicitHeight
         clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        ScrollBar.vertical: SScrollBar {}
 
         Item {
             id: holder
-            width: sv.availableWidth
+            width: sv.width
             implicitHeight: col.implicitHeight + Theme.s8 + Theme.s10
             ColumnLayout {
                 id: col

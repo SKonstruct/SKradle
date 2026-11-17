@@ -2,6 +2,7 @@
 // Flags: --scheme light|dark  --pseudo  --bench  --style <Name>  --page <0-4>  --collapsed
 //        --size WxH  --shots <dir> [--prefix name]   Env: SKRADLE_REDUCE_MOTION=1
 #include <QGuiApplication>
+#include <QIcon>
 #include <QImage>
 #include <QQmlApplicationEngine>
 #include <QtQml/qqml.h>
@@ -18,6 +19,7 @@ int main(int argc, char **argv) {
     QGuiApplication app(argc, argv);
     app.setApplicationName("SKradle");
     app.setOrganizationName("SKradle");
+    app.setWindowIcon(QIcon(":/qt/qml/SKradleUi/icons/skradle-256.png"));
 
     AppEnv &env = *AppEnv::instance();
     QString shotDir, prefix = "shot", styleArg;
@@ -43,14 +45,10 @@ int main(int argc, char **argv) {
     // Controls style: native where one exists. Nothing is set on macOS (the macOS style is the default).
     if (!styleArg.isEmpty()) QQuickStyle::setStyle(styleArg);
     else if (!qEnvironmentVariableIsSet("QT_QUICK_CONTROLS_STYLE")) {
-#if defined(Q_OS_WIN)
-        QQuickStyle::setStyle("FluentWinUI3");
-#elif !defined(Q_OS_MACOS)
-        QQuickStyle::setStyle("Fusion");
-#endif
+        QQuickStyle::setStyle("Basic");   // identical on every OS; all visible controls are our own templates
     }
     env.m_style = QQuickStyle::name();
-    env.m_native = env.m_style == "macOS" || env.m_style == "Windows" || env.m_style == "FluentWinUI3";
+    env.m_native = env.m_style == "macOS" || env.m_style == "Windows" || env.m_style == "FluentWinUI3";  // only for the --style comparison switch
     env.m_os = QSysInfo::prettyProductName();
     env.m_qt = QString::fromLatin1(qVersion());
 

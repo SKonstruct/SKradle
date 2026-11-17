@@ -4,8 +4,18 @@ import QtQuick
 // Fake data. Everything here is placeholder content.
 QtObject {
     signal toast(string text)
+    signal navigate(int page)
     property bool gameFound: true
 
+    property var modUpdates: [
+        { name: "Sharp HUD", from: "1.4", to: "1.5" },
+        { name: "Chat tweaks", from: "1.0", to: "1.1" }
+    ]
+    readonly property var presets: [
+        { name: "Battery saver", detail: "Render scale 75%, 60 fps cap, effects trimmed" },
+        { name: "Balanced", detail: "Render scale 100%, 120 fps cap, sharpening 40" },
+        { name: "Sharp", detail: "Render scale 150%, uncapped, sharpening 60" }
+    ]
     readonly property var news: [
         { tag: "Launcher", title: "Faster downloads", body: "Game files now download in parallel and resume where they stopped.", date: "2 days ago", hue: 0 },
         { tag: "Community", title: "Server list refresh", body: "Community servers report players and ping live, with a default you can set once.", date: "5 days ago", hue: 1 },

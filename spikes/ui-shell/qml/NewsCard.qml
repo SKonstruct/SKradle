@@ -18,9 +18,6 @@ AbstractButton {
     Accessible.name: title + ". " + body
     text: title
 
-    readonly property var tints: [Theme.accent, "#43CDCA", "#F2BF3A"]
-    readonly property color tint: tints[hue % 3]
-
     background: Card {
         raised: root.hovered
         fill: root.hovered ? Theme.cardHover : Theme.card
@@ -29,21 +26,43 @@ AbstractButton {
     contentItem: ColumnLayout {
         id: col
         spacing: 0
-        Rectangle {   // art: gradient plate with drawn shapes, kept inside the rounded top corners
+        Rectangle {   // art: brand-colour plate, the shared glyph cropped large, one icon tile. Cropped by the card.
+            id: art
             Layout.fillWidth: true
-            Layout.preferredHeight: 104
+            Layout.preferredHeight: 112
             Layout.margins: 1
             topLeftRadius: root.radius - 1
             topRightRadius: root.radius - 1
+            clip: true
+            readonly property var tops: Theme.dark ? ["#B2548A", "#2A5C58", "#8A6414"] : ["#B8568E", "#B7D8D4", "#F5D273"]
+            readonly property var bots: Theme.dark ? ["#6E2C52", "#17302E", "#4A370C"] : ["#D58AB4", "#8FBDB8", "#EDB63A"]
             gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, Theme.dark ? 0.30 : 0.38) }
-                GradientStop { position: 1; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, Theme.dark ? 0.08 : 0.12) }
+                GradientStop { position: 0; color: art.tops[root.hue % 3] }
+                GradientStop { position: 1; color: art.bots[root.hue % 3] }
             }
-            Rectangle { x: parent.width * 0.62; y: 22; width: 64; height: 64; radius: 32; color: "transparent"; border.width: 2; border.color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.55) }
-            Rectangle { x: parent.width * 0.62 + 26; y: 48; width: 38; height: 38; radius: 19; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.35) }
-            Rectangle { x: 20; y: 24; width: 34; height: 34; radius: 8; rotation: 45; color: "transparent"; border.width: 2; border.color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.5) }
-            Rectangle { x: 20; y: 72; width: 60; height: 6; radius: 3; color: Qt.rgba(root.tint.r, root.tint.g, root.tint.b, 0.35) }
+            Glyph {   // the real mark, large, running off the bottom edge
+                x: parent.width * 0.58
+                y: 16
+                glyphHeight: 160
+                opacity: root.hue === 0 ? 1 : (Theme.dark ? 0.16 : 0.30)
+            }
+            Rectangle {   // icon tile
+                x: 18; y: 18; width: 44; height: 44; radius: 12
+                color: Qt.rgba(1, 1, 1, Theme.dark ? 0.14 : 0.30)
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, Theme.dark ? 0.26 : 0.55)
+                Icon {
+                    anchors.centerIn: parent
+                    name: ["download", "globe", "bolt"][root.hue % 3]
+                    size: 24; stroke: 2
+                    color: root.hue === 2 && !Theme.dark ? "#4A370C" : "#FFFFFF"
+                }
+            }
+            Rectangle {   // hairline separating art and text
+                anchors.bottom: parent.bottom
+                width: parent.width; height: 1
+                color: Theme.border
+            }
         }
         ColumnLayout {
             Layout.fillWidth: true

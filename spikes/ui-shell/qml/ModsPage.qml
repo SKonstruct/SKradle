@@ -63,7 +63,7 @@ Item {
         clip: true
         spacing: Theme.s3
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar {}
+        ScrollBar.vertical: SScrollBar {}
 
         header: Item {
             property alias searchField: search
@@ -83,8 +83,9 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: Theme.s3
-                    TextField {
+                    STextField {
                         id: search
+                        glyph: "search"
                         Layout.fillWidth: true
                         Layout.maximumWidth: 340
                         placeholderText: L.t("Search mods")

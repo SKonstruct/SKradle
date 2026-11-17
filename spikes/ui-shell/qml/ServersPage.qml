@@ -5,7 +5,8 @@ import QtQuick.Layouts
 Item {
     id: page
     function openAdd() { dlg.open() }
-    function closeAll() { dlg.close() }
+    function closeAll() { dlg.close(); const it = lv.itemAtIndex(0); if (it) it.card.closeMenu() }
+    function openMenu() { const it = lv.itemAtIndex(0); if (it) it.card.openMenu() }
     readonly property real cw: Math.min(Theme.pageMax, lv.width - 2 * Theme.s8)
 
     ListView {
@@ -15,7 +16,7 @@ Item {
         clip: true
         spacing: Theme.s3
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar {}
+        ScrollBar.vertical: SScrollBar {}
         topMargin: 0
 
         header: Item {
@@ -27,7 +28,7 @@ Item {
                 width: page.cw
                 title: L.t("Servers")
                 subtitle: L.t("Choose where to play. Players and ping update live.")
-                Button {
+                SButton {
                     text: L.t("Add server")
                     highlighted: true
                     onClicked: dlg.open()
@@ -50,6 +51,7 @@ Item {
             required property bool isDefault
             width: lv.width
             height: card.implicitHeight
+            property alias card: card
             ServerCard {
                 id: card
                 x: (parent.width - width) / 2

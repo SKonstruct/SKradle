@@ -1,12 +1,16 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 PageScaffold {
     id: page
     title: L.t("Graphics")
     subtitle: L.t("Rendering options for the game. Changes apply the next time it starts.")
     readonly property bool gameRunning: LaunchModel.state === "running"
+    function openCombo() { aaCombo.popup.open() }
+    function closeCombo() { aaCombo.popup.close() }
+    function focusSlider() { scale.forceActiveFocus(Qt.TabFocusReason) }
 
     // amber notice while the game runs
     Rectangle {
@@ -49,31 +53,31 @@ PageScaffold {
                 Txt { Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1; text: L.t("Rendering"); kind: "heading"; Accessible.role: Accessible.Heading }
                 SettingRow {
                     label: L.t("Render scale"); hint: L.t("Lower values trade sharpness for speed.")
-                    Slider { id: scale; Layout.fillWidth: true; from: 50; to: 200; value: 100; Accessible.name: L.t("Render scale") }
+                    SSlider { id: scale; Layout.fillWidth: true; from: 50; to: 200; value: 100; Accessible.name: L.t("Render scale") }
                     Txt { Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight; text: Math.round(scale.value) + "%"; font.features: { "tnum": 1 }; wrapMode: Text.NoWrap }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
                     label: L.t("Sharpening"); hint: L.t("Crisper edges after scaling.")
-                    Slider { id: sharp; Layout.fillWidth: true; from: 0; to: 100; value: 40; Accessible.name: L.t("Sharpening") }
+                    SSlider { id: sharp; Layout.fillWidth: true; from: 0; to: 100; value: 40; Accessible.name: L.t("Sharpening") }
                     Txt { Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight; text: Math.round(sharp.value); font.features: { "tnum": 1 }; wrapMode: Text.NoWrap }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
                     label: L.t("Anti-aliasing")
-                    ComboBox { Layout.fillWidth: true; model: [L.t("Off"), "FXAA", "MSAA 4x"]; currentIndex: 1; Accessible.name: L.t("Anti-aliasing") }
+                    SComboBox { id: aaCombo; Layout.fillWidth: true; model: [L.t("Off"), "FXAA", "MSAA 4x"]; currentIndex: 1; Accessible.name: L.t("Anti-aliasing") }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
                     label: L.t("Sharp HUD"); hint: L.t("Draw the interface at full resolution.")
                     Item { Layout.fillWidth: true }
-                    Switch { checked: true; Accessible.name: L.t("Sharp HUD") }
+                    SSwitch { checked: true; Accessible.name: L.t("Sharp HUD") }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
                     label: L.t("FPS counter")
                     Item { Layout.fillWidth: true }
-                    Switch { checked: false; Accessible.name: L.t("FPS counter") }
+                    SSwitch { checked: false; Accessible.name: L.t("FPS counter") }
                 }
                 Item { Layout.preferredHeight: Theme.s1 }
             }
@@ -111,13 +115,13 @@ PageScaffold {
                 }
                 SettingRow {
                     label: L.t("Mode")
-                    ComboBox { Layout.fillWidth: true; model: [L.t("Adaptive"), L.t("Fixed multiplier")]; Accessible.name: L.t("Mode") }
+                    SComboBox { Layout.fillWidth: true; model: [L.t("Adaptive"), L.t("Fixed multiplier")]; Accessible.name: L.t("Mode") }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
                     label: L.t("Target frame rate"); hint: L.t("Frames per second to aim for.")
                     Item { Layout.fillWidth: true }
-                    SpinBox { from: 30; to: 360; value: 120; editable: true; Accessible.name: L.t("Target frame rate") }
+                    SSpinBox { from: 30; to: 360; value: 120; editable: true; Accessible.name: L.t("Target frame rate") }
                 }
                 Item { Layout.preferredHeight: Theme.s1 }
             }
@@ -141,16 +145,28 @@ PageScaffold {
             SettingRow {
                 label: L.t("Java path"); hint: L.t("Leave empty to use the bundled runtime.")
                 controlWidth: 330
-                TextField { Layout.fillWidth: true; text: "/usr/bin/java"; Accessible.name: L.t("Java path") }
-                Button { text: L.t("Browse…"); Accessible.name: text }
+                STextField { Layout.fillWidth: true; text: "/usr/bin/java"; Accessible.name: L.t("Java path") }
+                SButton { text: L.t("Browse…"); onClicked: javaDialog.open() }
             }
             Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
             SettingRow {
                 label: L.t("Memory limit"); hint: L.t("Megabytes available to the game.")
                 Item { Layout.fillWidth: true }
-                SpinBox { from: 512; to: 16384; stepSize: 256; value: 2048; editable: true; Accessible.name: L.t("Memory limit") }
+                SSpinBox { from: 512; to: 16384; stepSize: 256; value: 2048; editable: true; Accessible.name: L.t("Memory limit") }
+            }
+            Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
+            SettingRow {
+                label: L.t("Close launcher while playing"); hint: L.t("Reopens when the game exits.")
+                Item { Layout.fillWidth: true }
+                SCheckBox { checked: true; Accessible.name: L.t("Close launcher while playing") }
             }
             Item { Layout.preferredHeight: Theme.s1 }
         }
+    }
+
+    FileDialog {
+        id: javaDialog
+        title: L.t("Choose a Java runtime")
+        onAccepted: Data.toast(L.t("Java path updated"))
     }
 }

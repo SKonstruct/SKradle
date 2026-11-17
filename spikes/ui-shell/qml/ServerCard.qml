@@ -86,23 +86,25 @@ Control {
         RowLayout {
             Layout.alignment: Qt.AlignVCenter
             spacing: 4
-            Button {
+            SButton {
                 text: L.t("Join")
                 enabled: root.online
                 Accessible.name: L.t("Join") + " " + root.name
                 onClicked: Data.toast(L.t("Joining %1…").arg(root.name))
             }
-            IconButton { glyph: "more"; tip: L.t("More actions"); onClicked: menu.popup(this, 0, height) }
+            IconButton { id: moreBtn; glyph: "more"; tip: L.t("More actions"); onClicked: menu.popup(moreBtn, moreBtn.width - menu.width, moreBtn.height + 4) }
         }
     }
 
-    Menu {
+    function closeMenu() { menu.close() }
+    function openMenu() { menu.popup(moreBtn, moreBtn.width - menu.width, moreBtn.height + 4) }
+    SMenu {
         id: menu
-        MenuItem { text: L.t("Join"); enabled: root.online; onTriggered: Data.toast(L.t("Joining %1…").arg(root.name)) }
-        MenuItem { text: L.t("Set as default"); enabled: !root.isDefault; onTriggered: root.makeDefault() }
-        MenuItem { text: L.t("Copy address"); onTriggered: Data.toast(L.t("Address copied")) }
-        MenuSeparator {}
-        MenuItem { text: L.t("Remove"); onTriggered: root.remove() }
+        SMenuItem { text: L.t("Join"); enabled: root.online; onTriggered: Data.toast(L.t("Joining %1…").arg(root.name)) }
+        SMenuItem { text: L.t("Set as default"); enabled: !root.isDefault; onTriggered: root.makeDefault() }
+        SMenuItem { text: L.t("Copy address"); onTriggered: Data.toast(L.t("Address copied")) }
+        SMenuSeparator {}
+        SMenuItem { danger: true; text: L.t("Remove"); onTriggered: root.remove() }
     }
     TapHandler { acceptedButtons: Qt.RightButton; onTapped: menu.popup() }
     Keys.onMenuPressed: menu.popup(root, root.width / 2, root.height / 2)

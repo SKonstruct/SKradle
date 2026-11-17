@@ -61,7 +61,7 @@ Popup {
             Layout.leftMargin: Theme.s6; Layout.rightMargin: Theme.s6
             spacing: Theme.s2
             Txt { text: L.t("Name"); kind: "caption"; font.weight: Font.Medium }
-            TextField {
+            STextField {
                 id: nameField
                 Layout.fillWidth: true
                 placeholderText: L.t("My server")
@@ -69,7 +69,7 @@ Popup {
                 onAccepted: addrField.forceActiveFocus()
             }
             Txt { Layout.topMargin: Theme.s2; text: L.t("Address"); kind: "caption"; font.weight: Font.Medium }
-            TextField {
+            STextField {
                 id: addrField
                 Layout.fillWidth: true
                 placeholderText: "host.example.com:47011"
@@ -84,8 +84,8 @@ Popup {
             Layout.bottomMargin: Theme.s5
             spacing: Theme.s2
             Item { Layout.fillWidth: true }
-            Button { text: L.t("Cancel"); onClicked: dlg.close() }
-            Button { text: L.t("Add server"); highlighted: true; enabled: dlg.valid; onClicked: dlg.submit() }
+            SButton { text: L.t("Cancel"); onClicked: dlg.close() }
+            SButton { text: L.t("Add server"); highlighted: true; enabled: dlg.valid; onClicked: dlg.submit() }
         }
     }
 }

@@ -24,7 +24,7 @@ PageScaffold {
                 Txt { Layout.fillWidth: true; text: "SKradle"; kind: "display"; Accessible.role: Accessible.Heading }
                 Txt { Layout.fillWidth: true; text: L.t("A fast, friendly launcher for Spiral Knights."); color: Theme.textSecondary }
             }
-            Button { text: L.t("Check for updates"); Layout.alignment: Qt.AlignVCenter; onClicked: Data.toast(L.t("You are up to date")) }
+            SButton { text: L.t("Check for updates"); Layout.alignment: Qt.AlignVCenter; onClicked: Data.toast(L.t("You are up to date")) }
         }
     }
 
@@ -90,7 +90,7 @@ PageScaffold {
             SettingRow {
                 label: L.t("Simulate first run"); hint: L.t("Shows the empty state when the game is not installed.")
                 Item { Layout.fillWidth: true }
-                Switch { checked: !Data.gameFound; onToggled: Data.gameFound = !checked; Accessible.name: L.t("Simulate first run") }
+                SSwitch { checked: !Data.gameFound; onToggled: Data.gameFound = !checked; Accessible.name: L.t("Simulate first run") }
             }
             Item { Layout.preferredHeight: Theme.s1 }
         }

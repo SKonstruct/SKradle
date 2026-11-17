@@ -2,7 +2,7 @@ import QtQuick
 
 // Keyboard focus visual for custom items. Parent must expose visualFocus (any Control does).
 Rectangle {
-    property bool active: parent && parent.visualFocus
+    property bool active: !!(parent && parent.visualFocus)
     property int grow: 3
     anchors.fill: parent
     anchors.margins: -grow
