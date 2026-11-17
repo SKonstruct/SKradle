@@ -1,0 +1,15 @@
+[package]
+name = "skradle-core"
+description = "SKradle launcher logic: game discovery, updater driver, mods, servers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+tempfile = "3"
