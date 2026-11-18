@@ -8,6 +8,7 @@ pub mod index;
 pub mod install;
 pub mod net;
 pub mod runtime;
+pub mod servers;
 pub mod telemetry;
 pub mod update;
 pub mod vdf;
