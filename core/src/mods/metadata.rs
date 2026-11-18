@@ -205,10 +205,15 @@ pub fn set_properties(existing: &[u8], changes: &BTreeMap<String, String>) -> Ve
         group.clear();
     };
     for line in text.split_inclusive('\n') {
+        // A comment or blank line is never continued, whatever it ends with.
+        let alone = group.is_empty() && {
+            let first = line.trim_start_matches([' ', '\t', '\u{c}']);
+            first.starts_with(['#', '!']) || first.trim().is_empty()
+        };
         group.push_str(line);
         let body = line.trim_end_matches(['\n', '\r']);
         let slashes = body.chars().rev().take_while(|&c| c == '\\').count();
-        if slashes % 2 == 0 {
+        if alone || slashes % 2 == 0 {
             flush(&mut group, &mut out, &mut pending);
         }
     }
@@ -428,6 +433,17 @@ mod tests {
         assert_eq!(out, "k=new\nother=1\nk=new\n");
         // An escaped backslash at the end of a line does not continue it.
         assert_eq!(set("a=x\\\\\nb=2\n", &[("b", "3")]), "a=x\\\\\nb=3\n");
+    }
+
+    #[test]
+    fn a_comment_ending_in_a_backslash_does_not_swallow_the_next_property() {
+        // Comments are never continued; a `#` that starts a continuation line is part of the value.
+        let out = set("# path C:\\\nk=old\n", &[("k", "new")]);
+        assert_eq!(out, "# path C:\\\nk=new\n");
+        let out = set("! note \\\n\nk=old\n", &[("k", "new")]);
+        assert_eq!(out, "! note \\\n\nk=new\n");
+        let out = set("a=x\\\n# not a comment\nk=old\n", &[("k", "new")]);
+        assert_eq!(out, "a=x\\\n# not a comment\nk=new\n");
     }
 
     #[test]
