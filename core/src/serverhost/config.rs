@@ -207,15 +207,22 @@ pub struct Current {
     pub webui_enabled: Option<bool>,
     pub public_url: Option<String>,
     pub tls_mode: Option<String>,
+    /// The file still has a legacy `news-port` line, which [`HostConfig::apply`] drops.
+    pub has_news_port: bool,
 }
 
 impl Current {
     /// Whether the file is in the form [`HostConfig::apply`] writes: WebUI on, plain HTTP, the admin origin pinned
-    /// to `127.0.0.1` on the web port, and an explicit web port (the engine's shipped file has none of that).
+    /// to `127.0.0.1` on the web port, an explicit web port (the engine's shipped file has none of that), valid and
+    /// different ports, a bind address that is `127.0.0.1` or `0.0.0.0` (what the launcher writes), and no legacy
+    /// `news-port`.
     pub fn is_launcher_configured(&self) -> bool {
         self.webui_enabled == Some(true)
             && self.tls_mode.as_deref() == Some("http")
             && self.web_port.is_some()
+            && matches!(self.bind.as_deref(), Some(LOOPBACK | "0.0.0.0"))
+            && !self.has_news_port
+            && self.host_config().validate().is_ok()
             && self.public_url.as_deref() == Some(self.host_config().public_url().as_str())
     }
 
@@ -242,6 +249,7 @@ pub fn read(text: &str) -> Result<Current, ConfigError> {
             "server-ip" => current.bind = Some(value),
             "server-port" => current.game_port = value.parse().ok(),
             "webui/content_url-port" | "news-port" => {
+                current.has_news_port |= *name == "news-port";
                 current.web_port = value.parse().ok().or(current.web_port)
             }
             "webui-enabled" => current.webui_enabled = value.parse().ok(),
@@ -514,6 +522,41 @@ mod tests {
             .unwrap()
             .replace("http://127.0.0.1:8080", "http://192.168.1.5:8080");
         assert!(!read(&edited).unwrap().is_launcher_configured());
+    }
+
+    #[test]
+    fn a_file_with_invalid_ports_a_foreign_bind_or_a_legacy_news_port_is_not_configured() {
+        let good = cfg(false).apply(SHIPPED).unwrap();
+        assert!(read(&good).unwrap().is_launcher_configured());
+        let edit = |from: &str, to: &str| {
+            let text = good.replace(from, to);
+            assert_ne!(text, good, "{from}");
+            read(&text).unwrap().is_launcher_configured()
+        };
+        // Port 0 on both the web port and the origin that follows it.
+        assert!(
+            !edit("webui/content_url-port: 8080", "webui/content_url-port: 0")
+                && !read(
+                    &good
+                        .replace("webui/content_url-port: 8080", "webui/content_url-port: 0")
+                        .replace("127.0.0.1:8080", "127.0.0.1:0")
+                )
+                .unwrap()
+                .is_launcher_configured()
+        );
+        assert!(!edit("server-port: 47624", "server-port: 0"));
+        // Both ports equal.
+        let same = good.replace("server-port: 47624", "server-port: 8080");
+        assert!(!read(&same).unwrap().is_launcher_configured());
+        // A bind the launcher does not write.
+        assert!(!edit("server-ip: 127.0.0.1", "server-ip: 192.168.1.50"));
+        assert!(!read(&good.replace("server-ip: 127.0.0.1\n", ""))
+            .unwrap()
+            .is_launcher_configured());
+        // A legacy news-port line.
+        assert!(!read(&format!("{good}news-port: 8080\n"))
+            .unwrap()
+            .is_launcher_configured());
     }
 
     #[test]
