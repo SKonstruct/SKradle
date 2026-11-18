@@ -898,6 +898,9 @@ impl ServerHost {
         // The web listener opens before the game listener; give it a moment anyway.
         let web = self.wait_for_web(host_config.web_port, &run);
         lock(&run.state).web = web;
+        if let Some(error) = self.interrupted(&run) {
+            return failed(self, &run, error);
+        }
 
         if self.options.manage_admin {
             let admin_state = match self.apply_admin(&run, false) {
@@ -905,9 +908,25 @@ impl ServerHost {
                 Err(e) => AdminState::Failed(e.to_string()),
             };
             lock(&run.state).admin = admin_state;
+            if let Some(error) = self.interrupted(&run) {
+                return failed(self, &run, error);
+            }
         }
         lock(&run.state).phase = Phase::Running;
         Ok(())
+    }
+
+    /// Whether a stop was requested or the child exited while a start was still working: the start has failed even
+    /// if the earlier steps went well.
+    fn interrupted(&self, run: &Arc<Run>) -> Option<HostError> {
+        run.refresh_exit();
+        if self.abort.load(Ordering::SeqCst) {
+            return Some(HostError::Aborted);
+        }
+        let s = lock(&run.state);
+        let code = s.exit?;
+        let (tail, _) = s.log.since(s.log.since(0).1.saturating_sub(12));
+        Some(HostError::EarlyExit { code, tail })
     }
 
     fn wait_for_web(&self, port: u16, run: &Arc<Run>) -> WebState {
@@ -1681,6 +1700,35 @@ exit 1
         );
         assert_eq!(status.exit_code, Some(7));
         assert!(!status.game_ready);
+    }
+
+    #[test]
+    fn an_engine_that_dies_while_the_admin_account_is_applied_fails_the_start() {
+        // Listening, then gone as soon as the first console command arrives.
+        let script = format!("{BANNER}IFS= read -r line\nexit 3\n");
+        let f = fixture_with(&script, |_| {}, 200);
+        let err = f.host.start().unwrap_err();
+        assert!(
+            matches!(err, HostError::EarlyExit { code: Some(3), .. }),
+            "{err}"
+        );
+        let status = f.host.status();
+        assert!(matches!(status.phase, Phase::Failed(_)), "{status:?}");
+        assert_eq!(status.pid, None);
+    }
+
+    #[test]
+    fn a_stop_that_arrives_while_the_admin_account_is_applied_fails_the_start() {
+        // The engine never answers the console, so the start sits in the admin step until the prompt timeout.
+        let script = format!("{BANNER}sleep 30\n");
+        let f = fixture_with(&script, |o| o.prompt_timeout = Duration::from_secs(2), 200);
+        let host = f.host.clone();
+        let starter = thread::spawn(move || host.start());
+        thread::sleep(Duration::from_millis(800));
+        let _ = f.host.stop();
+        let result = starter.join().unwrap();
+        assert!(matches!(result, Err(HostError::Aborted)), "{result:?}");
+        assert!(!f.host.is_alive());
     }
 
     #[test]
