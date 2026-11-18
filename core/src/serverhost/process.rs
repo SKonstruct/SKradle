@@ -597,12 +597,28 @@ fn read_lines(stream: impl Read, mut on_line: impl FnMut(String)) {
             Ok(_) => {}
         }
         if buf.last() != Some(&b'\n') && buf.len() >= MAX_LINE_BYTES {
-            // Too long: keep the start, drop the rest of the line.
-            let mut rest = Vec::new();
-            let _ = reader.read_until(b'\n', &mut rest);
+            // Too long: keep the start, drop the rest of the line without holding it.
+            skip_line(&mut reader);
         }
         let text = String::from_utf8_lossy(&buf);
         on_line(text.trim_end_matches(['\r', '\n']).to_owned());
+    }
+}
+
+/// Consumes input up to and including the next newline (or the end) without keeping any of it.
+fn skip_line(reader: &mut impl BufRead) {
+    loop {
+        let (done, used) = match reader.fill_buf() {
+            Ok([]) | Err(_) => return,
+            Ok(chunk) => match chunk.iter().position(|&b| b == b'\n') {
+                Some(at) => (true, at + 1),
+                None => (false, chunk.len()),
+            },
+        };
+        reader.consume(used);
+        if done {
+            return;
+        }
     }
 }
 
@@ -1304,6 +1320,32 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0].len(), MAX_LINE_BYTES);
         assert_eq!(lines[1], "ok \u{fffd} end");
+    }
+
+    #[test]
+    fn the_rest_of_a_huge_line_is_skipped_in_chunks_and_the_next_line_survives() {
+        // Several buffer fills of one endless line, then an ordinary line, one ending exactly at the cut, and a
+        // final line without a newline.
+        let mut data = vec![b'x'; 3 * 1024 * 1024];
+        data.extend_from_slice(b"\nafter\n");
+        data.extend(std::iter::repeat_n(b'y', MAX_LINE_BYTES - 1));
+        data.extend_from_slice(b"\nnext\ntail");
+        let mut lines = Vec::new();
+        read_lines(&data[..], |l| lines.push(l));
+        assert_eq!(
+            lines.len(),
+            5,
+            "{:?}",
+            lines.iter().map(String::len).collect::<Vec<_>>()
+        );
+        assert_eq!(lines[0].len(), MAX_LINE_BYTES);
+        assert_eq!(lines[1], "after");
+        assert_eq!(lines[2].len(), MAX_LINE_BYTES - 1);
+        assert_eq!(lines[3], "next");
+        assert_eq!(lines[4], "tail");
+        let mut more = Vec::new();
+        read_lines(&b"a\nb"[..], |l| more.push(l));
+        assert_eq!(more, ["a", "b"]);
     }
 
     #[test]
