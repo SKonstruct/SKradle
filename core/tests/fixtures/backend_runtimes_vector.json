@@ -1,0 +1,20 @@
+{
+  "description": "Test vector for the launcher runtime index envelope. Ed25519 (RFC 8032, pure) over the UTF-8 bytes of envelope.payload; signature and publicKey are standard base64 (signature 64 bytes, publicKey 32 raw bytes). Generated with a throwaway key whose private half was discarded; the URLs use the reserved .invalid TLD.",
+  "keyId": "test-vector",
+  "publicKey": "cB2LqpexnOQR2dCoN1p/GnLrHtbJz2RZ59cRGceRWkI=",
+  "validAt": "2026-12-01T00:00:00Z",
+  "expiredAt": "2027-02-01T00:00:00Z",
+  "valid": {
+    "payload": "{\"expiresAt\":\"2027-01-17T00:00:00Z\",\"generatedAt\":\"2026-11-18T00:00:00Z\",\"modules\":[{\"id\":\"skgfx-agent\",\"minJava\":17,\"sha256\":\"fd04d60799d9eb8e827fcee97af3a8690bbf3109d137c162d9c2c31e855bdc79\",\"size\":123456,\"url\":\"https://downloads.example.invalid/vector/skgfx-agent-0.1.0.jar\",\"version\":\"0.1.0\"}],\"runtimes\":[{\"arch\":\"x64\",\"id\":\"vector-temurin-21-linux-x64\",\"javaHome\":\"jdk-21.0.5+11-jre\",\"javaVersion\":\"21.0.5+11\",\"os\":\"linux\",\"sha256\":\"973484279e3bbf9298de12705a332fa5118214f772555aa1760b583b68ad28ce\",\"size\":52428800,\"url\":\"https://downloads.example.invalid/vector/jre-21-linux-x64.tar.gz\",\"vendor\":\"Temurin\"},{\"arch\":\"arm64\",\"id\":\"vector-temurin-21-macos-arm64\",\"javaHome\":\"jdk-21.0.5+11-jre/Contents/Home\",\"javaVersion\":\"21.0.5+11\",\"os\":\"macos\",\"sha256\":\"6926eef16256189bb671cb09eb31ee9f9f4455bb9d60345012e5fe35d13a3d6e\",\"size\":48234496,\"url\":\"https://downloads.example.invalid/vector/jre-21-macos-arm64.tar.gz\",\"vendor\":\"Temurin\"}],\"schema\":1}",
+    "signature": "PFP4wsS2Mt7T15jZx8V0doYw9DgqG6oGXoCdtjxb/3mFUntT9SV/3DK9D1iRUdji8hqxbknZryBCcgJepXwwBQ==",
+    "keyId": "test-vector"
+  },
+  "tamperedPayload": {
+    "envelope": {
+      "payload": "{\"expiresAt\":\"2027-01-17T00:00:00Z\",\"generatedAt\":\"2026-11-18T00:00:00Z\",\"modules\":[{\"id\":\"skgfx-agent\",\"minJava\":17,\"sha256\":\"fd04d60799d9eb8e827fcee97af3a8690bbf3109d137c162d9c2c31e855bdc79\",\"size\":123457,\"url\":\"https://downloads.example.invalid/vector/skgfx-agent-0.1.0.jar\",\"version\":\"0.1.0\"}],\"runtimes\":[{\"arch\":\"x64\",\"id\":\"vector-temurin-21-linux-x64\",\"javaHome\":\"jdk-21.0.5+11-jre\",\"javaVersion\":\"21.0.5+11\",\"os\":\"linux\",\"sha256\":\"973484279e3bbf9298de12705a332fa5118214f772555aa1760b583b68ad28ce\",\"size\":52428800,\"url\":\"https://downloads.example.invalid/vector/jre-21-linux-x64.tar.gz\",\"vendor\":\"Temurin\"},{\"arch\":\"arm64\",\"id\":\"vector-temurin-21-macos-arm64\",\"javaHome\":\"jdk-21.0.5+11-jre/Contents/Home\",\"javaVersion\":\"21.0.5+11\",\"os\":\"macos\",\"sha256\":\"6926eef16256189bb671cb09eb31ee9f9f4455bb9d60345012e5fe35d13a3d6e\",\"size\":48234496,\"url\":\"https://downloads.example.invalid/vector/jre-21-macos-arm64.tar.gz\",\"vendor\":\"Temurin\"}],\"schema\":1}",
+      "signature": "PFP4wsS2Mt7T15jZx8V0doYw9DgqG6oGXoCdtjxb/3mFUntT9SV/3DK9D1iRUdji8hqxbknZryBCcgJepXwwBQ==",
+      "keyId": "test-vector"
+    },
+    "expect": "signature verification fails (payload changed after signing)"
+  }
+}
