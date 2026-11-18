@@ -1,10 +1,11 @@
 //! The engine: finding the newest Tortodrone release, downloading and verifying it, unpacking only what the
 //! launcher needs and installing it so the previous engine can be put back.
 //!
-//! **What a release is** (read from the engine's release workflow and the earlier release listings, not downloaded
-//! here): one asset, `Tortodrone-<tag>.zip` (tag like `v0.40.17`), with the files at the archive root: `tortodrone.jar`,
+//! **What a release is** (read from the engine's release workflow; no release was downloaded while writing this):
+//! one asset, `Tortodrone-<tag>.zip` (tag like `v0.40.17`), with the files at the archive root: `tortodrone.jar`,
 //! `VERSION`, `config/`, `content/`, `webui/`, `plugins/`, `docs/`, `licenses/`, `LICENSE`, `NOTICE`,
-//! `THIRD-PARTY.md`. Every release so far is a GitHub *pre-release*, so pre-releases are accepted (drafts never).
+//! `THIRD-PARTY.md`. The engine's releases have been published as GitHub *pre-releases* (development releases), so
+//! pre-releases are accepted (drafts never).
 //! GitHub publishes a `digest` (`sha256:<hex>`) for each asset; a release without one is not offered.
 //!
 //! **What the launcher installs from it**: the jar, `content/` and `webui/` (each replaced as a whole, the old
@@ -1229,6 +1230,77 @@ mod tests {
         fs::write(layout.jar(), b"PK\x03\x04tampered").unwrap();
         assert_eq!(installed(&layout), EngineState::Modified);
         assert!(!is_ready(&layout));
+    }
+
+    /// Serves one fixed body to every request on a loopback port.
+    fn serve_body(body: Vec<u8>) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!(
+            "http://{}/Tortodrone-v0.40.17.zip",
+            listener.local_addr().unwrap()
+        );
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let mut stream = stream;
+                let mut buf = [0u8; 1024];
+                let _ = stream.read(&mut buf);
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(head.as_bytes());
+                let _ = stream.write_all(&body);
+            }
+        });
+        url
+    }
+
+    #[test]
+    fn a_downloaded_archive_is_checked_against_the_published_digest_then_installed() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = accepted_layout(dir.path());
+        let zip = release_zip("0.40.17", &[]);
+        let url = serve_body(zip.clone());
+        let client = Client::plain_http_for_tests();
+        let dest = layout.download_path();
+        let mut seen = Vec::new();
+        fetch_archive(&client, &url, &net::sha256_hex(&zip), &dest, &mut |s| {
+            seen.push(s)
+        })
+        .unwrap();
+        assert!(matches!(seen.last(), Some(Stage::Downloading(p)) if p.done == zip.len() as u64));
+        let record = install_archive(
+            &layout,
+            &dest,
+            &release_for("0.40.17", &zip),
+            5,
+            &mut |_| {},
+        )
+        .unwrap();
+        assert_eq!(record.archive_sha256, net::sha256_hex(&zip));
+
+        // A different body than the digest promised leaves nothing behind.
+        let other = dir.path().join("other.zip");
+        let err = fetch_archive(&client, &url, &"ab".repeat(32), &other, &mut |_| {}).unwrap_err();
+        assert!(matches!(err, EngineError::ChecksumMismatch), "{err}");
+        assert!(!other.exists());
+    }
+
+    #[test]
+    fn the_launcher_client_refuses_a_plain_http_archive_url() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = fetch_archive(
+            &Client::new(),
+            "http://example.invalid/x.zip",
+            &"00".repeat(32),
+            &dir.path().join("x.zip"),
+            &mut |_| {},
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, EngineError::Net(NetError::InsecureUrl(_))),
+            "{err}"
+        );
     }
 
     #[test]
