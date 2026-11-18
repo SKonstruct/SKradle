@@ -386,6 +386,30 @@ pub fn sync(
     http: &dyn PackHttp,
     progress: &mut dyn FnMut(&SyncProgress),
 ) -> Result<SyncReport, SyncError> {
+    sync_with(mods_dir, http, progress, CASE_INSENSITIVE_FS)
+}
+
+/// Whether file names that differ only in case are the same file on this platform's usual file systems.
+const CASE_INSENSITIVE_FS: bool = cfg!(any(windows, target_os = "macos"));
+
+/// How names are compared when deciding whether a file is still in the pack.
+fn name_key(name: &str, fold_case: bool) -> String {
+    if fold_case {
+        name.to_lowercase()
+    } else {
+        name.to_owned()
+    }
+}
+
+/// [`sync`] with the name comparison chosen by the caller, so the case-insensitive behaviour is testable on any
+/// file system. With `fold_case`, a pack file whose name changed only in letter case is the same file: it is kept,
+/// not deleted as dropped (on such a file system the new name resolves to the old file).
+fn sync_with(
+    mods_dir: &Path,
+    http: &dyn PackHttp,
+    progress: &mut dyn FnMut(&SyncProgress),
+    fold_case: bool,
+) -> Result<SyncReport, SyncError> {
     fs::create_dir_all(mods_dir)?;
     let listing = http.listing().map_err(SyncError::Listing)?;
     let (remote, warnings) = parse_listing(&listing)?;
@@ -397,7 +421,11 @@ pub fn sync(
         ..SyncReport::default()
     };
     let previous = read_manifest(mods_dir);
-    let remote_names: HashSet<&str> = remote.iter().map(|f| f.name.as_str()).collect();
+    let previous_keys: HashSet<String> = previous.iter().map(|n| name_key(n, fold_case)).collect();
+    let remote_keys: HashSet<String> = remote
+        .iter()
+        .map(|f| name_key(&f.name, fold_case))
+        .collect();
     // Files this sync is responsible for after it ends.
     let mut owned: BTreeSet<String> = BTreeSet::new();
 
@@ -429,13 +457,13 @@ pub fn sync(
                 report.downloaded.push(file.name.clone());
             }
             Ok(false) => {
-                if previous.contains(&file.name) {
+                if previous_keys.contains(&name_key(&file.name, fold_case)) {
                     owned.insert(file.name.clone());
                 }
                 report.skipped.push(file.name.clone());
             }
             Err(why) => {
-                if previous.contains(&file.name) && dest.exists() {
+                if previous_keys.contains(&name_key(&file.name, fold_case)) && dest.exists() {
                     owned.insert(file.name.clone());
                 }
                 report.failed.push((file.name.clone(), why));
@@ -445,7 +473,7 @@ pub fn sync(
 
     // Remove what the pack dropped, but only files an earlier sync wrote.
     for name in &previous {
-        if remote_names.contains(name.as_str()) {
+        if remote_keys.contains(&name_key(name, fold_case)) {
             continue;
         }
         let path = mods_dir.join(name);
@@ -537,6 +565,76 @@ mod tests {
                 .map(|(_, b)| b.clone())
                 .ok_or_else(|| "404".to_owned())
         }
+    }
+
+    #[test]
+    fn a_case_only_rename_is_the_same_file_when_names_are_compared_case_insensitively() {
+        // Injected comparison, so this holds on a case-sensitive test machine too.
+        let dir = tempfile::tempdir().unwrap();
+        sync_with(
+            dir.path(),
+            &FakePack::with(&[("MyMod.zip", b"AAA")]),
+            &mut |_| {},
+            true,
+        )
+        .unwrap();
+        let report = sync_with(
+            dir.path(),
+            &FakePack::with(&[("mymod.zip", b"AAA")]),
+            &mut |_| {},
+            true,
+        )
+        .unwrap();
+        assert!(
+            report.failed.is_empty() && report.deleted.is_empty(),
+            "{report:?}"
+        );
+        // The pack's current spelling is the one tracked.
+        assert_eq!(
+            fs::read_to_string(dir.path().join(MANIFEST)).unwrap(),
+            "mymod.zip\n"
+        );
+        assert!(dir.path().join("MyMod.zip").exists() || dir.path().join("mymod.zip").exists());
+    }
+
+    #[test]
+    fn names_that_differ_in_case_are_different_files_when_compared_exactly() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("probe.TMP"), b"").unwrap();
+        if dir.path().join("PROBE.tmp").exists() {
+            return; // this file system cannot tell them apart
+        }
+        sync_with(
+            dir.path(),
+            &FakePack::with(&[("MyMod.zip", b"A")]),
+            &mut |_| {},
+            false,
+        )
+        .unwrap();
+        let report = sync_with(
+            dir.path(),
+            &FakePack::with(&[("mymod.zip", b"A")]),
+            &mut |_| {},
+            false,
+        )
+        .unwrap();
+        assert_eq!(report.deleted, ["MyMod.zip"]);
+        assert!(dir.path().join("mymod.zip").exists());
+    }
+
+    #[test]
+    fn a_case_only_rename_on_this_file_system_leaves_a_synced_file_behind() {
+        // The real thing, where the temp folder happens to be case-insensitive (the default on macOS and Windows).
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("probe.TMP"), b"").unwrap();
+        if !dir.path().join("PROBE.tmp").exists() {
+            return;
+        }
+        run(dir.path(), &FakePack::with(&[("MyMod.zip", b"AAA")]));
+        run(dir.path(), &FakePack::with(&[("mymod.zip", b"AAA")]));
+        assert_eq!(fs::read(dir.path().join("mymod.zip")).unwrap(), b"AAA");
+        run(dir.path(), &FakePack::with(&[("mymod.zip", b"BBB")]));
+        assert_eq!(fs::read(dir.path().join("mymod.zip")).unwrap(), b"BBB");
     }
 
     fn run(dir: &Path, pack: &FakePack) -> SyncReport {
