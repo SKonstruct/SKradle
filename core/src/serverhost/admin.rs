@@ -113,6 +113,7 @@ pub fn store(layout: &ServerLayout, credentials: &Credentials) -> io::Result<()>
         let mut file = create_private(&tmp)?;
         file.write_all(json.as_bytes())?;
         file.sync_all()?;
+        drop(file);
         restrict_windows_acl(&tmp);
         std::fs::rename(&tmp, &path)
     })();

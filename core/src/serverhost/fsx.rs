@@ -26,6 +26,7 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
         let mut file = File::create(&tmp)?;
         file.write_all(bytes)?;
         file.sync_all()?;
+        drop(file);
         fs::rename(&tmp, path)
     })();
     if result.is_err() {

@@ -84,7 +84,9 @@ fn existing(path: &Path) -> io::Result<Option<fs::Metadata>> {
 /// A transaction. Dropping it without [`Txn::commit`] rolls it back.
 pub struct Txn {
     root: PathBuf,
-    journal: fs::File,
+    /// Closed (`None`) before the journal is renamed or the folder removed, which an open handle can block on
+    /// Windows.
+    journal: Option<fs::File>,
     next_backup: u64,
     finished: bool,
     /// Test hook: fail the n-th (0-based) step. Steps are the points inside `put` and `delete` where a real write
@@ -109,7 +111,7 @@ impl Txn {
             .open(dir.join(JOURNAL))?;
         Ok(Txn {
             root: root.to_path_buf(),
-            journal,
+            journal: Some(journal),
             next_backup: 0,
             finished: false,
             fail_at,
@@ -134,7 +136,11 @@ impl Txn {
 
     fn log(&mut self, line: &str) -> io::Result<()> {
         debug_assert!(!line.contains('\n'));
-        self.journal.write_all(format!("{line}\n").as_bytes())
+        let journal = self
+            .journal
+            .as_mut()
+            .ok_or_else(|| other("the transaction is finished"))?;
+        journal.write_all(format!("{line}\n").as_bytes())
     }
 
     /// Makes the file at `rel` (relative to the game folder) contain `bytes`, keeping the original for a rollback.
@@ -210,6 +216,7 @@ impl Txn {
     /// Keeps the changes and deletes the backups.
     pub fn commit(mut self) -> io::Result<()> {
         self.finished = true;
+        drop(self.journal.take());
         let dir = txn_dir(&self.root);
         fs::rename(dir.join(JOURNAL), dir.join(COMMITTED))?;
         // The change is final now. A clean-up that fails is finished by the next `recover`, and is not an error of
@@ -223,6 +230,7 @@ impl Txn {
     /// Undoes every change.
     pub fn rollback(mut self) -> io::Result<()> {
         self.finished = true;
+        drop(self.journal.take());
         rollback_dir(&self.root)
     }
 }
@@ -230,6 +238,7 @@ impl Txn {
 impl Drop for Txn {
     fn drop(&mut self) {
         if !self.finished {
+            drop(self.journal.take());
             let _ = rollback_dir(&self.root);
         }
     }

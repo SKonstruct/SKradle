@@ -240,6 +240,7 @@ impl Client {
                 progress(Progress { done, total });
             }
             file.sync_all()?;
+            drop(file);
             if let Some(expected) = &options.sha256 {
                 let actual = hex(hasher.finalize().as_slice());
                 if !actual.eq_ignore_ascii_case(expected.trim()) {
