@@ -398,11 +398,13 @@ mod tests {
     fn round_trips() {
         let dir = temp();
         let path = dir.path().join("sub/settings.json");
-        let mut s = Settings::default();
-        s.theme = Theme::Dark;
-        s.memory_mb = Some(4096);
-        s.game_path = Some("/games/sk".into());
-        s.crash_reports = false;
+        let s = Settings {
+            theme: Theme::Dark,
+            memory_mb: Some(4096),
+            game_path: Some("/games/sk".into()),
+            crash_reports: false,
+            ..Settings::default()
+        };
         save(&path, &s).unwrap();
         let (back, outcome) = load(&path);
         assert_eq!(back, s);

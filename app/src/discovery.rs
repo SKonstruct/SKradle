@@ -151,7 +151,7 @@ fn percent_decode(text: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() + 0 && i + 2 <= bytes.len() - 1 {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
             if let Ok(v) = u8::from_str_radix(&text[i + 1..i + 3], 16) {
                 out.push(v);
                 i += 3;

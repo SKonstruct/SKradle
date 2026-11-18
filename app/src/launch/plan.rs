@@ -266,8 +266,10 @@ mod tests {
         let install = game(&dir.path().join("g"), Some("25000000"));
         fake_java(&install.path.join("java_vm"), "25.0.5");
         fake_java(&dir.path().join("mine"), "27.0.0");
-        let mut settings = Settings::default();
-        settings.java_path = dir.path().join("mine").display().to_string();
+        let mut settings = Settings {
+            java_path: dir.path().join("mine").display().to_string(),
+            ..Settings::default()
+        };
         let p = plan(&machine(None), Some(&install), &settings).unwrap();
         assert_eq!(p.java_home, dir.path().join("mine"));
         // The `bin/java` file works as well as the home.
@@ -305,9 +307,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let install = game(&dir.path().join("g"), Some("25000000"));
         fake_java(&install.path.join("java_vm"), "25.0.5");
-        let mut settings = Settings::default();
-        settings.memory_mb = Some(3072);
-        settings.extra_jvm_args = "-Dhttps.proxyHost=p  -Dx=1".into();
+        let settings = Settings {
+            memory_mb: Some(3072),
+            extra_jvm_args: "-Dhttps.proxyHost=p  -Dx=1".into(),
+            ..Settings::default()
+        };
         let p = plan(&machine(None), Some(&install), &settings).unwrap();
         assert_eq!(p.memory_mb, Some(3072));
         let args: Vec<_> = p
