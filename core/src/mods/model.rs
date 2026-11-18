@@ -375,12 +375,23 @@ impl Mod {
         &self,
         path: &Path,
         part: &Part,
+        f: impl FnMut(&PartFile, Vec<u8>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.each_file_where(path, part, |_| true, f)
+    }
+
+    /// Like [`Mod::each_file`], but only reads the files `want` accepts.
+    pub fn each_file_where<E: From<ModError>>(
+        &self,
+        path: &Path,
+        part: &Part,
+        want: impl Fn(&PartFile) -> bool,
         mut f: impl FnMut(&PartFile, Vec<u8>) -> Result<(), E>,
     ) -> Result<(), E> {
         let mut outer = Archive::open(File::open(path).map_err(ModError::from)?, &Limits::MOD)
             .map_err(ModError::from)?;
         match &part.source {
-            PartSource::Archive => each_in(&mut outer, part, &mut f),
+            PartSource::Archive => each_in(&mut outer, part, &want, &mut f),
             PartSource::Inner {
                 index,
                 path: inner_path,
@@ -394,7 +405,7 @@ impl Mod {
                 }
                 let bytes = outer.read(*index).map_err(ModError::from)?;
                 let mut inner = Archive::from_bytes(bytes, &Limits::MOD).map_err(ModError::from)?;
-                each_in(&mut inner, part, &mut f)
+                each_in(&mut inner, part, &want, &mut f)
             }
         }
     }
@@ -403,9 +414,10 @@ impl Mod {
 fn each_in<R: io::Read + io::Seek, E: From<ModError>>(
     archive: &mut Archive<R>,
     part: &Part,
+    want: &impl Fn(&PartFile) -> bool,
     f: &mut impl FnMut(&PartFile, Vec<u8>) -> Result<(), E>,
 ) -> Result<(), E> {
-    for file in part.applicable_files() {
+    for file in part.applicable_files().filter(|f| want(f)) {
         let matches = archive
             .entries()
             .iter()
