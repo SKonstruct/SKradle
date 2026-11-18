@@ -21,6 +21,8 @@ serde_json = "1.0.154"
 base64 = "0.23.1"
 ed25519-dalek = "3.0.0"
 regex = { version = "1.13.1", default-features = false, features = ["std", "unicode-case", "unicode-perl"] }
+# OS random source for the generated WebUI admin password (MIT OR Apache-2.0; already in the build through zip).
+getrandom = "0.4"
 
 [dev-dependencies]
 tempfile = "3"

@@ -86,3 +86,24 @@ updater actually exiting cleanly in that setup, are unverified. Neither path mod
 
 An `-Dsilent=noupdate` property makes the updater skip the update step and the lock (`SysProps.noUpdate`); it was read
 from the bytecode and never tried.
+
+## The launch planner
+
+`skradle_core::launch::plan` decides how a launch runs and `execute` runs it through an `Effects` implementation
+(`RealEffects` is the real one). The order matters, and each wrong order fails silently, so it is fixed in one place:
+
+1. **An update is pending, or game files are missing:** the updater runs (after the graphics module's lines are removed
+   from `extra.txt`). It verifies and repairs the game, which replaces every file a mod changed, and starts the game
+   once on the game's own runtime, so mods and the graphics agent apply from the next launch. A private server is
+   refused in this state (`Refusal::UpdateRequiredForPrivateServer`), because the updater would restore `config.jar` and
+   the game would connect to Official.
+2. **Otherwise:** apply mods, then write the server settings into `config.jar` (applying mods rebuilds that jar from
+   the game's original, which discards the settings), then start the client directly. The updater must not start the
+   game here: it would see the changed files and put the originals back.
+3. **The graphics agent** needs a Java that can load it (24 or newer with `java.instrument`); the game's own trimmed
+   runtime cannot. The direct launch uses such a runtime and passes the agent as JVM arguments, never through
+   `extra.txt`. With none available the game starts without it and the plan carries a warning.
+
+`execute` stops at the first failing step: nothing after it runs and the game is not started on a half-applied state.
+The pending-update check (`servers::update_pending`) treats an unreachable server as no update, so an offline private
+server still launches.

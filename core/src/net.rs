@@ -101,6 +101,12 @@ impl Client {
         Self::build(true)
     }
 
+    /// A client that also accepts plain `http://`, for tests that talk to a loopback server.
+    #[cfg(test)]
+    pub(crate) fn plain_http_for_tests() -> Self {
+        Self::build(false)
+    }
+
     fn build(https_only: bool) -> Self {
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .https_only(https_only)

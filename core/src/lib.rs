@@ -15,6 +15,7 @@ pub mod mods;
 pub mod net;
 pub mod presence;
 pub mod runtime;
+pub mod serverhost;
 pub mod servers;
 pub mod telemetry;
 pub mod update;
