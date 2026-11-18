@@ -31,6 +31,12 @@ fn main() {
         .qrc("resources.qrc")
         .cpp_file("cpp/glue.cpp")
         .include_dir("cpp")
-        .files(["src/bridge/app_env.rs", "src/bridge/glue.rs"])
+        .files([
+            "src/bridge/app_env.rs",
+            "src/bridge/glue.rs",
+            "src/bridge/settings_model.rs",
+            "src/bridge/game_model.rs",
+            "src/bridge/launch_model.rs",
+        ])
         .build();
 }

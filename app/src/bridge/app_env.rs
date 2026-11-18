@@ -5,6 +5,8 @@ pub mod qobject {
     unsafe extern "C++" {
         include!("cxx-qt-lib/qstring.h");
         type QString = cxx_qt_lib::QString;
+        include!("cxx-qt-lib/qurl.h");
+        type QUrl = cxx_qt_lib::QUrl;
     }
 
     extern "RustQt" {
@@ -30,6 +32,11 @@ pub mod qobject {
         #[qinvokable]
         fn report(self: &AppEnv, text: &QString);
 
+        /// The local path of a file URL (what a file dialog returns); empty for anything else.
+        #[qinvokable]
+        #[cxx_name = "localPath"]
+        fn local_path(self: &AppEnv, url: &QUrl) -> QString;
+
         /// Ends the self-test: exit status 0 when `ok`.
         #[qinvokable]
         #[cxx_name = "finishSelftest"]
@@ -37,7 +44,7 @@ pub mod qobject {
     }
 }
 
-use cxx_qt_lib::QString;
+use cxx_qt_lib::{QString, QUrl};
 
 use crate::options::{self, Options};
 
@@ -87,6 +94,14 @@ impl Default for AppEnvRust {
 impl qobject::AppEnv {
     fn report(&self, text: &QString) {
         println!("{text}");
+    }
+
+    fn local_path(&self, url: &QUrl) -> QString {
+        QString::from(
+            crate::discovery::path_from_url_text(&url.to_qstring().to_string())
+                .to_string_lossy()
+                .as_ref(),
+        )
     }
 
     fn finish_selftest(&self, ok: bool, text: &QString) {

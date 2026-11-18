@@ -1,7 +1,11 @@
 //! SKradle: the desktop launcher. A Qt Quick UI (embedded QML) on top of `skradle-core`, bridged with cxx-qt.
 
 mod bridge;
+mod discovery;
+mod launch;
 mod options;
+mod reporter;
+mod settings;
 
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, QUrl};
 
@@ -19,6 +23,15 @@ fn main() {
         }
     };
     options::set(options.clone());
+
+    // Tests and screenshot runs never touch the player's own settings.
+    if (options.selftest || options.shots.is_some())
+        && std::env::var_os("SKRADLE_CONFIG_DIR").is_none()
+    {
+        let dir = std::env::temp_dir().join(format!("skradle-run-{}", std::process::id()));
+        std::env::set_var("SKRADLE_CONFIG_DIR", dir);
+    }
+    reporter::init(settings::global().get().crash_reports && !options.selftest);
 
     // The Basic style looks the same on every OS and all visible controls are our own templates.
     if let Some(style) = &options.style {
@@ -46,5 +59,6 @@ fn main() {
         engine.as_mut().load(&QUrl::from(MAIN_QML));
     }
     let status = app.as_mut().map_or(1, |app| app.exec());
+    settings::global().flush();
     std::process::exit(status);
 }
