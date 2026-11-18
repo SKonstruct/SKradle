@@ -166,7 +166,8 @@ mod tests {
         assert_eq!(spec.cwd, Path::new("/games/sk"));
         spec.args
             .iter()
-            .map(|a| a.to_string_lossy().into_owned())
+            // Paths are joined with the host's separator; the expectations use `/`.
+            .map(|a| a.to_string_lossy().replace('\\', "/"))
             .collect()
     }
 

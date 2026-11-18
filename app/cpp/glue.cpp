@@ -129,6 +129,8 @@ bool grab_window(const QString &path) {
     return window->grabWindow().save(path);
 }
 
+void quit_app(int code) { QCoreApplication::exit(code); }
+
 int qml_warning_count() { return g_qml_warnings.load(); }
 
 QString qt_version() { return QString::fromLatin1(qVersion()); }

@@ -83,5 +83,9 @@ fn main() {
     }
     let status = app.as_mut().map_or(1, |app| app.exec());
     settings::global().flush();
+    // Destroy the QML engine (and any web view in it) and then the application object before `exit` runs
+    // the C++ static destructors; with them alive Qt crashes on the way out.
+    drop(engine);
+    drop(app);
     std::process::exit(status);
 }

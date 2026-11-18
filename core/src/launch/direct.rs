@@ -226,7 +226,8 @@ mod tests {
     fn strings(spec: &CommandSpec) -> Vec<String> {
         spec.args
             .iter()
-            .map(|a| a.to_string_lossy().into_owned())
+            // Paths are joined with the host's separator; the expectations use `/`.
+            .map(|a| a.to_string_lossy().replace('\\', "/"))
             .collect()
     }
 

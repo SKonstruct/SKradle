@@ -527,9 +527,12 @@ mod tests {
         let java = dir.path().join("java");
         std::fs::write(&java, format!("#!/bin/sh\n{script}\n")).unwrap();
         std::fs::set_permissions(&java, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // Run it through `sh` rather than executing the file: another test forking at the same
+        // moment can briefly hold this file's write descriptor, and exec then fails with
+        // "Text file busy".
         let spec = CommandSpec {
-            program: java,
-            args: vec![],
+            program: "/bin/sh".into(),
+            args: vec![java.into_os_string()],
             cwd: dir.path().to_path_buf(),
         };
         (dir, spec)

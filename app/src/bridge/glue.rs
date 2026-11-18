@@ -22,6 +22,8 @@ pub mod ffi {
         #[namespace = "skradle"]
         fn grab_window(path: &QString) -> bool;
         #[namespace = "skradle"]
+        fn quit_app(code: i32);
+        #[namespace = "skradle"]
         fn qml_warning_count() -> i32;
         #[namespace = "skradle"]
         fn qt_version() -> QString;
@@ -30,7 +32,9 @@ pub mod ffi {
     }
 }
 
-pub use ffi::{has_window, init_app, init_webview, register_engine, webview_backend_available};
+pub use ffi::{
+    has_window, init_app, init_webview, quit_app, register_engine, webview_backend_available,
+};
 
 /// Installs the translator for `language`; returns the catalogue in use (empty for the English source text).
 pub fn set_language(language: &str) -> String {

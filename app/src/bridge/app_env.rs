@@ -134,6 +134,7 @@ impl qobject::AppEnv {
         };
         let text = &text;
         println!("selftest: {} ({text})", if ok { "ok" } else { "FAILED" });
-        std::process::exit(if ok { 0 } else { 1 });
+        // Leave through the event loop so `main` tears the QML engine down before the process exits.
+        super::glue::quit_app(if ok { 0 } else { 1 });
     }
 }

@@ -24,6 +24,10 @@ bool has_window();
 // Saves a screenshot of the first window to `path` (PNG). Returns false when there is no window or saving failed.
 bool grab_window(const QString &path);
 
+// Ends the event loop; `exec()` returns `code`. The self-test uses this instead of `exit()` so that the QML engine
+// and its web view are destroyed in order (calling `exit()` with them alive crashes in Qt's static destructors).
+void quit_app(int code);
+
 // Number of QML/Qt warnings seen so far whose text points into the app's QML ("qrc:/..."); the self-test fails on any.
 int qml_warning_count();
 
