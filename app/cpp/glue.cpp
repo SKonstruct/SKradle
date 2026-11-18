@@ -5,11 +5,27 @@
 #include <QtCore/QTranslator>
 #include <QtGui/QGuiApplication>
 #include <QtGui/QIcon>
+#include <QtGui/QImage>
+#include <QtQuick/QQuickWindow>
+#include <atomic>
+#include <cstdio>
 #include <memory>
 
 namespace {
 
 QQmlApplicationEngine *g_engine = nullptr;
+std::atomic<int> g_qml_warnings{0};
+QtMessageHandler g_previous_handler = nullptr;
+
+// Counts warnings that point into our own QML files (binding errors, undefined values, missing types), so the
+// self-test can fail on them. Everything is still passed on to Qt's normal output.
+void message_handler(QtMsgType type, const QMessageLogContext &context, const QString &message) {
+    if ((type == QtWarningMsg || type == QtCriticalMsg) && message.startsWith(QLatin1String("qrc:/qt/qml/com/skradle/app/"))) {
+        ++g_qml_warnings;
+    }
+    if (g_previous_handler) g_previous_handler(type, context, message);
+    else std::fprintf(stderr, "%s\n", qPrintable(message));
+}
 std::unique_ptr<QTranslator> g_translator;
 
 // Pseudo-localisation: every word grows by about a third and gets accents, which shows clipped or fixed-width text
@@ -47,6 +63,7 @@ public:
 namespace skradle {
 
 void init_app() {
+    g_previous_handler = qInstallMessageHandler(message_handler);
     QCoreApplication::setApplicationName(QStringLiteral("SKradle"));
     QCoreApplication::setOrganizationName(QStringLiteral("SKradle"));
     QCoreApplication::setOrganizationDomain(QStringLiteral("skradle.invalid"));
@@ -57,6 +74,14 @@ void init_app() {
 }
 
 void register_engine(QQmlApplicationEngine &engine) { g_engine = &engine; }
+
+bool grab_window(const QString &path) {
+    if (!g_engine) return false;
+    auto *window = qobject_cast<QQuickWindow *>(g_engine->rootObjects().value(0));
+    return window && window->grabWindow().save(path);
+}
+
+int qml_warning_count() { return g_qml_warnings.load(); }
 
 QString qt_version() { return QString::fromLatin1(qVersion()); }
 

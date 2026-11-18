@@ -9,6 +9,8 @@ QtObject {
     property SystemPalette sys: SystemPalette {}
     readonly property bool dark: AppEnv.scheme === "dark" ? true
         : AppEnv.scheme === "light" ? false
+        : Settings.theme === "dark" ? true
+        : Settings.theme === "light" ? false
         : Qt.styleHints.colorScheme === Qt.ColorScheme.Dark ? true
         : Qt.styleHints.colorScheme === Qt.ColorScheme.Light ? false
         : sys.window.hslLightness < 0.5

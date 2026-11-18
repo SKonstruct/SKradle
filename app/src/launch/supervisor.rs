@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use skradle_core::getdown::CommandSpec;
 
 use super::log::{classify, LogTail};
-use super::{Event, LaunchError, Phase, Step};
+use super::{Event, LaunchError, Phase, Running, Sink, Step};
 
 /// How often things are checked.
 #[derive(Debug, Clone, Copy)]
@@ -37,16 +37,14 @@ impl Default for Timing {
     }
 }
 
-pub type Sink = Arc<dyn Fn(Event) + Send + Sync>;
-
 /// A launch in progress.
 pub struct Handle {
     stop: Arc<AtomicBool>,
 }
 
-impl Handle {
+impl Running for Handle {
     /// Asks the launch to stop: the updater and the game are terminated. The supervisor reports `Stopped`.
-    pub fn stop(&self) {
+    fn stop(&self) {
         self.stop.store(true, Ordering::SeqCst);
     }
 }

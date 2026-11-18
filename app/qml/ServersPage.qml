@@ -27,10 +27,10 @@ Item {
                 id: head
                 x: (parent.width - page.cw) / 2; y: Theme.s8
                 width: page.cw
-                title: L.t("Servers")
-                subtitle: L.t("Choose where to play. Players and ping update live.")
+                title: qsTr("Servers")
+                subtitle: qsTr("Choose where to play. Players and ping update live.")
                 SButton {
-                    text: L.t("Add server")
+                    text: qsTr("Add server")
                     highlighted: true
                     onClicked: dlg.open()
                     Accessible.name: text
@@ -62,7 +62,7 @@ Item {
                 onRemove: Data.servers.remove(del.index)
                 onMakeDefault: {
                     for (let i = 0; i < Data.servers.count; ++i) Data.servers.setProperty(i, "isDefault", i === del.index)
-                    Data.toast(L.t("Default server changed"))
+                    Data.toast(qsTr("Default server changed"))
                 }
             }
         }
@@ -87,9 +87,9 @@ Item {
     AddServerDialog {
         id: dlg
         onAccepted: (name, address) => {
-            Data.servers.insert(0, { name: name, address: address, region: L.t("Custom"), status: "online",
+            Data.servers.insert(0, { name: name, address: address, region: qsTr("Custom"), status: "online",
                                      players: 0, capacity: 100, ping: 52, isDefault: false })
-            Data.toast(L.t("Server added"))
+            Data.toast(qsTr("Server added"))
         }
     }
 }

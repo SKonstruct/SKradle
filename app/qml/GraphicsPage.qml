@@ -6,8 +6,8 @@ import QtQuick.Dialogs
 
 PageScaffold {
     id: page
-    title: L.t("Graphics")
-    subtitle: L.t("Rendering options for the game. Changes apply the next time it starts.")
+    title: qsTr("Graphics")
+    subtitle: qsTr("Rendering options for the game. Changes apply the next time it starts.")
     readonly property bool gameRunning: LaunchModel.state === "running"
     function openCombo() { aaCombo.popup.open() }
     function closeCombo() { aaCombo.popup.close() }
@@ -32,10 +32,11 @@ PageScaffold {
             anchors.margins: 12
             spacing: 12
             Icon { name: "warning"; size: 20; color: Theme.amber; Layout.alignment: Qt.AlignTop }
-            Txt { id: notice; Layout.fillWidth: true; text: L.t("The game is running. Close it to change rendering options."); color: Theme.amberText; font.weight: Font.Medium }
+            Txt { id: notice; Layout.fillWidth: true; text: qsTr("The game is running. Close it to change rendering options."); color: Theme.amberText; font.weight: Font.Medium }
         }
     }
 
+    // TODO(graphics): these values are saved but the game does not read them yet; the graphics agent will.
     // ---- Rendering (locked while the game runs) ----------------------------------------------------------
     Card {
         Layout.fillWidth: true
@@ -51,34 +52,34 @@ PageScaffold {
                 enabled: !page.gameRunning
                 opacity: page.gameRunning ? 0.5 : 1
                 Behavior on opacity { NumberAnimation { duration: Motion.base } }
-                Txt { Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1; text: L.t("Rendering"); kind: "heading"; Accessible.role: Accessible.Heading }
+                Txt { Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1; text: qsTr("Rendering"); kind: "heading"; Accessible.role: Accessible.Heading }
                 SettingRow {
-                    label: L.t("Render scale"); hint: L.t("Lower values trade sharpness for speed.")
-                    SSlider { id: scale; Layout.fillWidth: true; from: 50; to: 200; value: 100; Accessible.name: L.t("Render scale") }
+                    label: qsTr("Render scale"); hint: qsTr("Lower values trade sharpness for speed.")
+                    SSlider { id: scale; Layout.fillWidth: true; from: 50; to: 200; value: Settings.renderScale; onMoved: Settings.renderScale = Math.round(value); Accessible.name: qsTr("Render scale") }
                     Txt { Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight; text: Math.round(scale.value) + "%"; font.features: { "tnum": 1 }; wrapMode: Text.NoWrap }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
-                    label: L.t("Sharpening"); hint: L.t("Crisper edges after scaling.")
-                    SSlider { id: sharp; Layout.fillWidth: true; from: 0; to: 100; value: 40; Accessible.name: L.t("Sharpening") }
+                    label: qsTr("Sharpening"); hint: qsTr("Crisper edges after scaling.")
+                    SSlider { id: sharp; Layout.fillWidth: true; from: 0; to: 100; value: Settings.sharpening; onMoved: Settings.sharpening = Math.round(value); Accessible.name: qsTr("Sharpening") }
                     Txt { Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight; text: Math.round(sharp.value); font.features: { "tnum": 1 }; wrapMode: Text.NoWrap }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
-                    label: L.t("Anti-aliasing")
-                    SComboBox { id: aaCombo; Layout.fillWidth: true; model: [L.t("Off"), "FXAA", "MSAA 4x"]; currentIndex: 1; Accessible.name: L.t("Anti-aliasing") }
+                    label: qsTr("Anti-aliasing")
+                    SComboBox { id: aaCombo; Layout.fillWidth: true; model: [qsTr("Off"), "FXAA", "MSAA 4x"]; currentIndex: Settings.antiAliasing; onActivated: (i) => Settings.antiAliasing = i; Accessible.name: qsTr("Anti-aliasing") }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
-                    label: L.t("Sharp HUD"); hint: L.t("Draw the interface at full resolution.")
+                    label: qsTr("Sharp HUD"); hint: qsTr("Draw the interface at full resolution.")
                     Item { Layout.fillWidth: true }
-                    SSwitch { checked: true; Accessible.name: L.t("Sharp HUD") }
+                    SSwitch { checked: Settings.sharpHud; onToggled: Settings.sharpHud = checked; Accessible.name: qsTr("Sharp HUD") }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
-                    label: L.t("FPS counter")
+                    label: qsTr("FPS counter")
                     Item { Layout.fillWidth: true }
-                    SSwitch { checked: false; Accessible.name: L.t("FPS counter") }
+                    SSwitch { checked: Settings.showFps; onToggled: Settings.showFps = checked; Accessible.name: qsTr("FPS counter") }
                 }
                 Item { Layout.preferredHeight: Theme.s1 }
             }
@@ -86,7 +87,7 @@ PageScaffold {
         LockedOverlay {
             anchors.fill: parent
             visible: page.gameRunning
-            reason: L.t("Close the game to change these options")
+            reason: qsTr("Close the game to change these options")
         }
     }
 
@@ -106,30 +107,30 @@ PageScaffold {
                 RowLayout {
                     Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1
                     spacing: Theme.s2
-                    Txt { text: L.t("Frame generation"); kind: "heading"; wrapMode: Text.NoWrap; Accessible.role: Accessible.Heading }
+                    Txt { text: qsTr("Frame generation"); kind: "heading"; wrapMode: Text.NoWrap; Accessible.role: Accessible.Heading }
                     Rectangle {
                         implicitWidth: expTxt.implicitWidth + 14; implicitHeight: 20; radius: 10
                         color: Theme.amberTint
-                        Txt { id: expTxt; anchors.centerIn: parent; text: L.t("Experimental"); kind: "micro"; color: Theme.amberText; wrapMode: Text.NoWrap }
+                        Txt { id: expTxt; anchors.centerIn: parent; text: qsTr("Experimental"); kind: "micro"; color: Theme.amberText; wrapMode: Text.NoWrap }
                     }
                     Item { Layout.fillWidth: true }
                 }
                 SettingRow {
-                    label: L.t("Mode")
-                    SComboBox { Layout.fillWidth: true; model: [L.t("Adaptive"), L.t("Fixed multiplier")]; Accessible.name: L.t("Mode") }
+                    label: qsTr("Mode")
+                    SComboBox { Layout.fillWidth: true; model: [qsTr("Adaptive"), qsTr("Fixed multiplier")]; currentIndex: Settings.frameGenMode; onActivated: (i) => Settings.frameGenMode = i; Accessible.name: qsTr("Mode") }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
-                    label: L.t("Target frame rate"); hint: L.t("Frames per second to aim for.")
+                    label: qsTr("Target frame rate"); hint: qsTr("Frames per second to aim for.")
                     Item { Layout.fillWidth: true }
-                    SSpinBox { from: 30; to: 360; value: 120; editable: true; Accessible.name: L.t("Target frame rate") }
+                    SSpinBox { from: 30; to: 360; value: Settings.targetFps; editable: true; onValueModified: Settings.targetFps = value; Accessible.name: qsTr("Target frame rate") }
                 }
                 Item { Layout.preferredHeight: Theme.s1 }
             }
         }
         LockedOverlay {
             anchors.fill: parent
-            reason: L.t("Needs a GPU with Vulkan 1.3. None was found.")
+            reason: qsTr("Needs a GPU with Vulkan 1.3. None was found.")
             icon: "lock"
         }
     }
@@ -142,24 +143,30 @@ PageScaffold {
             id: g3
             width: parent.width
             spacing: 0
-            Txt { Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1; text: L.t("Runtime"); kind: "heading"; Accessible.role: Accessible.Heading }
+            Txt { Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1; text: qsTr("Runtime"); kind: "heading"; Accessible.role: Accessible.Heading }
             SettingRow {
-                label: L.t("Java path"); hint: L.t("Leave empty to use the bundled runtime.")
+                label: qsTr("Java path"); hint: qsTr("Leave empty to use the game's own runtime, or a Java found on this computer.")
                 controlWidth: 330
-                STextField { Layout.fillWidth: true; text: "/usr/bin/java"; Accessible.name: L.t("Java path") }
-                SButton { text: L.t("Browse…"); onClicked: javaDialog.open() }
+                STextField { Layout.fillWidth: true; text: Settings.javaPath; placeholderText: qsTr("Automatic"); onEditingFinished: Settings.javaPath = text.trim(); Accessible.name: qsTr("Java path") }
+                SButton { text: qsTr("Browse…"); onClicked: javaDialog.open() }
             }
             Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
             SettingRow {
-                label: L.t("Memory limit"); hint: L.t("Megabytes available to the game.")
+                label: qsTr("Memory limit"); hint: qsTr("Megabytes available to the game.")
                 Item { Layout.fillWidth: true }
-                SSpinBox { from: 512; to: 16384; stepSize: 256; value: 2048; editable: true; Accessible.name: L.t("Memory limit") }
+                // Only a change by the player is saved: until then the game keeps the limit in its own extra.txt, shown here.
+                SSpinBox {
+                    from: 512; to: 16384; stepSize: 256; editable: true
+                    value: Settings.memoryMb > 0 ? Settings.memoryMb : (GameModel.detectedMemoryMb > 0 ? GameModel.detectedMemoryMb : 2048)
+                    onValueModified: Settings.memoryMb = value
+                    Accessible.name: qsTr("Memory limit")
+                }
             }
             Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
             SettingRow {
-                label: L.t("Close launcher while playing"); hint: L.t("Reopens when the game exits.")
+                label: qsTr("Minimize launcher while playing"); hint: qsTr("It comes back when the game exits.")
                 Item { Layout.fillWidth: true }
-                SCheckBox { checked: true; Accessible.name: L.t("Close launcher while playing") }
+                SCheckBox { checked: Settings.minimizeWhilePlaying; onToggled: Settings.minimizeWhilePlaying = checked; Accessible.name: qsTr("Minimize launcher while playing") }
             }
             Item { Layout.preferredHeight: Theme.s1 }
         }
@@ -167,7 +174,7 @@ PageScaffold {
 
     FileDialog {
         id: javaDialog
-        title: L.t("Choose a Java runtime")
-        onAccepted: Data.toast(L.t("Java path updated"))
+        title: qsTr("Choose a Java runtime")
+        onAccepted: Settings.javaPath = AppEnv.localPath(selectedFile)
     }
 }

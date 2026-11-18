@@ -16,16 +16,16 @@ Control {
     focusPolicy: Qt.StrongFocus
     property int radius: Theme.rLg
     Accessible.role: Accessible.Button
-    Accessible.name: L.t("Drop mod files here, or press Enter to browse")
-    Keys.onReturnPressed: Data.toast(L.t("Browse for mod files…"))
-    Keys.onSpacePressed: Data.toast(L.t("Browse for mod files…"))
+    Accessible.name: qsTr("Drop mod files here, or press Enter to browse")
+    Keys.onReturnPressed: Data.toast(qsTr("Browse for mod files…"))
+    Keys.onSpacePressed: Data.toast(qsTr("Browse for mod files…"))
 
     DropArea {
         id: da
         anchors.fill: parent
         onDropped: (drop) => root.dropped(drop.urls.length)
     }
-    TapHandler { onTapped: Data.toast(L.t("Browse for mod files…")) }
+    TapHandler { onTapped: Data.toast(qsTr("Browse for mod files…")) }
 
     background: Item {
         Rectangle {
@@ -71,8 +71,8 @@ Control {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
                 spacing: 2
-                Txt { Layout.fillWidth: true; text: root.active ? L.t("Release to add") : L.t("Drop mod files here"); font.weight: Font.Medium }
-                Txt { Layout.fillWidth: true; text: L.t("Accepts .jar and .zip. Or click to browse."); kind: "caption" }
+                Txt { Layout.fillWidth: true; text: root.active ? qsTr("Release to add") : qsTr("Drop mod files here"); font.weight: Font.Medium }
+                Txt { Layout.fillWidth: true; text: qsTr("Accepts .jar and .zip. Or click to browse."); kind: "caption" }
             }
         }
     }

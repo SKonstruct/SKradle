@@ -59,12 +59,12 @@ Control {
                     Rectangle {
                         implicitWidth: tagTxt.implicitWidth + 14; implicitHeight: 20; radius: 10
                         color: Theme.hoverTint
-                        Txt { id: tagTxt; anchors.centerIn: parent; text: L.t(root.tag); kind: "micro"; wrapMode: Text.NoWrap }
+                        Txt { id: tagTxt; anchors.centerIn: parent; text: qsTranslate("Data", root.tag); kind: "micro"; wrapMode: Text.NoWrap }
                     }
                     Txt { text: "v" + root.ver; kind: "micro"; color: Theme.textTertiary; wrapMode: Text.NoWrap }
                     Item { Layout.fillWidth: true }
                 }
-                Txt { Layout.fillWidth: true; text: L.t(root.desc); kind: "caption" }
+                Txt { Layout.fillWidth: true; text: qsTranslate("Data", root.desc); kind: "caption" }
             }
         }
         ColumnLayout {
@@ -76,7 +76,7 @@ Control {
                 Layout.alignment: Qt.AlignHCenter
                 checked: root.enabledState
                 onToggled: root.toggled(checked)
-                Accessible.name: L.t("Enable %1").arg(root.name)
+                Accessible.name: qsTr("Enable %1").arg(root.name)
             }
             Item {
                 Layout.fillWidth: true
@@ -85,7 +85,7 @@ Control {
                     id: stTxt
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
-                    text: root.enabledState ? L.t("Enabled") : L.t("Disabled")
+                    text: root.enabledState ? qsTr("Enabled") : qsTr("Disabled")
                     kind: "micro"
                     wrapMode: Text.NoWrap
                     elide: Text.ElideRight

@@ -12,6 +12,12 @@ void init_app();
 // The engine to retranslate when the language changes.
 void register_engine(QQmlApplicationEngine &engine);
 
+// Saves a screenshot of the first window to `path` (PNG). Returns false when there is no window or saving failed.
+bool grab_window(const QString &path);
+
+// Number of QML/Qt warnings seen so far whose text points into the app's QML ("qrc:/..."); the self-test fails on any.
+int qml_warning_count();
+
 // The Qt version the program runs with, for example "6.11.3".
 QString qt_version();
 

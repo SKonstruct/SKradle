@@ -5,7 +5,7 @@ import QtQuick.Layouts
 
 PageScaffold {
     id: page
-    title: L.t("About")
+    title: qsTr("About")
     subtitle: ""
 
     Card {
@@ -23,9 +23,40 @@ PageScaffold {
                 Layout.fillWidth: true
                 spacing: 4
                 Txt { Layout.fillWidth: true; text: "SKradle"; kind: "display"; Accessible.role: Accessible.Heading }
-                Txt { Layout.fillWidth: true; text: L.t("A fast, friendly launcher for Spiral Knights."); color: Theme.textSecondary }
+                Txt { Layout.fillWidth: true; text: qsTr("A fast, friendly launcher for Spiral Knights."); color: Theme.textSecondary }
             }
-            SButton { text: L.t("Check for updates"); Layout.alignment: Qt.AlignVCenter; onClicked: Data.toast(L.t("You are up to date")) }
+            ColumnLayout {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: Theme.s2
+                SButton {
+                    Layout.alignment: Qt.AlignRight
+                    highlighted: UpdateModel.state === "available" || UpdateModel.state === "ready"
+                    enabled: UpdateModel.state !== "checking" && UpdateModel.state !== "downloading"
+                    text: UpdateModel.state === "checking" ? qsTr("Checking…")
+                        : UpdateModel.state === "available" ? qsTr("Download %1").arg(UpdateModel.version)
+                        : UpdateModel.state === "downloading" ? qsTr("Downloading… %1%").arg(Math.round(UpdateModel.progress * 100))
+                        : UpdateModel.state === "ready" ? qsTr("Install and restart")
+                        : qsTr("Check for updates")
+                    onClicked: {
+                        const s = UpdateModel.state
+                        if (s === "available") UpdateModel.download()
+                        else if (s === "ready") UpdateModel.install()
+                        else UpdateModel.check()
+                    }
+                }
+                Txt {
+                    Layout.alignment: Qt.AlignRight
+                    kind: "caption"
+                    visible: text !== ""
+                    color: UpdateModel.state === "error" ? Theme.danger : Theme.textSecondary
+                    text: UpdateModel.state === "uptodate" ? qsTr("You are up to date.")
+                        : UpdateModel.state === "error" ? qsTr("Could not check: %1").arg(UpdateModel.message)
+                        : ""
+                    wrapMode: Text.Wrap
+                    Layout.maximumWidth: 300
+                    horizontalAlignment: Text.AlignRight
+                }
+            }
         }
     }
 
@@ -45,7 +76,7 @@ PageScaffold {
             Txt {
                 id: disc
                 Layout.fillWidth: true
-                text: L.t("Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights © Grey Havens, LLC.")
+                text: qsTr("Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights © Grey Havens, LLC.")
                 Accessible.role: Accessible.StaticText
             }
         }
@@ -58,7 +89,7 @@ PageScaffold {
             id: info
             width: parent.width
             spacing: 0
-            Txt { Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1; text: L.t("This build"); kind: "heading"; Accessible.role: Accessible.Heading }
+            Txt { Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1; text: qsTr("This build"); kind: "heading"; Accessible.role: Accessible.Heading }
             component InfoRow: RowLayout {
                 property string k
                 property string v
@@ -69,29 +100,61 @@ PageScaffold {
                 Txt { Layout.preferredWidth: 150; text: k; color: Theme.textSecondary }
                 Txt { Layout.fillWidth: true; text: v; font.weight: Font.Medium }
             }
-            InfoRow { k: L.t("Interface toolkit"); v: "Qt " + AppEnv.qtVersion + " (Qt Quick)" }
+            InfoRow { k: qsTr("Interface toolkit"); v: "Qt " + AppEnv.qtVersion + " (Qt Quick)" }
             Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
-            InfoRow { k: L.t("Control style"); v: AppEnv.styleName + " (themed)" }
+            InfoRow { k: qsTr("Control style"); v: AppEnv.styleName + " (themed)" }
             Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
-            InfoRow { k: L.t("Appearance"); v: Theme.dark ? L.t("Dark") : L.t("Light") }
+            InfoRow { k: qsTr("Appearance"); v: Theme.dark ? qsTr("Dark") : qsTr("Light") }
             Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
-            InfoRow { k: L.t("Reduced motion"); v: Motion.reduce ? L.t("On") : L.t("Off") }
+            InfoRow { k: qsTr("Reduced motion"); v: Motion.reduce ? qsTr("On") : qsTr("Off") }
             Item { Layout.preferredHeight: Theme.s2 }
         }
     }
 
+    // ---- preferences -----------------------------------------------------------------------------------------
     Card {
         Layout.fillWidth: true
-        implicitHeight: dev.implicitHeight
+        implicitHeight: prefs.implicitHeight
         ColumnLayout {
-            id: dev
+            id: prefs
             width: parent.width
             spacing: 0
-            Txt { Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1; text: L.t("Demo controls"); kind: "heading"; Accessible.role: Accessible.Heading }
+            Txt { Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1; text: qsTr("Preferences"); kind: "heading"; Accessible.role: Accessible.Heading }
             SettingRow {
-                label: L.t("Simulate first run"); hint: L.t("Shows the empty state when the game is not installed.")
+                label: qsTr("Appearance")
+                SComboBox {
+                    Layout.fillWidth: true
+                    readonly property var values: ["system", "light", "dark"]
+                    model: [qsTr("Follow the system"), qsTr("Light"), qsTr("Dark")]
+                    currentIndex: Math.max(0, values.indexOf(Settings.theme))
+                    onActivated: (i) => Settings.theme = values[i]
+                    Accessible.name: qsTr("Appearance")
+                }
+            }
+            Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
+            SettingRow {
+                label: qsTr("Reduce motion"); hint: qsTr("Turns off sliding and fading animations.")
                 Item { Layout.fillWidth: true }
-                SSwitch { checked: !Data.gameFound; onToggled: Data.gameFound = !checked; Accessible.name: L.t("Simulate first run") }
+                SSwitch { checked: Settings.reduceMotion; onToggled: Settings.reduceMotion = checked; Accessible.name: qsTr("Reduce motion") }
+            }
+            Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
+            SettingRow {
+                label: qsTr("Language")
+                SComboBox {
+                    Layout.fillWidth: true
+                    // Each language is named in itself. Add a catalogue in i18n/ and a row here.
+                    readonly property var values: ["system", "en"]
+                    model: [qsTr("Follow the system"), "English"]
+                    currentIndex: Math.max(0, values.indexOf(Settings.language))
+                    onActivated: (i) => Settings.language = values[i]
+                    Accessible.name: qsTr("Language")
+                }
+            }
+            Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
+            SettingRow {
+                label: qsTr("Send crash reports"); hint: qsTr("Error reports contain no names, folders or addresses.")
+                Item { Layout.fillWidth: true }
+                SSwitch { checked: Settings.crashReports; onToggled: Settings.crashReports = checked; Accessible.name: qsTr("Send crash reports") }
             }
             Item { Layout.preferredHeight: Theme.s1 }
         }

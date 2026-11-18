@@ -29,8 +29,3 @@ pub fn set_enabled(enabled: bool) {
         reporter.set_enabled(enabled);
     }
 }
-
-/// Whether reports would be sent (a DSN is built in and the switch is on).
-pub fn is_active() -> bool {
-    REPORTER.get().is_some_and(|r| r.is_active())
-}

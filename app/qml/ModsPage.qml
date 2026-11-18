@@ -77,10 +77,10 @@ Item {
                 spacing: Theme.s5
                 PageHeader {
                     Layout.fillWidth: true
-                    title: L.t("Mods")
-                    subtitle: L.t("%1 of %2 enabled").arg(page.enabledCount).arg(page.all.length)
+                    title: qsTr("Mods")
+                    subtitle: qsTr("%1 of %2 enabled").arg(page.enabledCount).arg(page.all.length)
                 }
-                DropZone { forceActive: page.dropForced; Layout.fillWidth: true; onDropped: (n) => Data.toast(L.t("%1 files added").arg(n)) }
+                DropZone { forceActive: page.dropForced; Layout.fillWidth: true; onDropped: (n) => Data.toast(qsTr("%1 files added").arg(n)) }
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: Theme.s3
@@ -89,16 +89,16 @@ Item {
                         glyph: "search"
                         Layout.fillWidth: true
                         Layout.maximumWidth: 340
-                        placeholderText: L.t("Search mods")
-                        Accessible.name: L.t("Search mods")
+                        placeholderText: qsTr("Search mods")
+                        Accessible.name: qsTr("Search mods")
                         onTextChanged: { page.query = text; page.apply() }
                     }
                     Item { Layout.fillWidth: true }
                     RowLayout {
                         spacing: Theme.s2
-                        Chip { text: L.t("All"); badge: page.all.length; selected: page.filter === "all"; onClicked: page.filter = "all" }
-                        Chip { text: L.t("Enabled"); badge: page.enabledCount; selected: page.filter === "enabled"; onClicked: page.filter = "enabled" }
-                        Chip { text: L.t("Disabled"); badge: page.all.length - page.enabledCount; selected: page.filter === "disabled"; onClicked: page.filter = "disabled" }
+                        Chip { text: qsTr("All"); badge: page.all.length; selected: page.filter === "all"; onClicked: page.filter = "all" }
+                        Chip { text: qsTr("Enabled"); badge: page.enabledCount; selected: page.filter === "enabled"; onClicked: page.filter = "enabled" }
+                        Chip { text: qsTr("Disabled"); badge: page.all.length - page.enabledCount; selected: page.filter === "disabled"; onClicked: page.filter = "disabled" }
                     }
                 }
             }
@@ -113,8 +113,8 @@ Item {
                 width: Math.min(360, parent.width - 64)
                 spacing: Theme.s2
                 Icon { Layout.alignment: Qt.AlignHCenter; name: "search"; size: 32; color: Theme.textTertiary }
-                Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: L.t("No mods match"); kind: "heading" }
-                Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: L.t("Try a different search or filter."); color: Theme.textSecondary }
+                Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: qsTr("No mods match"); kind: "heading" }
+                Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: qsTr("Try a different search or filter."); color: Theme.textSecondary }
             }
         }
 

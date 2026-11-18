@@ -26,7 +26,7 @@ Control {
     property int radius: Theme.rLg
     readonly property bool online: status !== "offline"
     readonly property color statusColor: status === "online" ? Theme.ok : status === "busy" ? Theme.amber : Theme.textTertiary
-    readonly property string statusText: status === "online" ? L.t("Online") : status === "busy" ? L.t("Busy") : L.t("Offline")
+    readonly property string statusText: status === "online" ? qsTr("Online") : status === "busy" ? qsTr("Busy") : qsTr("Offline")
     readonly property int pingLevel: !online ? 0 : ping < 60 ? 4 : ping < 110 ? 3 : ping < 170 ? 2 : 1
     readonly property color pingColor: pingLevel >= 3 ? Theme.ok : pingLevel === 2 ? Theme.amber : Theme.danger
 
@@ -57,7 +57,7 @@ Control {
                     visible: root.isDefault
                     implicitWidth: defTxt.implicitWidth + 14; implicitHeight: 20; radius: 10
                     color: Theme.accentTint
-                    Txt { id: defTxt; anchors.centerIn: parent; text: L.t("Default"); kind: "micro"; wrapMode: Text.NoWrap; color: Theme.text }
+                    Txt { id: defTxt; anchors.centerIn: parent; text: qsTr("Default"); kind: "micro"; wrapMode: Text.NoWrap; color: Theme.text }
                 }
             }
             Txt { Layout.fillWidth: true; text: root.address + "  ·  " + root.region; kind: "caption"; wrapMode: Text.NoWrap; elide: Text.ElideRight }
@@ -70,7 +70,7 @@ Control {
             Txt { Layout.fillWidth: true; text: root.statusText; kind: "caption"; color: root.statusColor; font.weight: Font.Medium; wrapMode: Text.NoWrap; elide: Text.ElideRight }
             Txt {
                 Layout.fillWidth: true
-                text: root.online ? L.t("%1 players").arg(root.players.toLocaleString(Qt.locale(), "f", 0)) : "—"
+                text: root.online ? qsTr("%1 players").arg(root.players.toLocaleString(Qt.locale(), "f", 0)) : "—"
                 kind: "caption"; wrapMode: Text.NoWrap; elide: Text.ElideRight
                 font.features: { "tnum": 1 }
             }
@@ -88,12 +88,12 @@ Control {
             Layout.alignment: Qt.AlignVCenter
             spacing: 4
             SButton {
-                text: L.t("Join")
+                text: qsTr("Join")
                 enabled: root.online
-                Accessible.name: L.t("Join") + " " + root.name
-                onClicked: Data.toast(L.t("Joining %1…").arg(root.name))
+                Accessible.name: qsTr("Join") + " " + root.name
+                onClicked: Data.toast(qsTr("Joining %1…").arg(root.name))
             }
-            IconButton { id: moreBtn; glyph: "more"; tip: L.t("More actions"); onClicked: menu.popup(moreBtn, moreBtn.width - menu.width, moreBtn.height + 4) }
+            IconButton { id: moreBtn; glyph: "more"; tip: qsTr("More actions"); onClicked: menu.popup(moreBtn, moreBtn.width - menu.width, moreBtn.height + 4) }
         }
     }
 
@@ -101,11 +101,11 @@ Control {
     function openMenu() { menu.popup(moreBtn, moreBtn.width - menu.width, moreBtn.height + 4) }
     SMenu {
         id: menu
-        SMenuItem { text: L.t("Join"); enabled: root.online; onTriggered: Data.toast(L.t("Joining %1…").arg(root.name)) }
-        SMenuItem { text: L.t("Set as default"); enabled: !root.isDefault; onTriggered: root.makeDefault() }
-        SMenuItem { text: L.t("Copy address"); onTriggered: Data.toast(L.t("Address copied")) }
+        SMenuItem { text: qsTr("Join"); enabled: root.online; onTriggered: Data.toast(qsTr("Joining %1…").arg(root.name)) }
+        SMenuItem { text: qsTr("Set as default"); enabled: !root.isDefault; onTriggered: root.makeDefault() }
+        SMenuItem { text: qsTr("Copy address"); onTriggered: Data.toast(qsTr("Address copied")) }
         SMenuSeparator {}
-        SMenuItem { danger: true; text: L.t("Remove"); onTriggered: root.remove() }
+        SMenuItem { danger: true; text: qsTr("Remove"); onTriggered: root.remove() }
     }
     TapHandler { acceptedButtons: Qt.RightButton; onTapped: menu.popup() }
     Keys.onMenuPressed: menu.popup(root, root.width / 2, root.height / 2)

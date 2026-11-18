@@ -10,8 +10,8 @@ Card {
     id: root
     radius: Theme.rXl
     implicitHeight: col.implicitHeight + 2 * Theme.s10
-    signal download()
-    signal locate()
+    signal steam()
+    signal downloadPage()
 
     ColumnLayout {
         id: col
@@ -46,14 +46,14 @@ Card {
             Layout.fillWidth: true
             Layout.topMargin: Theme.s3
             horizontalAlignment: Text.AlignHCenter
-            text: L.t("Game not found")
+            text: qsTr("Game not found")
             kind: "title"
             Accessible.role: Accessible.Heading
         }
         Txt {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
-            text: L.t("SKradle could not find a Spiral Knights install. Download it now, or point to a copy you already have.")
+            text: qsTr("SKradle could not find a Spiral Knights install. Download it now, or point to a copy you already have.")
             color: Theme.textSecondary
         }
         RowLayout {
@@ -61,22 +61,29 @@ Card {
             Layout.topMargin: Theme.s4
             spacing: Theme.s3
             SButton {
-                text: L.t("Download Spiral Knights")
+                text: qsTr("Install with Steam")
                 highlighted: true
                 Accessible.name: text
-                onClicked: root.download()
+                onClicked: root.steam()
             }
             SButton {
-                text: L.t("Locate existing install…")
+                text: qsTr("Locate existing install…")
                 Accessible.name: text
                 onClicked: folderDialog.open()
             }
+        }
+        SButton {
+            Layout.alignment: Qt.AlignHCenter
+            variant: "ghost"
+            text: qsTr("Or download it from spiralknights.com")
+            Accessible.name: text
+            onClicked: root.downloadPage()
         }
         Txt {
             Layout.fillWidth: true
             Layout.topMargin: Theme.s2
             horizontalAlignment: Text.AlignHCenter
-            text: L.t("We looked in the default install locations.")
+            text: qsTr("We looked in the default install locations.")
             kind: "micro"
             color: Theme.textTertiary
         }
@@ -84,7 +91,7 @@ Card {
 
     FolderDialog {
         id: folderDialog
-        title: L.t("Choose the Spiral Knights folder")
-        onAccepted: root.locate()
+        title: qsTr("Choose the Spiral Knights folder")
+        onAccepted: GameModel.addCustomFolder(selectedFolder)
     }
 }

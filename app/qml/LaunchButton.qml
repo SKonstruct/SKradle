@@ -5,7 +5,8 @@ import QtQuick.Controls
 // The big Launch button. One item, four faces: fill colour, label and glyph morph between states.
 AbstractButton {
     id: root
-    property string phase: LaunchModel.state    // ready | updating | launching | running
+    // ready | updating | launching | running; a failed launch shows the Launch button again (the page shows why)
+    property string phase: LaunchModel.state === "error" ? "ready" : LaunchModel.state
     implicitWidth: 236
     implicitHeight: 64
     hoverEnabled: true
@@ -14,8 +15,8 @@ AbstractButton {
     property int radius: 16
     enabled: phase !== "launching"
     Accessible.role: Accessible.Button
-    Accessible.name: phase === "ready" ? L.t("Launch") : phase === "updating" ? L.t("Cancel update")
-                   : phase === "launching" ? L.t("Launching") : L.t("Stop game")
+    Accessible.name: phase === "ready" ? qsTr("Launch") : phase === "updating" ? qsTr("Cancel update")
+                   : phase === "launching" ? qsTr("Launching") : qsTr("Stop game")
 
     readonly property bool primary: phase === "ready"
     scale: down ? 0.97 : 1
@@ -71,7 +72,7 @@ AbstractButton {
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
             Icon { name: "play"; size: 22; color: Theme.accentText; anchors.verticalCenter: parent.verticalCenter }
-            Txt { text: L.t("Launch"); font.pixelSize: Theme.fsHeading + 2; font.weight: Font.DemiBold; color: Theme.accentText; wrapMode: Text.NoWrap; anchors.verticalCenter: parent.verticalCenter }
+            Txt { text: qsTr("Launch"); font.pixelSize: Theme.fsHeading + 2; font.weight: Font.DemiBold; color: Theme.accentText; wrapMode: Text.NoWrap; anchors.verticalCenter: parent.verticalCenter }
         }
         // UPDATING (cancel)
         Row {
@@ -80,7 +81,7 @@ AbstractButton {
             opacity: root.phase === "updating" ? 1 : 0
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
-            Txt { text: L.t("Cancel"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; wrapMode: Text.NoWrap; anchors.verticalCenter: parent.verticalCenter }
+            Txt { text: qsTr("Cancel"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; wrapMode: Text.NoWrap; anchors.verticalCenter: parent.verticalCenter }
         }
         // LAUNCHING
         Item {
@@ -88,7 +89,7 @@ AbstractButton {
             opacity: root.phase === "launching" ? 1 : 0
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
-            Txt { anchors.centerIn: parent; text: L.t("Launching"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; color: Theme.accentText; wrapMode: Text.NoWrap }
+            Txt { anchors.centerIn: parent; text: qsTr("Launching"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; color: Theme.accentText; wrapMode: Text.NoWrap }
         }
         // RUNNING (stop)
         Row {
@@ -98,13 +99,13 @@ AbstractButton {
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
             Icon { name: "stop"; size: 20; color: Theme.danger; anchors.verticalCenter: parent.verticalCenter }
-            Txt { text: L.t("Stop game"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; wrapMode: Text.NoWrap; anchors.verticalCenter: parent.verticalCenter }
+            Txt { text: qsTr("Stop game"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; wrapMode: Text.NoWrap; anchors.verticalCenter: parent.verticalCenter }
         }
     }
     FocusRing { grow: 4 }
 
     onClicked: {
-        if (phase === "ready") LaunchModel.start()
+        if (phase === "ready") LaunchModel.start(GameModel.selectedPath)
         else if (phase === "updating") LaunchModel.cancel()
         else if (phase === "running") LaunchModel.stop()
     }

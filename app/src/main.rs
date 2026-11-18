@@ -5,6 +5,7 @@ mod discovery;
 mod launch;
 mod options;
 mod reporter;
+mod selfupdate;
 mod settings;
 
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, QUrl};
@@ -56,6 +57,9 @@ fn main() {
     let mut engine = QQmlApplicationEngine::new();
     if let Some(mut engine) = engine.as_mut() {
         bridge::glue::register_engine(engine.as_mut());
+        bridge::glue::set_language(&bridge::settings_model::language_for(
+            &settings::global().get().language,
+        ));
         engine.as_mut().load(&QUrl::from(MAIN_QML));
     }
     let status = app.as_mut().map_or(1, |app| app.exec());

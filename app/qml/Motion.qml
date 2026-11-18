@@ -5,7 +5,7 @@ import com.skradle.app
 // Motion tokens. Curves are cubic beziers (Material "emphasized" family): decelerate for things that arrive,
 // accelerate for things that leave, standard for things that move between two resting places.
 QtObject {
-    readonly property bool reduce: AppEnv.reduceMotion
+    readonly property bool reduce: AppEnv.reduceMotion || Settings.reduceMotion
     readonly property real k: reduce ? 0 : 1
 
     readonly property int instant: 90 * k      // press feedback

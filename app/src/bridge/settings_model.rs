@@ -41,7 +41,7 @@ pub mod qobject {
 
 use core::pin::Pin;
 
-use cxx_qt::Initialize;
+use cxx_qt::{CxxQtType, Initialize};
 use cxx_qt_lib::QString;
 
 use crate::settings::{self, LoadOutcome, Settings as Stored, Theme};
@@ -63,6 +63,8 @@ pub struct SettingsRust {
     frame_gen_mode: i32,
     target_fps: i32,
     load_warning: QString,
+    /// The translation catalogue last installed.
+    applied_language: String,
 }
 
 impl Default for SettingsRust {
@@ -85,7 +87,17 @@ impl Default for SettingsRust {
             frame_gen_mode: d.frame_gen_mode as i32,
             target_fps: d.target_fps as i32,
             load_warning: QString::default(),
+            applied_language: String::new(),
         }
+    }
+}
+
+/// The catalogue to install for a language setting: the `--pseudo` test mode overrides it.
+pub fn language_for(setting: &str) -> String {
+    if crate::options::get().pseudo {
+        "pseudo".to_owned()
+    } else {
+        setting.to_owned()
     }
 }
 
@@ -119,7 +131,7 @@ impl qobject::Settings {
     }
 
     /// A property changed: validate, store, save, and write back any value that had to be corrected.
-    fn push(self: Pin<&mut Self>) {
+    fn push(mut self: Pin<&mut Self>) {
         let theme = Theme::parse(&self.theme().to_string());
         let reduce_motion = *self.reduce_motion();
         let language = self.language().to_string();
@@ -158,6 +170,11 @@ impl qobject::Settings {
             s.clone()
         });
         crate::reporter::set_enabled(after.crash_reports);
+        let language = language_for(&after.language);
+        if language != self.applied_language {
+            super::glue::set_language(&language);
+            self.as_mut().rust_mut().applied_language = language;
+        }
         self.pull(&after);
     }
 }
@@ -166,6 +183,7 @@ impl Initialize for qobject::Settings {
     fn initialize(mut self: Pin<&mut Self>) {
         let store = settings::global();
         let loaded = store.get();
+        self.as_mut().rust_mut().applied_language = language_for(&loaded.language);
         self.as_mut().pull(&loaded);
         if let LoadOutcome::Corrupt(_) = store.load_outcome() {
             self.as_mut().set_load_warning(QString::from(

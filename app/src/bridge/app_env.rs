@@ -37,6 +37,10 @@ pub mod qobject {
         #[cxx_name = "localPath"]
         fn local_path(self: &AppEnv, url: &QUrl) -> QString;
 
+        /// Saves a screenshot of the main window to `path`.
+        #[qinvokable]
+        fn grab(self: &AppEnv, path: &QString) -> bool;
+
         /// Ends the self-test: exit status 0 when `ok`.
         #[qinvokable]
         #[cxx_name = "finishSelftest"]
@@ -104,7 +108,22 @@ impl qobject::AppEnv {
         )
     }
 
+    fn grab(&self, path: &QString) -> bool {
+        super::glue::grab_window(&path.to_string())
+    }
+
     fn finish_selftest(&self, ok: bool, text: &QString) {
+        // A binding error or missing type anywhere in the QML fails the self-test.
+        let warnings = super::glue::qml_warning_count();
+        let ok = ok && warnings == 0;
+        let text = if warnings > 0 {
+            QString::from(
+                format!("{text}; {warnings} QML warning(s), see the messages above").as_str(),
+            )
+        } else {
+            text.clone()
+        };
+        let text = &text;
         println!("selftest: {} ({text})", if ok { "ok" } else { "FAILED" });
         std::process::exit(if ok { 0 } else { 1 });
     }

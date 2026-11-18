@@ -10,3 +10,4 @@ pub mod game_model;
 pub mod glue;
 pub mod launch_model;
 pub mod settings_model;
+pub mod update_model;

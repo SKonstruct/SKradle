@@ -28,11 +28,11 @@ ApplicationWindow {
     property int dir: 1
     property bool collapsed: AppEnv.initialCollapsed
     readonly property var navItems: [
-        { label: L.t("Home"), icon: "home" },
-        { label: L.t("Servers"), icon: "servers" },
-        { label: L.t("Mods"), icon: "mods" },
-        { label: L.t("Graphics"), icon: "graphics" },
-        { label: L.t("About"), icon: "info" }
+        { label: qsTr("Home"), icon: "home" },
+        { label: qsTr("Servers"), icon: "servers" },
+        { label: qsTr("Mods"), icon: "mods" },
+        { label: qsTr("Graphics"), icon: "graphics" },
+        { label: qsTr("About"), icon: "info" }
     ]
     function go(i) {
         if (i === current || i < 0 || i >= navItems.length) return
@@ -129,12 +129,53 @@ ApplicationWindow {
         function onNavigate(page) { win.go(page) }
     }
 
-    // ---- screenshot driver -----------------------------------------------------------------------------------
-    readonly property var shotNames: ["home-ready", "home-updating", "home-launching", "home-running", "home-firstrun",
+    // ---- minimise while the game runs, restore when it ends ------------------------------------------------
+    property bool minimizedByUs: false
+    Connections {
+        target: LaunchModel
+        function onStateChanged() {
+            const st = LaunchModel.state
+            if (st === "running" && Settings.minimizeWhilePlaying && !AppEnv.selftest && AppEnv.shotDir === "") {
+                win.minimizedByUs = true
+                win.showMinimized()
+            } else if (win.minimizedByUs && st !== "running" && st !== "launching") {
+                win.minimizedByUs = false
+                win.show()
+                win.raise()
+                win.requestActivate()
+            }
+        }
+    }
+    Connections {
+        target: GameModel
+        function onErrorChanged() { if (GameModel.error !== "") toast.show(GameModel.error) }
+    }
+
+    // ---- screenshot driver (skradle --shots <dir> [--prefix name]) -----------------------------------------------
+    readonly property var shotNames: ["home-ready", "home-updating", "home-launching", "home-running", "home-error", "home-firstrun",
         "home-collapsed", "home-scrolled", "servers", "servers-dialog", "mods", "mods-search", "mods-drop", "graphics", "graphics-running",
         "about", "focus", "focus-controls", "servers-menu", "graphics-combo", "mods-toggle"]
+    property int shotIndex: 0
+    function nextShot() {
+        if (shotIndex > 0) {
+            const path = AppEnv.shotDir + "/" + AppEnv.shotPrefix + "-" + shotNames[shotIndex - 1] + ".png"
+            if (!AppEnv.grab(path)) AppEnv.report("failed to save " + path)
+        }
+        if (shotIndex >= shotNames.length) {
+            AppEnv.report("shots: " + shotNames.length + " saved to " + AppEnv.shotDir)
+            Qt.quit()
+            return
+        }
+        setupShot(shotNames[shotIndex])
+        shotIndex++
+        shotTimer.restart()
+    }
+    Timer { id: shotTimer; interval: 850; onTriggered: win.nextShot() }
+    Timer { running: AppEnv.shotDir !== ""; interval: 900; onTriggered: win.nextShot() }
+
     function setupShot(name) {
-        Data.gameFound = true
+        // Shots never depend on this machine: pretend a game was found and nothing is running.
+        GameModel.force("ready")
         win.collapsed = false
         LaunchModel.force("ready", 0)
         const hp = pageItem(0); if (hp) hp.scroller.contentY = 0
@@ -143,10 +184,11 @@ ApplicationWindow {
         const md = pageItem(2); if (md) { md.dropForced = false; md.setSearch(""); md.filter = "all" }
         switch (name) {
         case "home-ready": go(0); break
-        case "home-updating": go(0); LaunchModel.force("updating", 0.58); break
-        case "home-launching": go(0); LaunchModel.force("launching", 1); break
-        case "home-running": go(0); LaunchModel.force("running", 1); break
-        case "home-firstrun": go(0); Data.gameFound = false; break
+        case "home-updating": go(0); LaunchModel.force("updating", 0); break
+        case "home-launching": go(0); LaunchModel.force("launching", 0); break
+        case "home-running": go(0); LaunchModel.force("running", 0); break
+        case "home-error": go(0); LaunchModel.force("error", 0); break
+        case "home-firstrun": go(0); GameModel.force("notfound"); break
         case "home-collapsed": go(0); win.collapsed = true; break
         case "home-scrolled": go(0); Qt.callLater(() => { const h = pageItem(0); if (h) h.scroller.contentY = Math.max(0, h.scroller.contentHeight - h.scroller.height) }); break
         case "servers": go(1); break
@@ -155,7 +197,7 @@ ApplicationWindow {
         case "mods-search": go(2); Qt.callLater(() => { const p = pageItem(2); if (p) p.setSearch("hud") }); break
         case "mods-drop": go(2); Qt.callLater(() => { const p = pageItem(2); if (p) p.dropForced = true }); break
         case "graphics": go(3); break
-        case "graphics-running": go(3); LaunchModel.force("running", 1); break
+        case "graphics-running": go(3); LaunchModel.force("running", 0); break
         case "about": go(4); break
         case "servers-menu": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.openMenu() }); break
         case "graphics-combo": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.openCombo() }); break

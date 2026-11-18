@@ -19,8 +19,8 @@ pub mod qobject {
         #[qproperty(QString, step, READ, WRITE, NOTIFY)]
         /// Why the last launch failed, as a sentence ("" unless the state is "error").
         #[qproperty(QString, message, READ, WRITE, NOTIFY)]
-        /// 0 to 1 when `determinate`. The updater reports no progress outside its own window, so this stays false
-        /// for real launches and the UI shows the indeterminate ring.
+        /// 0 to 1 when `determinate`. The game's updater reports no progress outside its own window, so this stays
+        /// false for launches through it and the UI shows the indeterminate ring.
         #[qproperty(f64, progress, READ, WRITE, NOTIFY)]
         #[qproperty(bool, determinate, READ, WRITE, NOTIFY)]
         type LaunchModel = super::LaunchModelRust;
@@ -50,16 +50,21 @@ pub mod qobject {
 }
 
 use core::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use cxx_qt::{CxxQtThread, CxxQtType, Threading};
 use cxx_qt_lib::QString;
 
 use crate::discovery::{Install, Kind};
-use crate::launch::plan::{self, Machine};
-use crate::launch::supervisor::{self, Handle, Timing};
-use crate::launch::{memory, Event, LaunchError, Phase, Status, Step};
+use crate::launch::updater::UpdaterLauncher;
+use crate::launch::{Event, LaunchError, Launcher, Phase, Request, Running, Sink, Status, Step};
 use crate::settings;
+
+/// The launcher in use. One place to swap in the core's launch planner once it exists.
+fn launcher() -> &'static Arc<dyn Launcher> {
+    static LAUNCHER: OnceLock<Arc<dyn Launcher>> = OnceLock::new();
+    LAUNCHER.get_or_init(|| Arc::new(UpdaterLauncher::new()))
+}
 
 #[derive(Default)]
 pub struct LaunchModelRust {
@@ -71,23 +76,7 @@ pub struct LaunchModelRust {
     status: Status,
     /// Identifies the current launch; events from an older one are ignored.
     launch_id: u64,
-    handle: Option<Handle>,
-}
-
-/// Plans and starts a launch. Runs off the UI thread; returns the handle of the supervisor.
-fn prepare(install: &Install, sink: supervisor::Sink) -> Result<Handle, LaunchError> {
-    let settings = settings::global().get();
-    let plan = plan::plan(&Machine::current(), Some(install), &settings)?;
-    if let Some(mb) = plan.memory_mb {
-        memory::write_limit(&plan.game_root, mb)
-            .map_err(|e| LaunchError::ExtraTxt(e.to_string()))?;
-    }
-    Ok(supervisor::start(
-        plan.spec,
-        plan.game_root,
-        Timing::default(),
-        sink,
-    ))
+    running: Option<Box<dyn Running>>,
 }
 
 impl qobject::LaunchModel {
@@ -99,6 +88,8 @@ impl qobject::LaunchModel {
         self.as_mut().set_step(QString::from(status.step.as_str()));
         self.as_mut()
             .set_message(QString::from(status.message.as_str()));
+        self.as_mut().set_progress(status.progress.unwrap_or(0.0));
+        self.as_mut().set_determinate(status.progress.is_some());
     }
 
     fn on_event(mut self: Pin<&mut Self>, id: u64, event: Event) {
@@ -108,26 +99,25 @@ impl qobject::LaunchModel {
         let ended = matches!(event, Event::Failed(_) | Event::Finished | Event::Stopped);
         self.as_mut().rust_mut().status.apply(event);
         if ended {
-            self.as_mut().rust_mut().handle = None;
+            self.as_mut().rust_mut().running = None;
         }
         self.show();
     }
 
     pub fn start(mut self: Pin<&mut Self>, path: &QString) {
-        if !self.status.can_start() {
+        // Screenshot and self-test runs never start the real game.
+        if !self.status.can_start() || crate::options::get().is_test_run() {
             return;
         }
         let path = path.to_string();
         self.as_mut().rust_mut().launch_id += 1;
         let id = self.launch_id;
-        self.as_mut().rust_mut().handle = None;
+        self.as_mut().rust_mut().running = None;
         self.as_mut().rust_mut().status = Status::default();
         self.as_mut()
             .rust_mut()
             .status
             .apply(Event::Phase(Phase::Updating, Step::Checking));
-        self.as_mut().set_progress(0.0);
-        self.as_mut().set_determinate(false);
         self.as_mut().show();
 
         let thread: CxxQtThread<qobject::LaunchModel> = self.qt_thread();
@@ -141,24 +131,27 @@ impl qobject::LaunchModel {
                             .queue(move |m| m.on_event(id, Event::Failed(LaunchError::NoGame)));
                         return;
                     }
-                    let install = Install {
-                        path: path.into(),
-                        kind: Kind::Custom,
+                    let request = Request {
+                        install: Install {
+                            path: path.into(),
+                            kind: Kind::Custom,
+                        },
+                        settings: settings::global().get(),
                     };
-                    let sink: supervisor::Sink = {
+                    let sink: Sink = {
                         let thread = thread.clone();
                         Arc::new(move |event| {
                             let _ = thread.queue(move |m| m.on_event(id, event));
                         })
                     };
-                    match prepare(&install, sink) {
-                        Ok(handle) => {
+                    match launcher().start(request, sink) {
+                        Ok(running) => {
                             let _ = thread.queue(move |mut m| {
                                 if m.launch_id == id && m.status.can_stop() {
-                                    m.as_mut().rust_mut().handle = Some(handle);
+                                    m.as_mut().rust_mut().running = Some(running);
                                 } else {
-                                    // Stopped while preparing.
-                                    handle.stop();
+                                    // Stopped while it was being prepared.
+                                    running.stop();
                                 }
                             });
                         }
@@ -177,11 +170,11 @@ impl qobject::LaunchModel {
         if !self.status.can_stop() {
             return;
         }
-        if let Some(handle) = &self.handle {
-            // The supervisor ends the processes and reports `Stopped`.
-            handle.stop();
+        if let Some(running) = &self.running {
+            // The launch ends the processes and reports `Stopped`.
+            running.stop();
         } else {
-            // Still preparing: nothing runs yet.
+            // Still being prepared: nothing runs yet.
             self.as_mut().rust_mut().launch_id += 1;
             self.as_mut().rust_mut().status.apply(Event::Stopped);
             self.show();
@@ -208,7 +201,7 @@ impl qobject::LaunchModel {
             _ => Phase::Ready,
         };
         self.as_mut().rust_mut().launch_id += 1;
-        self.as_mut().rust_mut().handle = None;
+        self.as_mut().rust_mut().running = None;
         let message = if phase == Phase::Error {
             LaunchError::NoJava {
                 needed: Some(25_000_000),
@@ -217,18 +210,17 @@ impl qobject::LaunchModel {
         } else {
             String::new()
         };
+        let known = (phase == Phase::Updating && progress > 0.0).then_some(progress.min(1.0));
         self.as_mut().rust_mut().status = Status {
             phase,
-            step: if progress > 0.0 {
+            step: if known.is_some() {
                 Step::Downloading
             } else {
                 Step::Checking
             },
+            progress: known,
             message,
         };
-        self.as_mut().set_progress(progress);
-        self.as_mut()
-            .set_determinate(progress > 0.0 && phase == Phase::Updating);
         self.show();
     }
 }

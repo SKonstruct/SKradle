@@ -20,9 +20,6 @@ pub const MEMORY_MAX: u32 = 16384;
 pub const FPS_MIN: u32 = 30;
 pub const FPS_MAX: u32 = 360;
 
-/// Languages the UI offers: the setting value and the name shown (in that language).
-pub const LANGUAGES: &[(&str, &str)] = &[("system", ""), ("en", "English")];
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Theme {
     #[default]
@@ -332,10 +329,6 @@ impl Store {
 
     pub fn load_outcome(&self) -> &LoadOutcome {
         &self.outcome
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
     }
 
     pub fn get(&self) -> Settings {

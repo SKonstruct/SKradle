@@ -14,6 +14,12 @@ pub mod log;
 pub mod memory;
 pub mod plan;
 pub mod supervisor;
+pub mod updater;
+
+use std::sync::Arc;
+
+use crate::discovery::Install;
+use crate::settings::Settings;
 
 /// Where the launch is, as the UI shows it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -140,10 +146,37 @@ impl LaunchError {
     }
 }
 
-/// What the supervisor tells its owner.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Where a launch reports to.
+pub type Sink = Arc<dyn Fn(Event) + Send + Sync>;
+
+/// What to launch.
+#[derive(Debug, Clone)]
+pub struct Request {
+    pub install: Install,
+    pub settings: Settings,
+}
+
+/// A launch in progress.
+pub trait Running: Send {
+    /// Ends the updater and the game; the launch then reports `Event::Stopped`.
+    fn stop(&self);
+}
+
+/// Something that can run a launch. `UpdaterLauncher` runs the game's own updater; the core's launch planner
+/// (update check, mods, server connection, direct launch, graphics agent) is meant to be another implementation.
+/// `start` may block on file access: it is called on a worker thread, never the UI thread. Progress, phase changes
+/// and the end are reported through the sink; an `Err` means nothing was started.
+pub trait Launcher: Send + Sync {
+    fn start(&self, request: Request, sink: Sink) -> Result<Box<dyn Running>, LaunchError>;
+}
+
+/// What a launch tells its owner.
+#[derive(Debug, Clone, PartialEq)]
 pub enum Event {
     Phase(Phase, Step),
+    /// Download progress, 0 to 1, while updating. Only launchers that know it send this; the updater does not.
+    #[allow(dead_code)] // sent by launchers that know the progress; the updater does not
+    Progress(f64),
     Failed(LaunchError),
     /// The game exited by itself.
     Finished,
@@ -152,10 +185,12 @@ pub enum Event {
 }
 
 /// The launch state machine's current state. `apply` is the only way it changes.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Status {
     pub phase: Phase,
     pub step: Step,
+    /// Known download progress (0 to 1); `None` shows the indeterminate ring.
+    pub progress: Option<f64>,
     /// Set in the `Error` phase.
     pub message: String,
 }
@@ -170,15 +205,26 @@ impl Status {
                 }
                 self.phase = phase;
                 self.step = step;
+                if phase != Phase::Updating {
+                    self.progress = None;
+                }
                 self.message.clear();
+            }
+            Event::Progress(p) => {
+                if self.phase == Phase::Updating && p.is_finite() {
+                    self.step = Step::Downloading;
+                    self.progress = Some(p.clamp(0.0, 1.0));
+                }
             }
             Event::Failed(error) => {
                 self.phase = Phase::Error;
+                self.progress = None;
                 self.step = Step::Checking;
                 self.message = error.message();
             }
             Event::Finished | Event::Stopped => {
                 self.phase = Phase::Ready;
+                self.progress = None;
                 self.step = Step::Checking;
                 self.message.clear();
             }
@@ -223,6 +269,22 @@ mod tests {
         assert_eq!(s.phase, Phase::Running);
         s.apply(Event::Finished);
         assert_eq!(s.phase, Phase::Ready);
+    }
+
+    #[test]
+    fn progress_only_counts_while_updating_and_is_clamped() {
+        let mut s = status(Phase::Updating);
+        s.apply(Event::Progress(0.4));
+        assert_eq!((s.progress, s.step), (Some(0.4), Step::Downloading));
+        s.apply(Event::Progress(7.0));
+        assert_eq!(s.progress, Some(1.0));
+        s.apply(Event::Phase(Phase::Launching, Step::Checking));
+        assert_eq!(s.progress, None);
+        s.apply(Event::Progress(0.5));
+        assert_eq!(s.progress, None);
+        let mut ready = Status::default();
+        ready.apply(Event::Progress(0.5));
+        assert_eq!(ready.progress, None);
     }
 
     #[test]

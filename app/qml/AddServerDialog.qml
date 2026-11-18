@@ -48,33 +48,33 @@ Popup {
     contentItem: ColumnLayout {
         spacing: Theme.s4
         Accessible.role: Accessible.Dialog
-        Accessible.name: L.t("Add server")
+        Accessible.name: qsTr("Add server")
         Item { Layout.preferredHeight: 0 }
         ColumnLayout {
             Layout.fillWidth: true
             Layout.leftMargin: Theme.s6; Layout.rightMargin: Theme.s6
             spacing: 4
-            Txt { Layout.fillWidth: true; text: L.t("Add server"); kind: "title"; Accessible.role: Accessible.Heading }
-            Txt { Layout.fillWidth: true; text: L.t("Enter the name and address the server owner gave you."); color: Theme.textSecondary }
+            Txt { Layout.fillWidth: true; text: qsTr("Add server"); kind: "title"; Accessible.role: Accessible.Heading }
+            Txt { Layout.fillWidth: true; text: qsTr("Enter the name and address the server owner gave you."); color: Theme.textSecondary }
         }
         ColumnLayout {
             Layout.fillWidth: true
             Layout.leftMargin: Theme.s6; Layout.rightMargin: Theme.s6
             spacing: Theme.s2
-            Txt { text: L.t("Name"); kind: "caption"; font.weight: Font.Medium }
+            Txt { text: qsTr("Name"); kind: "caption"; font.weight: Font.Medium }
             STextField {
                 id: nameField
                 Layout.fillWidth: true
-                placeholderText: L.t("My server")
-                Accessible.name: L.t("Name")
+                placeholderText: qsTr("My server")
+                Accessible.name: qsTr("Name")
                 onAccepted: addrField.forceActiveFocus()
             }
-            Txt { Layout.topMargin: Theme.s2; text: L.t("Address"); kind: "caption"; font.weight: Font.Medium }
+            Txt { Layout.topMargin: Theme.s2; text: qsTr("Address"); kind: "caption"; font.weight: Font.Medium }
             STextField {
                 id: addrField
                 Layout.fillWidth: true
                 placeholderText: "host.example.com:47011"
-                Accessible.name: L.t("Address")
+                Accessible.name: qsTr("Address")
                 onAccepted: dlg.submit()
             }
         }
@@ -85,8 +85,8 @@ Popup {
             Layout.bottomMargin: Theme.s5
             spacing: Theme.s2
             Item { Layout.fillWidth: true }
-            SButton { text: L.t("Cancel"); onClicked: dlg.close() }
-            SButton { text: L.t("Add server"); highlighted: true; enabled: dlg.valid; onClicked: dlg.submit() }
+            SButton { text: qsTr("Cancel"); onClicked: dlg.close() }
+            SButton { text: qsTr("Add server"); highlighted: true; enabled: dlg.valid; onClicked: dlg.submit() }
         }
     }
 }

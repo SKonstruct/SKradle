@@ -44,6 +44,11 @@ impl Default for Options {
 }
 
 impl Options {
+    /// Self-test and screenshot runs: nothing may start the real game.
+    pub fn is_test_run(&self) -> bool {
+        self.selftest || self.shots.is_some()
+    }
+
     /// Parses the arguments after the program name. Flags this program does not know (Qt's own, such as
     /// `-platform`) are ignored; a flag that needs a value but has none is an error.
     pub fn parse<I: IntoIterator<Item = String>>(

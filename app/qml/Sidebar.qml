@@ -124,7 +124,7 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 16
         glyph: "panel"
-        tip: root.collapsed ? L.t("Expand sidebar") : L.t("Collapse sidebar")
+        tip: root.collapsed ? qsTr("Expand sidebar") : qsTr("Collapse sidebar")
         onClicked: root.toggleCollapsed()
         Behavior on x { NumberAnimation { duration: Motion.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.standard } }
     }

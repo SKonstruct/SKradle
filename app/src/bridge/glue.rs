@@ -14,6 +14,10 @@ pub mod ffi {
         #[namespace = "skradle"]
         fn register_engine(engine: Pin<&mut QQmlApplicationEngine>);
         #[namespace = "skradle"]
+        fn grab_window(path: &QString) -> bool;
+        #[namespace = "skradle"]
+        fn qml_warning_count() -> i32;
+        #[namespace = "skradle"]
         fn qt_version() -> QString;
         #[namespace = "skradle"]
         fn set_language(language: &QString) -> QString;
@@ -30,4 +34,14 @@ pub fn set_language(language: &str) -> String {
 /// The Qt version in use.
 pub fn qt_version() -> String {
     ffi::qt_version().to_string()
+}
+
+/// Saves a screenshot of the first window.
+pub fn grab_window(path: &str) -> bool {
+    ffi::grab_window(&cxx_qt_lib::QString::from(path))
+}
+
+/// QML warnings so far that point into the app's own QML files.
+pub fn qml_warning_count() -> i32 {
+    ffi::qml_warning_count()
 }
