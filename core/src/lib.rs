@@ -1,5 +1,6 @@
 //! SKradle core: the launcher's logic, with no UI and no Qt dependency.
 
+pub mod editors;
 pub mod extra_txt;
 pub mod game;
 pub mod getdown;

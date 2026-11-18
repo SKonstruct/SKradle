@@ -43,6 +43,8 @@ pub struct Memory {
 #[derive(Debug, Clone)]
 pub struct DirectOptions {
     pub app_id: String,
+    /// Starts this class instead of the app id's main class (the editors without a `getdown.txt` app id).
+    pub main_class: Option<String>,
     /// Replaces the heap flags of `getdown.txt` and `extra.txt` when set.
     pub memory: Option<Memory>,
     /// Drops `extra.txt` lines for which this returns true (the alt client drops the graphics agent's).
@@ -59,6 +61,7 @@ impl Default for DirectOptions {
     fn default() -> Self {
         Self {
             app_id: CLIENT_APP_ID.to_owned(),
+            main_class: None,
             memory: None,
             skip_extra_line: None,
             jvm_args: Vec::new(),
@@ -183,7 +186,13 @@ pub fn command_with_env(
     args.extend(jvm.into_iter().map(OsString::from));
     args.extend(options.jvm_args.iter().map(OsString::from));
 
-    args.push(launch.main_class.clone().into());
+    args.push(
+        options
+            .main_class
+            .clone()
+            .unwrap_or_else(|| launch.main_class.clone())
+            .into(),
+    );
     args.extend(launch.app_args.iter().map(|a| OsString::from(process(a))));
     args.extend(options.app_args.iter().map(OsString::from));
 
