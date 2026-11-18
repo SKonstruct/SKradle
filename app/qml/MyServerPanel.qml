@@ -16,6 +16,9 @@ Item {
         : loader.status === Loader.Ready && !failed ? "embedded"
         : loader.status === Loader.Error || failed ? "browser" : "loading"
     property bool failed: false
+    readonly property int pageProgress: loader.item ? loader.item.loadProgress : -1
+    // The loaded page's title (the self-test checks that the page really loaded and ran its script).
+    readonly property string pageTitle: loader.item ? loader.item.pageTitle : ""
     readonly property bool shown: visible && Window.window && Window.window.visible
 
     ColumnLayout {
@@ -46,7 +49,7 @@ Item {
                     anchors.margins: 2
                     active: root.shown && ServerHost.state === "ready" && AppEnv.webViewAvailable
                     source: "qrc:/qt/qml/com/skradle/app/web/WebPane.qml"
-                    onLoaded: { item.address = ServerHost.url; item.loadFailed.connect(() => root.failed = true) }
+                    onLoaded: { item.address = ServerHost.url; item.loadFailed.connect((why) => { console.warn("web view: " + why); root.failed = true }) }
                 }
             }
 

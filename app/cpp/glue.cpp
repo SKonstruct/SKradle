@@ -8,6 +8,7 @@
 #include <QtGui/QImage>
 #include <QtQuick/QQuickWindow>
 #include <QtCore/QDir>
+#include <QtCore/QPluginLoader>
 #include <atomic>
 #ifdef SKRADLE_WEBVIEW
 #include <QtWebView/QtWebView>
@@ -74,10 +75,18 @@ void init_webview() {
 
 bool webview_backend_available() {
 #ifdef SKRADLE_WEBVIEW
-    // The web view loads one of the plugins in <plugins>/webview.
+    // Native web views are child windows of the real window; platforms without foreign windows (offscreen, the
+    // headless self-test) cannot host one.
+    const QString platform = QGuiApplication::platformName();
+    if (platform == QLatin1String("offscreen") || platform == QLatin1String("minimal")) return false;
+    // The web view loads one of the plugins in <plugins>/webview. A plugin file can be present and still unusable
+    // (the WebEngine plugin without the WebEngine libraries), so each one is really loaded.
     for (const QString &path : QCoreApplication::libraryPaths()) {
         const QDir dir(path + QStringLiteral("/webview"));
-        if (!dir.entryList(QDir::Files).isEmpty()) return true;
+        for (const QString &file : dir.entryList(QDir::Files)) {
+            QPluginLoader loader(dir.absoluteFilePath(file));
+            if (loader.load()) return true;
+        }
     }
 #endif
     return false;

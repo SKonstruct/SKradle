@@ -56,7 +56,7 @@ const STUB_PAGE: &str = "<!doctype html><meta charset=utf-8><title>My server</ti
 <style>body{font:15px system-ui,sans-serif;margin:40px;color:#222}h1{font-size:22px}code{background:#eee;padding:2px 6px;border-radius:4px}</style>\
 <h1>My server</h1><p>This is a placeholder page. The server's own management interface appears here once the \
 server-host module is connected.</p><p>Embedded web view check: <code id=js>script not run</code></p>\
-<script>document.getElementById('js').textContent='script ran'</script>";
+<script>document.getElementById('js').textContent='script ran';document.title='script ran'</script>";
 
 /// A `data:` URL for an HTML page (percent-encoded, so it survives every URL parser).
 pub fn data_url(html: &str) -> String {

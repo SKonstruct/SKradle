@@ -8,6 +8,8 @@ Item {
     property bool showHost: false
     // For the self-test: what the "My server" panel ended up showing.
     readonly property string hostMode: panel.mode
+    readonly property string hostTitle: panel.pageTitle
+    readonly property int pageProgress: panel.pageProgress
     function openAdd() { dlg.open() }
     function closeAll() { page.showHost = false; dlg.close(); const it = lv.itemAtIndex(0); if (it) it.card.closeMenu() }
     function openMenu() { const it = lv.itemAtIndex(0); if (it) it.card.openMenu() }

@@ -7,7 +7,13 @@ import QtWebView
 Item {
     id: root
     property url address
-    property int loadStatus: view.loadProgress
+    // The title the page itself reports, asked of the page's own JavaScript (None until the first answer).
+    property string pageTitle: ""
+    Timer {
+        interval: 300; repeat: true; running: view.loadProgress === 100 && root.pageTitle === ""
+        onTriggered: view.runJavaScript("document.title", (result) => {  if (result) root.pageTitle = String(result).replace(/^"|"$/g, "") })
+    }
+    readonly property int loadProgress: view.loadProgress
     signal loadFailed(string reason)
 
     WebView {
@@ -15,7 +21,8 @@ Item {
         anchors.fill: parent
         url: root.address
         onLoadingChanged: (request) => {
-            if (request.status === WebView.LoadFailedStatus) root.loadFailed(request.errorString)
+            // The view starts with an empty address before the owner sets one; that is not a failure.
+            if (request.status === WebView.LoadFailedStatus && request.url.toString() !== "") root.loadFailed(request.errorString)
         }
     }
 }
