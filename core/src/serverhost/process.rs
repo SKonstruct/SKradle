@@ -1720,7 +1720,7 @@ exit 1
     #[test]
     fn a_stop_that_arrives_while_the_admin_account_is_applied_fails_the_start() {
         // The engine never answers the console, so the start sits in the admin step until the prompt timeout.
-        let script = format!("{BANNER}sleep 30\n");
+        let script = format!("{BANNER}exec sleep 30\n");
         let f = fixture_with(&script, |o| o.prompt_timeout = Duration::from_secs(2), 200);
         let host = f.host.clone();
         let starter = thread::spawn(move || host.start());
