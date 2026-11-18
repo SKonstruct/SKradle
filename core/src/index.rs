@@ -62,6 +62,11 @@ pub enum IndexError {
     UnsupportedSchema(u32),
     /// `expiresAt` has passed.
     Expired,
+    /// The index is older than one already accepted: a stale but still-valid signature being replayed.
+    RolledBack {
+        newest_seen: u64,
+        got: u64,
+    },
     /// The index was generated in the future, or claims a validity longer than allowed.
     BadTimes,
 }
@@ -77,6 +82,7 @@ impl std::fmt::Display for IndexError {
             IndexError::BadSignature => write!(f, "the index signature is invalid"),
             IndexError::UnsupportedSchema(v) => write!(f, "unsupported index schema {v}"),
             IndexError::Expired => write!(f, "the index has expired"),
+            IndexError::RolledBack { .. } => write!(f, "the index is older than one already seen"),
             IndexError::BadTimes => write!(f, "the index has implausible dates"),
         }
     }
@@ -190,6 +196,18 @@ struct RawModule {
 pub fn fetch(client: &Client, url: &str) -> Result<Index, IndexError> {
     let text = client.get_text(url, MAX_ENVELOPE_BYTES)?;
     verify(&text, PINNED_KEYS, unix_now())
+}
+
+/// Refuses an index older than the newest one this installation has accepted (`newest_seen` is the `generated_at`
+/// the application stored after its last good check). The caller stores `index.generated_at` when this passes.
+pub fn reject_rollback(index: &Index, newest_seen: Option<u64>) -> Result<(), IndexError> {
+    match newest_seen {
+        Some(seen) if index.generated_at < seen => Err(IndexError::RolledBack {
+            newest_seen: seen,
+            got: index.generated_at,
+        }),
+        _ => Ok(()),
+    }
 }
 
 pub fn unix_now() -> u64 {
@@ -565,6 +583,27 @@ mod tests {
         .unwrap();
         assert_eq!(index.runtimes.len(), 3, "only the good entries remain");
         assert_eq!(index.skipped.len(), 7);
+    }
+
+    #[test]
+    fn an_older_index_than_one_already_seen_is_refused() {
+        let index = verify(&good(), &trusted(), NOW).unwrap();
+        assert!(
+            reject_rollback(&index, None).is_ok(),
+            "first run: nothing seen yet"
+        );
+        assert!(
+            reject_rollback(&index, Some(index.generated_at)).is_ok(),
+            "the same index again is fine"
+        );
+        assert!(
+            reject_rollback(&index, Some(index.generated_at - 1)).is_ok(),
+            "a newer one than before"
+        );
+        assert!(matches!(
+            reject_rollback(&index, Some(index.generated_at + 1)),
+            Err(IndexError::RolledBack { .. })
+        ));
     }
 
     #[test]
