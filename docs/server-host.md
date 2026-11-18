@@ -133,10 +133,12 @@ SKradle closes that window at the first start by creating the account itself ove
 3. Any account the engine records closes the first-run page for good (its identity store treats any identity event as
    completed setup), so the setup code is useless afterwards. The code line is replaced by `[hidden]` in the output buffer.
 
-The launcher owns the account `skradle` and re-applies its stored password at every start, because a reset or a restored
-backup replaces the engine's account database. **A password the player changes for `skradle` in the WebUI is overwritten
-at the next start**; administrators created in the WebUI's own access page are not touched. `reset_admin_password` generates
-a new password (`webui password`, falling back to `webui user` when the account is gone).
+The launcher owns the account `skradle` but applies it only when nothing proves the engine has it: no readable credential
+file, no `admin-applied` marker (written once the engine accepted the password), or no `data/webui.sqlite` before this start
+(first run, a server reset, a restored backup without it). `webui user` replaces the password and signs the account out of
+every session, so doing it at every start would undo a password the player chose in the WebUI; a password the player
+changes is therefore kept. If the player locks themselves out, `reset_admin_password` generates a new one (`webui password`,
+falling back to `webui user` when the account is gone). Administrators created in the WebUI's own access page are never touched.
 
 Prompts are recognised by shape (a console-thread `INFO` line ending in `:`), not wording; `PromptScript` is a small state
 machine over lines with recorded-style tests. Passwords never reach the output buffer, `Debug` output or a log.

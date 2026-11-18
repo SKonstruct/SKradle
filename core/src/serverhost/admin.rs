@@ -10,10 +10,11 @@
 //!
 //! **Credential file**: `admin-credentials.json` in the server folder, created with mode `0600` on unix (best
 //! effort `icacls` on Windows). It is written *before* the password is sent to the engine, so a crash in between
-//! leaves a file the next start can apply. The launcher owns the account named [`ADMIN_USER`] and re-applies its
-//! stored password at every start (a reset or a restored backup replaces the engine's account database, so the two
-//! would drift otherwise). A password the player changed for this account in the WebUI is therefore overwritten;
-//! additional administrators created in the WebUI's own access page are not touched.
+//! leaves a file the next start can apply. The launcher owns the account named [`ADMIN_USER`] but applies it only
+//! when it has to (see [`needs_apply`]): `webui user` overwrites the password and signs the account out of every
+//! session, so doing it at every start would undo a password the player chose in the WebUI. The player's own
+//! escape hatch is the explicit reset. Additional administrators created in the WebUI's own access page are never
+//! touched.
 
 use std::fmt;
 use std::io::{self, Write};
@@ -102,10 +103,43 @@ pub fn load(layout: &ServerLayout) -> Option<Credentials> {
     ok.then_some(credentials)
 }
 
+/// The marker written once the engine has accepted the stored credentials.
+fn applied_path(layout: &ServerLayout) -> PathBuf {
+    layout.root().join("admin-applied")
+}
+
+/// The engine's WebUI account database; it is created by the engine, so its absence at a start means a first run,
+/// a server reset, or a restored backup that did not carry it.
+fn engine_accounts(layout: &ServerLayout) -> PathBuf {
+    layout.data_dir().join("webui.sqlite")
+}
+
+/// Whether the engine's account database exists; ask *before* the engine starts, because it creates the file.
+pub fn engine_has_accounts(layout: &ServerLayout) -> bool {
+    engine_accounts(layout).is_file()
+}
+
+/// Whether the account has to be created at this start: nothing proves the engine has the stored credentials (no
+/// readable file, no applied marker, or an account database that did not exist before this start).
+pub fn needs_apply(layout: &ServerLayout, engine_had_accounts: bool) -> bool {
+    !engine_had_accounts || load(layout).is_none() || !applied_path(layout).is_file()
+}
+
+/// Records that the engine accepted the stored credentials.
+pub fn mark_applied(layout: &ServerLayout) -> io::Result<()> {
+    std::fs::write(applied_path(layout), b"")
+}
+
+/// Forgets that the stored credentials were applied (they are about to change, or are new).
+fn clear_applied(layout: &ServerLayout) {
+    let _ = std::fs::remove_file(applied_path(layout));
+}
+
 /// Writes the credentials so that they are never readable by other users: the file is created private and then
 /// renamed into place.
 pub fn store(layout: &ServerLayout, credentials: &Credentials) -> io::Result<()> {
     let path = credentials_path(layout);
+    clear_applied(layout);
     let tmp = sibling(&path, "tmp");
     let json = serde_json::to_string_pretty(credentials).map_err(io::Error::other)?;
     let result = (|| {

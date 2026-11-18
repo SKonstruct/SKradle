@@ -112,7 +112,7 @@ pub struct HostOptions {
     pub prompt_timeout: Duration,
     /// Lines kept in the output buffer.
     pub log_capacity: usize,
-    /// Create and apply the WebUI administrator at every start (see [`super::admin`]).
+    /// Create the WebUI administrator when the engine does not have it yet (see [`super::admin::needs_apply`]).
     pub manage_admin: bool,
     /// Check the ports before starting. Only tests turn this off.
     pub check_ports: bool,
@@ -822,6 +822,8 @@ impl ServerHost {
             }
         }
 
+        // Asked before the engine starts, because the engine creates its account database.
+        let engine_had_accounts = admin::engine_has_accounts(&self.layout);
         let spec = command_spec(&self.layout, &self.options);
         let mut command = spec.to_command();
         command
@@ -919,9 +921,15 @@ impl ServerHost {
         }
 
         if self.options.manage_admin {
-            let admin_state = match self.apply_admin(&run, false) {
-                Ok(()) => AdminState::Ready,
-                Err(e) => AdminState::Failed(e.to_string()),
+            // Only when nothing proves the engine has the account: `webui user` would replace a password the
+            // player changed in the WebUI and sign them out.
+            let admin_state = if admin::needs_apply(&self.layout, engine_had_accounts) {
+                match self.apply_admin(&run, false) {
+                    Ok(()) => AdminState::Ready,
+                    Err(e) => AdminState::Failed(e.to_string()),
+                }
+            } else {
+                AdminState::Ready
             };
             lock(&run.state).admin = admin_state;
             if let Some(error) = self.interrupted(&run) {
@@ -961,7 +969,7 @@ impl ServerHost {
         }
     }
 
-    /// Creates or re-applies the administrator with `webui user`; with `reset` through `webui password` first.
+    /// Creates the administrator with `webui user`; with `reset` a new password goes through `webui password` first.
     fn apply_admin(&self, run: &Arc<Run>, reset: bool) -> Result<(), HostError> {
         let credentials: Credentials = if reset {
             let fresh = Credentials::new(admin::ADMIN_USER, admin::generate_password()?);
@@ -977,7 +985,7 @@ impl ServerHost {
                 PromptScript::webui_password(&credentials.username, &secret),
                 timeout,
             )? {
-                Outcome::Done => return Ok(()),
+                Outcome::Done => return Ok(admin::mark_applied(&self.layout)?),
                 // The account is missing (a reset of the database): create it instead.
                 Outcome::Refused(_) => {}
             }
@@ -986,7 +994,7 @@ impl ServerHost {
             PromptScript::webui_user(&credentials.username, &secret),
             timeout,
         )? {
-            Outcome::Done => Ok(()),
+            Outcome::Done => Ok(admin::mark_applied(&self.layout)?),
             Outcome::Refused(why) => Err(HostError::Console(why)),
         }
     }
@@ -1540,19 +1548,46 @@ done
     }
 
     #[test]
-    fn a_restart_reapplies_the_same_stored_password() {
+    fn a_restart_does_not_overwrite_a_password_the_player_may_have_changed() {
         let f = fixture("");
         f.host.start().unwrap();
         let first = f.host.admin_credentials().unwrap();
+        // The real engine creates its account database; the fake one does not, so stand in for it.
+        std::fs::create_dir_all(f.layout.data_dir()).unwrap();
+        std::fs::write(f.layout.data_dir().join("webui.sqlite"), b"").unwrap();
         f.host.restart().unwrap();
         assert_eq!(f.host.admin_credentials().unwrap(), first);
-        let applied: Vec<_> = f
-            .received()
+        assert_eq!(f.host.status().admin, AdminState::Ready);
+        assert_eq!(count_applied(&f), 1, "applied once, at the first start");
+
+        // A server reset removes the database: the account is created again, with the same stored password.
+        f.host.stop().unwrap();
+        std::fs::remove_file(f.layout.data_dir().join("webui.sqlite")).unwrap();
+        f.host.start().unwrap();
+        assert_eq!(count_applied(&f), 2);
+        assert_eq!(f.host.admin_credentials().unwrap(), first);
+        f.host.stop().unwrap();
+    }
+
+    #[test]
+    fn credentials_that_never_reached_the_engine_are_applied_at_the_next_start() {
+        let f = fixture("");
+        f.host.start().unwrap();
+        f.host.stop().unwrap();
+        // A crash after the file was written and before the engine accepted it leaves no marker.
+        std::fs::create_dir_all(f.layout.data_dir()).unwrap();
+        std::fs::write(f.layout.data_dir().join("webui.sqlite"), b"").unwrap();
+        std::fs::remove_file(f.layout.root().join("admin-applied")).unwrap();
+        f.host.start().unwrap();
+        assert_eq!(count_applied(&f), 2);
+        f.host.stop().unwrap();
+    }
+
+    fn count_applied(f: &Fixture) -> usize {
+        f.received()
             .into_iter()
             .filter(|l| l.starts_with("webui user"))
-            .collect();
-        assert_eq!(applied.len(), 2);
-        f.host.stop().unwrap();
+            .count()
     }
 
     #[test]
