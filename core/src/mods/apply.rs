@@ -716,9 +716,16 @@ pub(crate) fn run(
         let mut jar = Jar::from_bytes(&pristine, &Limits::CODE_JAR)?;
         if wants_class {
             for (path, bytes) in &class_files {
-                jar.set(path, bytes.clone())?;
+                match jar.set(path, bytes.clone()) {
+                    Ok(()) => report.class_files_merged += 1,
+                    // A class file that would make a folder of a file (or the reverse) would leave a jar the game
+                    // cannot open: leave that one out.
+                    Err(JarError::FileFolderConflict { name }) => report.warnings.push(format!(
+                        "{path}: conflicts with {name} in config.jar, ignored"
+                    )),
+                    Err(e) => return Err(e.into()),
+                }
             }
-            report.class_files_merged = class_files.len();
         }
         if wants_locale {
             for (jar_path, changes) in &locale {
@@ -1079,6 +1086,34 @@ mod tests {
         let mut all: Vec<(&str, &[u8])> = vec![("mod.json", json.as_bytes())];
         all.extend_from_slice(files);
         simple_zip(&all)
+    }
+
+    #[test]
+    fn a_class_file_that_clashes_with_the_jar_layout_is_left_out_not_written() {
+        let fx = fixture();
+        fx.add_mod(
+            "1_class.zip",
+            &class_mod(
+                "20261110044614",
+                &[
+                    // `deployment.properties` is a file in the jar: it cannot also be a folder.
+                    ("deployment.properties/Y.class", b"clash"),
+                    ("com/x/Ok.class", b"ok"),
+                ],
+            ),
+        );
+        let report = fx.apply().unwrap();
+        assert_eq!(report.class_files_merged, 1, "{report:#?}");
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|w| w.contains("deployment.properties")),
+            "{report:#?}"
+        );
+        let cfg = Jar::from_bytes(&fx.read("code/config.jar"), &Limits::CODE_JAR).unwrap();
+        assert_eq!(cfg.get("com/x/Ok.class"), Some(&b"ok"[..]));
+        assert!(cfg.get("deployment.properties").is_some());
     }
 
     #[test]

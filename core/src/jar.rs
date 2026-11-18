@@ -497,6 +497,20 @@ impl Jar {
                 problem: PathProblem::BadComponent,
             });
         }
+        // A file may not share its name with a folder, sit inside a file, or hold other entries: the archive
+        // would be rejected when read back.
+        let inside = format!("{path}/");
+        let conflict = self.entries.iter().find(|e| {
+            e.path.starts_with(&inside) || (e.is_dir && e.path == path) || {
+                // `e` is a file that is a folder on the way to `path`.
+                !e.is_dir && path.starts_with(&format!("{}/", e.path))
+            }
+        });
+        if let Some(e) = conflict {
+            return Err(JarError::FileFolderConflict {
+                name: e.path.clone(),
+            });
+        }
         match self
             .entries
             .iter_mut()
@@ -877,6 +891,26 @@ mod tests {
         assert_eq!(again.get("new/c.txt"), Some(&b"C"[..]));
         assert!(again.entries().iter().any(|e| e.is_dir && e.path == "dir"));
         assert_eq!(jar.to_bytes().unwrap(), bytes, "deterministic output");
+    }
+
+    #[test]
+    fn jar_set_refuses_names_that_clash_with_files_and_folders() {
+        let source = simple_zip(&[("f", b"F"), ("dir/", b""), ("deep/x/y.txt", b"Y")]);
+        let mut jar = Jar::from_bytes(&source, &Limits::CODE_JAR).unwrap();
+        let before = jar.clone();
+        for name in ["dir", "deep", "deep/x", "f/inner", "deep/x/y.txt/z"] {
+            let err = jar.set(name, vec![1]).unwrap_err();
+            assert!(
+                matches!(err, JarError::FileFolderConflict { .. }),
+                "{name}: {err}"
+            );
+        }
+        assert_eq!(jar, before, "a refused set changes nothing");
+        // Siblings and new folders are fine, and what is written can be read back.
+        jar.set("dir/ok.txt", vec![1]).unwrap();
+        jar.set("deep/x/z.txt", vec![2]).unwrap();
+        jar.set("f2", vec![3]).unwrap();
+        Jar::from_bytes(&jar.to_bytes().unwrap(), &Limits::CODE_JAR).unwrap();
     }
 
     #[test]
