@@ -1,0 +1,914 @@
+//! Keeping the mods folder in step with the owner's modpack, the `mods/` folder of
+//! `github.com/SirDank/Spiral-Knights-Modpack`.
+//!
+//! The pack is read through the GitHub contents API (`api.github.com`), which lists each file with its **git blob
+//! SHA-1** (`sha1("blob <length>\0" + bytes)`, what `git hash-object` prints). That is the decision rule: a local file
+//! with the published hash is current and skipped; anything else (missing, different, a link) is downloaded again.
+//! Every download is checked against the published hash **before** it replaces anything, so a truncated transfer, a
+//! captive portal's page or a tampered response never becomes a mod. SHA-1 is a weak hash against a determined
+//! attacker, but the listing itself comes over HTTPS from the same service and the files are only ever read by the
+//! mod scanner, which treats every archive as hostile anyway ([`crate::jar`]).
+//!
+//! Rules, all enforced here and tested:
+//! - only `.zip`, `.jar` and `.modpack` files are taken, with a plain one-component file name that does not start with
+//!   a dot (the listing is remote data);
+//! - a download URL must be `https://raw.githubusercontent.com/...` exactly: no other host, no user info, no port,
+//!   no plain HTTP; the listing request itself goes to `api.github.com` only. (The HTTP client follows redirects, and
+//!   the hash check is what covers a redirect target.);
+//! - `.modpack-synced` in the mods folder lists the files this sync wrote, one name per line. A sync deletes a file
+//!   only if that list names it **and** the pack no longer has it, so the player's own mods are never removed. A file
+//!   that already matched the pack but was not written by a sync is not claimed;
+//! - files are written to a temporary name beside the mod and renamed into place, so an interrupted run never leaves
+//!   a truncated mod for the game to load;
+//! - an empty listing is an error and deletes nothing; a failure on one file is reported and does not stop the
+//!   others.
+//!
+//! A player's own file with the same name as a pack file is replaced by the pack's version (the name is the
+//! identity) and from then on counts as synced.
+
+use std::collections::{BTreeSet, HashSet};
+use std::fmt;
+use std::fs;
+use std::io::{self, Read};
+use std::path::Path;
+
+use serde::Deserialize;
+use sha1::{Digest, Sha1};
+
+use crate::jar::write_atomic;
+use crate::net::{hex, Client};
+
+use super::model::Container;
+
+/// The contents listing of the pack's `mods/` folder.
+pub const LISTING_URL: &str =
+    "https://api.github.com/repos/SirDank/Spiral-Knights-Modpack/contents/mods";
+/// The file in the mods folder that records what a sync wrote.
+pub const MANIFEST: &str = ".modpack-synced";
+const MAX_LISTING_BYTES: u64 = 4 * 1024 * 1024;
+/// Largest mod file downloaded (the biggest is 84 MB).
+pub const MAX_MOD_BYTES: u64 = 256 * 1024 * 1024;
+const DOWNLOAD_HOST: &str = "raw.githubusercontent.com";
+
+/// The two requests a sync makes, so tests can use a fake.
+pub trait PackHttp {
+    /// The JSON listing of the pack's `mods/` folder.
+    fn listing(&self) -> Result<Vec<u8>, String>;
+    /// One file, at most `max_bytes`. `url` has been checked by [`is_trusted_download_url`].
+    fn download(&self, url: &str, max_bytes: u64) -> Result<Vec<u8>, String>;
+}
+
+/// The real thing, over [`Client`] (HTTPS only, size caps).
+pub struct GithubHttp {
+    client: Client,
+}
+
+impl GithubHttp {
+    pub fn new() -> Self {
+        Self {
+            client: Client::new(),
+        }
+    }
+}
+
+impl Default for GithubHttp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PackHttp for GithubHttp {
+    fn listing(&self) -> Result<Vec<u8>, String> {
+        self.client
+            .get_bytes(LISTING_URL, MAX_LISTING_BYTES)
+            .map_err(|e| e.to_string())
+    }
+
+    fn download(&self, url: &str, max_bytes: u64) -> Result<Vec<u8>, String> {
+        if !is_trusted_download_url(url) {
+            return Err(format!("refusing to download from {url}"));
+        }
+        self.client
+            .get_bytes(url, max_bytes)
+            .map_err(|e| e.to_string())
+    }
+}
+
+/// One file the pack offers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteFile {
+    pub name: String,
+    pub url: String,
+    /// The git blob SHA-1, lower-case hex.
+    pub sha: String,
+    pub size: Option<u64>,
+}
+
+#[derive(Debug)]
+pub enum SyncError {
+    /// The listing could not be fetched or is not a listing (a rate-limit answer, say).
+    Listing(String),
+    /// The pack lists no usable mods; nothing was changed.
+    EmptyListing,
+    Io(io::Error),
+}
+
+impl fmt::Display for SyncError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SyncError::Listing(why) => write!(f, "cannot read the modpack listing: {why}"),
+            SyncError::EmptyListing => f.write_str("the modpack lists no mods"),
+            SyncError::Io(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for SyncError {}
+
+impl From<io::Error> for SyncError {
+    fn from(e: io::Error) -> Self {
+        SyncError::Io(e)
+    }
+}
+
+/// What a sync did.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct SyncReport {
+    pub downloaded: Vec<String>,
+    pub skipped: Vec<String>,
+    /// Files removed because the pack dropped them.
+    pub deleted: Vec<String>,
+    /// File name and why it could not be brought up to date.
+    pub failed: Vec<(String, String)>,
+    /// Listing entries that were ignored, and why.
+    pub warnings: Vec<String>,
+}
+
+impl SyncReport {
+    /// True when every file of the pack is now current.
+    pub fn is_complete(&self) -> bool {
+        self.failed.is_empty()
+    }
+}
+
+/// How far a sync has come.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncProgress {
+    /// 1-based position of the file being handled.
+    pub current: usize,
+    pub total: usize,
+    pub name: String,
+}
+
+/// Git's hash of a blob with these contents.
+pub fn git_blob_sha1(bytes: &[u8]) -> String {
+    let mut hasher = Sha1::new();
+    hasher.update(format!("blob {}\0", bytes.len()).as_bytes());
+    hasher.update(bytes);
+    hex(hasher.finalize().as_slice())
+}
+
+/// [`git_blob_sha1`] of a file, read in chunks.
+pub fn git_blob_sha1_file(path: &Path) -> io::Result<String> {
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha1::new();
+    hasher.update(format!("blob {}\0", file.metadata()?.len()).as_bytes());
+    let mut buf = vec![0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            return Ok(hex(hasher.finalize().as_slice()));
+        }
+        hasher.update(&buf[..n]);
+    }
+}
+
+/// A file name this sync may write or delete: one component, no dot at the start, a mod extension.
+pub fn is_safe_mod_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 255
+        && !name.starts_with('.')
+        && matches!(
+            crate::jar::safe_entry_path(name),
+            Ok((ref clean, false)) if clean == name && !clean.contains('/')
+        )
+        && Container::from_file_name(name).is_some()
+}
+
+/// `https://raw.githubusercontent.com/<path>` and nothing else: no other host, no user info, no port, no HTTP.
+pub fn is_trusted_download_url(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else {
+        return false;
+    };
+    let Some((host, path)) = rest.split_once('/') else {
+        return false;
+    };
+    host == DOWNLOAD_HOST
+        && !path.is_empty()
+        && !path
+            .chars()
+            .any(|c| c.is_control() || c.is_whitespace() || c == '\\')
+        && !path.split(['/', '?', '#']).any(|part| part == "..")
+}
+
+#[derive(Deserialize)]
+struct Entry {
+    #[serde(default, rename = "type")]
+    kind: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    download_url: Option<String>,
+    #[serde(default)]
+    sha: Option<String>,
+    #[serde(default)]
+    size: Option<u64>,
+}
+
+/// The usable files of a contents-API listing, plus a note for each entry that was ignored. A JSON document that is
+/// not an array (GitHub's error answers are objects) is an error.
+pub fn parse_listing(json: &[u8]) -> Result<(Vec<RemoteFile>, Vec<String>), SyncError> {
+    let value: serde_json::Value =
+        serde_json::from_slice(json).map_err(|e| SyncError::Listing(e.to_string()))?;
+    let items = match value {
+        serde_json::Value::Array(items) => items,
+        serde_json::Value::Object(map) => {
+            let message = map
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("not a listing");
+            return Err(SyncError::Listing(message.to_owned()));
+        }
+        _ => return Err(SyncError::Listing("not a listing".to_owned())),
+    };
+    let mut files = Vec::new();
+    let mut warnings = Vec::new();
+    let mut seen = HashSet::new();
+    for item in items {
+        let Ok(entry) = serde_json::from_value::<Entry>(item) else {
+            warnings.push("a listing entry could not be read".to_owned());
+            continue;
+        };
+        if entry.kind != "file" {
+            continue;
+        }
+        let name = entry.name;
+        if !is_safe_mod_name(&name) {
+            warnings.push(format!("{name:?} is not a safe mod file name, ignored"));
+            continue;
+        }
+        let Some(url) = entry.download_url.filter(|u| is_trusted_download_url(u)) else {
+            warnings.push(format!("{name}: no trusted download address, ignored"));
+            continue;
+        };
+        let Some(sha) = entry
+            .sha
+            .filter(|s| s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+        else {
+            warnings.push(format!("{name}: no usable hash, ignored"));
+            continue;
+        };
+        if entry.size.is_some_and(|s| s > MAX_MOD_BYTES) {
+            warnings.push(format!("{name}: larger than the limit, ignored"));
+            continue;
+        }
+        if !seen.insert(name.to_lowercase()) {
+            warnings.push(format!(
+                "{name}: listed twice (names differing only in case), ignored"
+            ));
+            continue;
+        }
+        files.push(RemoteFile {
+            name,
+            url,
+            sha: sha.to_ascii_lowercase(),
+            size: entry.size,
+        });
+    }
+    Ok((files, warnings))
+}
+
+/// What is at the local path of a pack file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Local {
+    Absent,
+    /// A regular file with this git blob SHA-1.
+    Regular {
+        sha: String,
+    },
+    /// A link: replaced, never followed.
+    Link,
+    /// A folder (or something else that is not a file): cannot be replaced.
+    Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Why {
+    Missing,
+    Changed,
+    /// A link stands where the file belongs; it is replaced by the file.
+    ReplacesLink,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Decision {
+    Skip,
+    Download(Why),
+    /// Something that cannot be replaced is in the way.
+    Blocked,
+}
+
+/// Skip, download or refuse, from the local state and the hash the listing publishes.
+pub fn decide(local: &Local, published_sha: &str) -> Decision {
+    match local {
+        Local::Absent => Decision::Download(Why::Missing),
+        Local::Regular { sha } if sha.eq_ignore_ascii_case(published_sha) => Decision::Skip,
+        Local::Regular { .. } => Decision::Download(Why::Changed),
+        Local::Link => Decision::Download(Why::ReplacesLink),
+        Local::Other => Decision::Blocked,
+    }
+}
+
+fn classify(path: &Path) -> io::Result<Local> {
+    match fs::symlink_metadata(path) {
+        Ok(m) if m.file_type().is_symlink() => Ok(Local::Link),
+        Ok(m) if m.is_file() => Ok(Local::Regular {
+            sha: git_blob_sha1_file(path)?,
+        }),
+        Ok(_) => Ok(Local::Other),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Local::Absent),
+        Err(e) => Err(e),
+    }
+}
+
+/// The names a sync recorded earlier. Anything that is not a safe mod name is dropped, so a hand-edited or hostile
+/// manifest cannot point a deletion anywhere else.
+fn read_manifest(dir: &Path) -> BTreeSet<String> {
+    let Ok(bytes) = fs::read(dir.join(MANIFEST)) else {
+        return BTreeSet::new();
+    };
+    if bytes.len() > 1024 * 1024 {
+        return BTreeSet::new();
+    }
+    String::from_utf8_lossy(&bytes)
+        .lines()
+        .map(str::trim)
+        .filter(|l| is_safe_mod_name(l))
+        .map(str::to_owned)
+        .collect()
+}
+
+fn write_manifest(dir: &Path, names: &BTreeSet<String>) -> io::Result<()> {
+    let path = dir.join(MANIFEST);
+    if names.is_empty() {
+        return match fs::remove_file(&path) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        };
+    }
+    let mut text = names.iter().cloned().collect::<Vec<_>>().join("\n");
+    text.push('\n');
+    write_atomic(&path, text.as_bytes())
+}
+
+/// Brings `mods_dir` in line with the pack using the real GitHub endpoints.
+pub fn sync_pack(
+    mods_dir: &Path,
+    progress: &mut dyn FnMut(&SyncProgress),
+) -> Result<SyncReport, SyncError> {
+    sync(mods_dir, &GithubHttp::new(), progress)
+}
+
+/// Brings `mods_dir` in line with the pack: downloads what is new or changed (checking each file's hash before it
+/// lands), then removes what an earlier sync wrote and the pack has dropped. See the module docs for the rules.
+pub fn sync(
+    mods_dir: &Path,
+    http: &dyn PackHttp,
+    progress: &mut dyn FnMut(&SyncProgress),
+) -> Result<SyncReport, SyncError> {
+    fs::create_dir_all(mods_dir)?;
+    let listing = http.listing().map_err(SyncError::Listing)?;
+    let (remote, warnings) = parse_listing(&listing)?;
+    if remote.is_empty() {
+        return Err(SyncError::EmptyListing);
+    }
+    let mut report = SyncReport {
+        warnings,
+        ..SyncReport::default()
+    };
+    let previous = read_manifest(mods_dir);
+    let remote_names: HashSet<&str> = remote.iter().map(|f| f.name.as_str()).collect();
+    // Files this sync is responsible for after it ends.
+    let mut owned: BTreeSet<String> = BTreeSet::new();
+
+    for (i, file) in remote.iter().enumerate() {
+        progress(&SyncProgress {
+            current: i + 1,
+            total: remote.len(),
+            name: file.name.clone(),
+        });
+        let dest = mods_dir.join(&file.name);
+        let outcome = (|| -> Result<bool, String> {
+            let local = classify(&dest).map_err(|e| e.to_string())?;
+            match decide(&local, &file.sha) {
+                Decision::Skip => Ok(false),
+                Decision::Blocked => Err("a folder is in the way".to_owned()),
+                Decision::Download(_) => {
+                    let bytes = http.download(&file.url, MAX_MOD_BYTES)?;
+                    if git_blob_sha1(&bytes) != file.sha {
+                        return Err("the download did not match its published hash".to_owned());
+                    }
+                    write_atomic(&dest, &bytes).map_err(|e| e.to_string())?;
+                    Ok(true)
+                }
+            }
+        })();
+        match outcome {
+            Ok(true) => {
+                owned.insert(file.name.clone());
+                report.downloaded.push(file.name.clone());
+            }
+            Ok(false) => {
+                if previous.contains(&file.name) {
+                    owned.insert(file.name.clone());
+                }
+                report.skipped.push(file.name.clone());
+            }
+            Err(why) => {
+                if previous.contains(&file.name) && dest.exists() {
+                    owned.insert(file.name.clone());
+                }
+                report.failed.push((file.name.clone(), why));
+            }
+        }
+    }
+
+    // Remove what the pack dropped, but only files an earlier sync wrote.
+    for name in &previous {
+        if remote_names.contains(name.as_str()) {
+            continue;
+        }
+        let path = mods_dir.join(name);
+        match fs::symlink_metadata(&path) {
+            Ok(m) if m.is_file() => match fs::remove_file(&path) {
+                Ok(()) => report.deleted.push(name.clone()),
+                Err(e) => {
+                    report
+                        .failed
+                        .push((name.clone(), format!("could not remove it: {e}")));
+                    owned.insert(name.clone());
+                }
+            },
+            // Already gone, or something that is not a plain file: not ours to touch, and no longer tracked.
+            _ => {}
+        }
+    }
+
+    write_manifest(mods_dir, &owned)?;
+    Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    /// A pack in memory. `files` are what the listing advertises; `served` is what a download returns (it can differ,
+    /// to model a tampered or truncated transfer).
+    #[derive(Default)]
+    struct FakePack {
+        files: Vec<(String, Vec<u8>)>,
+        served: RefCell<HashMap<String, Vec<u8>>>,
+        downloads: RefCell<Vec<String>>,
+        raw_listing: Option<Vec<u8>>,
+    }
+
+    impl FakePack {
+        fn with(files: &[(&str, &[u8])]) -> Self {
+            Self {
+                files: files
+                    .iter()
+                    .map(|(n, b)| (n.to_string(), b.to_vec()))
+                    .collect(),
+                ..Self::default()
+            }
+        }
+
+        fn url(name: &str) -> String {
+            format!(
+                "https://raw.githubusercontent.com/SirDank/Spiral-Knights-Modpack/main/mods/{name}"
+            )
+        }
+
+        fn tamper(&self, name: &str, bytes: &[u8]) {
+            self.served
+                .borrow_mut()
+                .insert(Self::url(name), bytes.to_vec());
+        }
+    }
+
+    impl PackHttp for FakePack {
+        fn listing(&self) -> Result<Vec<u8>, String> {
+            if let Some(raw) = &self.raw_listing {
+                return Ok(raw.clone());
+            }
+            let entries: Vec<serde_json::Value> = self
+                .files
+                .iter()
+                .map(|(name, bytes)| {
+                    serde_json::json!({
+                        "type": "file", "name": name, "sha": git_blob_sha1(bytes),
+                        "size": bytes.len(), "download_url": Self::url(name),
+                    })
+                })
+                .collect();
+            Ok(serde_json::to_vec(&entries).unwrap())
+        }
+
+        fn download(&self, url: &str, _max: u64) -> Result<Vec<u8>, String> {
+            self.downloads.borrow_mut().push(url.to_owned());
+            if let Some(b) = self.served.borrow().get(url) {
+                return Ok(b.clone());
+            }
+            self.files
+                .iter()
+                .find(|(n, _)| Self::url(n) == url)
+                .map(|(_, b)| b.clone())
+                .ok_or_else(|| "404".to_owned())
+        }
+    }
+
+    fn run(dir: &Path, pack: &FakePack) -> SyncReport {
+        sync(dir, pack, &mut |_| {}).unwrap()
+    }
+
+    #[test]
+    fn git_blob_hashes_match_git() {
+        assert_eq!(
+            git_blob_sha1(b""),
+            "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+        );
+        assert_eq!(
+            git_blob_sha1(b"hello\n"),
+            "ce013625030ba8dba906f756967f9e9ca394464a"
+        );
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("f"), b"hello\n").unwrap();
+        assert_eq!(
+            git_blob_sha1_file(&dir.path().join("f")).unwrap(),
+            "ce013625030ba8dba906f756967f9e9ca394464a"
+        );
+    }
+
+    #[test]
+    fn decisions_table() {
+        let sha = "ab".repeat(20);
+        let regular = |s: &str| Local::Regular { sha: s.to_owned() };
+        let cases = [
+            (Local::Absent, Decision::Download(Why::Missing)),
+            (regular(&sha), Decision::Skip),
+            (regular(&sha.to_uppercase()), Decision::Skip),
+            (regular(&"cd".repeat(20)), Decision::Download(Why::Changed)),
+            (regular(""), Decision::Download(Why::Changed)),
+            (Local::Link, Decision::Download(Why::ReplacesLink)),
+            (Local::Other, Decision::Blocked),
+        ];
+        for (local, expected) in cases {
+            assert_eq!(decide(&local, &sha), expected, "{local:?}");
+        }
+    }
+
+    #[test]
+    fn safe_names_and_trusted_urls() {
+        for ok in [
+            "a.zip",
+            "Some Mod (v2).zip",
+            "x.JAR",
+            "pack.modpack",
+            "a.b.c.zip",
+        ] {
+            assert!(is_safe_mod_name(ok), "{ok}");
+        }
+        for bad in [
+            "",
+            ".hidden.zip",
+            "../a.zip",
+            "a/b.zip",
+            "a\\b.zip",
+            "a.txt",
+            "a.zip.part",
+            "a.zip ",
+            "zip",
+            ".modpack-synced",
+            "CON.zip",
+            "a\0.zip",
+            "a\n.zip",
+            "a:b.zip",
+            "/abs.zip",
+        ] {
+            assert!(!is_safe_mod_name(bad), "{bad:?}");
+        }
+        assert!(is_trusted_download_url(
+            "https://raw.githubusercontent.com/o/r/main/mods/a.zip"
+        ));
+        for bad in [
+            "http://raw.githubusercontent.com/o/r/a.zip",
+            "https://raw.githubusercontent.com.evil.com/a.zip",
+            "https://evil.com/raw.githubusercontent.com/a.zip",
+            "https://raw.githubusercontent.com@evil.com/a.zip",
+            "https://user:pw@raw.githubusercontent.com/a.zip",
+            "https://raw.githubusercontent.com:8443/a.zip",
+            "https://raw.githubusercontent.com/",
+            "https://raw.githubusercontent.com",
+            "https://raw.githubusercontent.com/a/../../b.zip",
+            "https://raw.githubusercontent.com/a b.zip",
+            "https://raw.githubusercontent.com/a\\b.zip",
+            "ftp://raw.githubusercontent.com/a.zip",
+            "raw.githubusercontent.com/a.zip",
+            "",
+        ] {
+            assert!(!is_trusted_download_url(bad), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn parses_a_listing_and_skips_hostile_entries() {
+        let good_sha = "a".repeat(40);
+        let url = FakePack::url("ok.zip");
+        let listing = serde_json::json!([
+            {"type": "file", "name": "ok.zip", "sha": good_sha, "download_url": url, "size": 10},
+            {"type": "dir", "name": "sub", "sha": good_sha},
+            {"type": "file", "name": "../evil.zip", "sha": good_sha, "download_url": url},
+            {"type": "file", "name": "notes.txt", "sha": good_sha, "download_url": url},
+            {"type": "file", "name": "badhost.zip", "sha": good_sha, "download_url": "https://evil.com/a.zip"},
+            {"type": "file", "name": "http.zip", "sha": good_sha, "download_url": "http://raw.githubusercontent.com/a.zip"},
+            {"type": "file", "name": "nourl.zip", "sha": good_sha, "download_url": null},
+            {"type": "file", "name": "nosha.zip", "download_url": url},
+            {"type": "file", "name": "shortsha.zip", "sha": "abc", "download_url": url},
+            {"type": "file", "name": "nonhex.zip", "sha": "z".repeat(40), "download_url": url},
+            {"type": "file", "name": "huge.zip", "sha": good_sha, "download_url": url, "size": 99999999999u64},
+            {"type": "file", "name": "OK.ZIP", "sha": good_sha, "download_url": url},
+            42,
+            "string"
+        ]);
+        let (files, warnings) = parse_listing(&serde_json::to_vec(&listing).unwrap()).unwrap();
+        assert_eq!(files.len(), 1, "{files:?}");
+        assert_eq!(files[0].name, "ok.zip");
+        assert!(warnings.len() >= 10, "{warnings:?}");
+    }
+
+    #[test]
+    fn a_listing_that_is_not_a_list_is_an_error() {
+        for bad in [
+            &b"{\"message\": \"API rate limit exceeded\"}"[..],
+            b"not json",
+            b"null",
+            b"3",
+            b"",
+        ] {
+            assert!(
+                matches!(parse_listing(bad), Err(SyncError::Listing(_))),
+                "{bad:?}"
+            );
+        }
+        let err = parse_listing(b"{\"message\": \"API rate limit exceeded\"}").unwrap_err();
+        assert!(err.to_string().contains("rate limit"));
+    }
+
+    #[test]
+    fn first_sync_downloads_everything_and_the_second_skips_everything() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = FakePack::with(&[("a.zip", b"AAA"), ("b.jar", b"BBB"), ("c.modpack", b"CCC")]);
+        let first = run(dir.path(), &pack);
+        assert_eq!(first.downloaded, ["a.zip", "b.jar", "c.modpack"]);
+        assert!(first.is_complete());
+        assert_eq!(fs::read(dir.path().join("b.jar")).unwrap(), b"BBB");
+        assert_eq!(
+            fs::read_to_string(dir.path().join(MANIFEST)).unwrap(),
+            "a.zip\nb.jar\nc.modpack\n"
+        );
+        let second = run(dir.path(), &pack);
+        assert_eq!(second.skipped.len(), 3);
+        assert!(second.downloaded.is_empty());
+        assert_eq!(pack.downloads.borrow().len(), 3, "no new downloads");
+    }
+
+    #[test]
+    fn changed_missing_and_tampered_local_files_are_downloaded_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = FakePack::with(&[("a.zip", b"AAA"), ("b.zip", b"BBB"), ("c.zip", b"CCC")]);
+        run(dir.path(), &pack);
+        fs::write(dir.path().join("a.zip"), b"tampered").unwrap();
+        fs::remove_file(dir.path().join("b.zip")).unwrap();
+        let report = run(dir.path(), &pack);
+        assert_eq!(report.downloaded, ["a.zip", "b.zip"]);
+        assert_eq!(report.skipped, ["c.zip"]);
+        assert_eq!(fs::read(dir.path().join("a.zip")).unwrap(), b"AAA");
+        // The pack publishes a new version.
+        let newer = FakePack::with(&[("a.zip", b"AAA2"), ("b.zip", b"BBB"), ("c.zip", b"CCC")]);
+        let report = run(dir.path(), &newer);
+        assert_eq!(report.downloaded, ["a.zip"]);
+        assert_eq!(fs::read(dir.path().join("a.zip")).unwrap(), b"AAA2");
+    }
+
+    #[test]
+    fn a_download_that_does_not_match_its_hash_never_replaces_anything() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("a.zip"), b"old good copy").unwrap();
+        let pack = FakePack::with(&[("a.zip", b"AAA"), ("new.zip", b"NNN")]);
+        pack.tamper("a.zip", b"<html>captive portal</html>");
+        pack.tamper("new.zip", b"NN"); // truncated
+        let report = run(dir.path(), &pack);
+        assert!(report.downloaded.is_empty());
+        assert_eq!(report.failed.len(), 2);
+        assert!(report.failed[0].1.contains("hash"), "{report:?}");
+        assert!(!report.is_complete());
+        assert_eq!(
+            fs::read(dir.path().join("a.zip")).unwrap(),
+            b"old good copy"
+        );
+        assert!(!dir.path().join("new.zip").exists());
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert!(
+            leftovers.iter().all(|n| !n.contains("skradle-tmp")),
+            "{leftovers:?}"
+        );
+    }
+
+    #[test]
+    fn one_failure_does_not_stop_the_other_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = FakePack::with(&[("a.zip", b"AAA"), ("b.zip", b"BBB")]);
+        pack.tamper("a.zip", b"wrong");
+        let report = run(dir.path(), &pack);
+        assert_eq!(report.downloaded, ["b.zip"]);
+        assert_eq!(report.failed.len(), 1);
+        assert_eq!(
+            fs::read_to_string(dir.path().join(MANIFEST)).unwrap(),
+            "b.zip\n"
+        );
+    }
+
+    #[test]
+    fn only_files_a_sync_wrote_are_removed_when_the_pack_drops_them() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("mine.zip"), b"the player's own mod").unwrap();
+        fs::write(dir.path().join("also_mine.zip"), b"another").unwrap();
+        let pack = FakePack::with(&[("a.zip", b"AAA"), ("b.zip", b"BBB")]);
+        run(dir.path(), &pack);
+        // The pack drops b.zip and also never listed the player's files.
+        let smaller = FakePack::with(&[("a.zip", b"AAA")]);
+        let report = run(dir.path(), &smaller);
+        assert_eq!(report.deleted, ["b.zip"]);
+        assert!(!dir.path().join("b.zip").exists());
+        assert!(dir.path().join("mine.zip").exists());
+        assert!(dir.path().join("also_mine.zip").exists());
+        assert_eq!(
+            fs::read_to_string(dir.path().join(MANIFEST)).unwrap(),
+            "a.zip\n"
+        );
+        // Dropped again, now untracked: nothing else is touched.
+        let report = run(dir.path(), &smaller);
+        assert!(report.deleted.is_empty());
+    }
+
+    #[test]
+    fn a_player_file_that_merely_matches_the_pack_is_not_claimed() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("a.zip"), b"AAA").unwrap();
+        let pack = FakePack::with(&[("a.zip", b"AAA")]);
+        let report = run(dir.path(), &pack);
+        assert_eq!(report.skipped, ["a.zip"]);
+        assert!(!dir.path().join(MANIFEST).exists());
+        // When the pack drops it, the player's copy stays.
+        let other = FakePack::with(&[("z.zip", b"ZZZ")]);
+        run(dir.path(), &other);
+        assert!(dir.path().join("a.zip").exists());
+    }
+
+    #[test]
+    fn a_hostile_manifest_cannot_aim_a_deletion_elsewhere() {
+        let outer = tempfile::tempdir().unwrap();
+        let dir = outer.path().join("mods");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(outer.path().join("victim.zip"), b"precious").unwrap();
+        fs::write(dir.join("sub.zip"), b"x").unwrap();
+        fs::create_dir(dir.join("folder.zip")).unwrap();
+        fs::write(
+            dir.join(MANIFEST),
+            "../victim.zip\n/etc/hosts\na/b.zip\n..\n\nnotes.txt\nfolder.zip\n.hidden.zip\n",
+        )
+        .unwrap();
+        let pack = FakePack::with(&[("a.zip", b"AAA")]);
+        let report = run(&dir, &pack);
+        assert!(report.deleted.is_empty(), "{report:?}");
+        assert!(outer.path().join("victim.zip").exists());
+        assert!(dir.join("folder.zip").is_dir());
+        assert!(dir.join("sub.zip").exists());
+        assert_eq!(fs::read_to_string(dir.join(MANIFEST)).unwrap(), "a.zip\n");
+    }
+
+    #[test]
+    fn an_empty_or_broken_listing_changes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = FakePack::with(&[("a.zip", b"AAA")]);
+        run(dir.path(), &pack);
+        let before = fs::read(dir.path().join("a.zip")).unwrap();
+        for raw in [
+            &b"[]"[..],
+            b"{\"message\": \"rate limited\"}",
+            b"garbage",
+            b"[{\"type\": \"dir\"}]",
+        ] {
+            let broken = FakePack {
+                raw_listing: Some(raw.to_vec()),
+                ..FakePack::default()
+            };
+            assert!(sync(dir.path(), &broken, &mut |_| {}).is_err(), "{raw:?}");
+            assert_eq!(fs::read(dir.path().join("a.zip")).unwrap(), before);
+            assert!(dir.path().join(MANIFEST).exists(), "the manifest is kept");
+        }
+    }
+
+    #[test]
+    fn a_folder_in_the_way_is_reported_and_a_link_is_replaced_not_followed() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join("a.zip")).unwrap();
+        let pack = FakePack::with(&[("a.zip", b"AAA"), ("b.zip", b"BBB")]);
+        let report = run(dir.path(), &pack);
+        assert_eq!(report.failed.len(), 1);
+        assert!(report.failed[0].1.contains("in the way"));
+        assert_eq!(report.downloaded, ["b.zip"]);
+        #[cfg(unix)]
+        {
+            let outside = tempfile::tempdir().unwrap();
+            fs::write(outside.path().join("victim"), b"precious").unwrap();
+            fs::remove_file(dir.path().join("b.zip")).unwrap();
+            std::os::unix::fs::symlink(outside.path().join("victim"), dir.path().join("b.zip"))
+                .unwrap();
+            let report = run(dir.path(), &pack);
+            assert_eq!(report.downloaded, ["b.zip"]);
+            assert_eq!(
+                fs::read(outside.path().join("victim")).unwrap(),
+                b"precious"
+            );
+            assert!(!fs::symlink_metadata(dir.path().join("b.zip"))
+                .unwrap()
+                .file_type()
+                .is_symlink());
+            assert_eq!(fs::read(dir.path().join("b.zip")).unwrap(), b"BBB");
+        }
+    }
+
+    #[test]
+    fn progress_is_reported_for_every_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = FakePack::with(&[("a.zip", b"A"), ("b.zip", b"B")]);
+        let mut seen = Vec::new();
+        sync(dir.path(), &pack, &mut |p| {
+            seen.push((p.current, p.total, p.name.clone()))
+        })
+        .unwrap();
+        assert_eq!(
+            seen,
+            [(1, 2, "a.zip".to_owned()), (2, 2, "b.zip".to_owned())]
+        );
+    }
+
+    #[test]
+    fn the_real_http_adapter_refuses_untrusted_urls_without_a_request() {
+        let http = GithubHttp::new();
+        assert!(http
+            .download("http://raw.githubusercontent.com/a.zip", 10)
+            .unwrap_err()
+            .contains("refusing"));
+        assert!(http
+            .download("https://evil.example/a.zip", 10)
+            .unwrap_err()
+            .contains("refusing"));
+    }
+
+    /// Reads the real listing (network, api.github.com only) and prints it. Changes nothing on disk.
+    #[test]
+    #[ignore = "needs network access to api.github.com"]
+    fn live_listing() {
+        let bytes = GithubHttp::new().listing().unwrap();
+        let (files, warnings) = parse_listing(&bytes).unwrap();
+        println!(
+            "{} mods in the pack, {} ignored entries",
+            files.len(),
+            warnings.len()
+        );
+        for f in &files {
+            println!("{:>10} {} {}", f.size.unwrap_or(0), f.sha, f.name);
+        }
+        for w in &warnings {
+            println!("warning: {w}");
+        }
+        assert!(!files.is_empty());
+    }
+}
