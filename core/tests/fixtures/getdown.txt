@@ -1,0 +1,50 @@
+# Structure of the game's getdown.txt with invented hosts; only what launching needs.
+version = 20000101000000
+appbase = http://example.invalid/spiral/%VERSION%
+latest = http://example.invalid/spiral/latest/getdown.txt
+
+# These all go into the classpath
+code = code/config.jar
+code = code/projectx-config.jar
+code = code/projectx-pcode.jar
+code = code/lwjgl.jar
+code = [linux] code/lwjgl-natives-linux.jar
+code = [mac os x] code/lwjgl-natives-macos.jar
+code = [mac os x] code/lwjgl-natives-macos-arm64.jar
+code = [windows] code/lwjgl-natives-windows.jar
+code = code/commons-logging.jar
+
+resource = code/getdown-pro-new.jar
+resource = [linux] native/libsteam_api.so
+resource = [windows] native/steam_api64.dll
+resource = [mac os x] native/libsteam_api.dylib
+uresource = rsrc/intro-bundle.jar
+auxgroups = full
+full.uresource = rsrc/full-rest-bundle.jar
+
+java_version = 25000000
+java_location = [windows] /spiral/client/java_windows.jar
+java_location = [linux] /spiral/client/java_linux.jar
+java_location = [mac os x] /spiral/client/java_macos.jar
+
+# Parameters passed to the JVM
+jvmarg = -Djava.library.path=%APPDIR%/native
+jvmarg = -Dorg.lwjgl.util.NoChecks=true
+jvmarg = -Dappdir=%APPDIR%
+jvmarg = -Dresource_dir=%APPDIR%/rsrc
+jvmarg = -XX:-CreateCoredumpOnCrash
+jvmarg = --add-opens=java.base/java.lang=ALL-UNNAMED
+jvmarg = --add-opens=java.base/java.util=ALL-UNNAMED
+jvmarg = --enable-native-access=ALL-UNNAMED
+jvmarg = -Dcrucible.dir=../crucible
+jvmarg = [mac os x] -Djdk.lang.Process.launchMechanism=FORK
+
+# The main Java class
+class = com.threerings.projectx.client.ProjectXApp
+client.class = com.threerings.projectx.client.ProjectXApp
+
+uresource = crucible.jar
+crucible-editor.class = com.threerings.projectx.tools.CrucibleSceneEditor
+
+ui.name = Spiral Knights
+ui.mac_dock_icon = rsrc/ui/icon/desktop.icns
