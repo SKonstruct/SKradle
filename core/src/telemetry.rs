@@ -292,8 +292,8 @@ mod tests {
 
     fn scrubber() -> Scrubber {
         Scrubber {
-            home: Some("/Users/rayhan".into()),
-            username: Some("rayhan".into()),
+            home: Some("/Users/alice".into()),
+            username: Some("alice".into()),
         }
     }
 
@@ -332,7 +332,7 @@ mod tests {
     fn scrubs_homes_users_ips_emails_and_tokens() {
         let s = scrubber();
         assert_eq!(
-            s.scrub("/Users/rayhan/Library/Application Support/Steam/x.jar"),
+            s.scrub("/Users/alice/Library/Application Support/Steam/x.jar"),
             "~/Library/Application Support/Steam/x.jar"
         );
         assert_eq!(
@@ -355,7 +355,7 @@ mod tests {
             s.scrub("key 3f2a9c4e8b7d1a6f5e0c9b8a7d6e5f4a3b2c1d0e done"),
             "key <token> done"
         );
-        assert_eq!(s.scrub("hello rayhan, welcome"), "hello <user>, welcome");
+        assert_eq!(s.scrub("hello alice, welcome"), "hello <user>, welcome");
         assert_eq!(
             s.scrub("version 1.2.3 is fine"),
             "version 1.2.3 is fine",
@@ -381,8 +381,8 @@ mod tests {
         tags.insert("kind".to_owned(), "panic".to_owned());
         let report = Report {
             level: Level::Fatal,
-            message: "failed at /Users/rayhan/secret/file from 10.0.0.5".into(),
-            backtrace: Some("frame 0: /Users/rayhan/src/main.rs:10".into()),
+            message: "failed at /Users/alice/secret/file from 10.0.0.5".into(),
+            backtrace: Some("frame 0: /Users/alice/src/main.rs:10".into()),
             tags,
         };
         let id = "0123456789abcdef0123456789abcdef";
@@ -406,7 +406,7 @@ mod tests {
             "failed at ~/secret/file from <ip>"
         );
         assert_eq!(event["extra"]["backtrace"], "frame 0: ~/src/main.rs:10");
-        assert!(!envelope.contains("rayhan") && !envelope.contains("10.0.0.5"));
+        assert!(!envelope.contains("alice") && !envelope.contains("10.0.0.5"));
     }
 
     #[test]
