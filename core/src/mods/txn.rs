@@ -212,8 +212,11 @@ impl Txn {
         self.finished = true;
         let dir = txn_dir(&self.root);
         fs::rename(dir.join(JOURNAL), dir.join(COMMITTED))?;
-        fs::remove_dir_all(&dir)?;
-        remove_state_dir_if_empty(&self.root);
+        // The change is final now. A clean-up that fails is finished by the next `recover`, and is not an error of
+        // the change itself.
+        if fs::remove_dir_all(&dir).is_ok() {
+            remove_state_dir_if_empty(&self.root);
+        }
         Ok(())
     }
 
@@ -261,16 +264,23 @@ fn rollback_dir(root: &Path) -> io::Result<()> {
         Some(at) => &text[..=at],
         None => "",
     };
+    let lines: Vec<&str> = complete.lines().collect();
     let mut first_error: Option<io::Error> = None;
-    let mut note = |r: io::Result<()>| {
-        if let Err(e) = r {
-            first_error.get_or_insert(e);
-        }
-    };
-    for line in complete.lines().rev() {
+    // File steps whose undo failed. Only those are retried: undoing a file step twice is not safe (the second
+    // time it would delete the original the first time put back).
+    let mut failed: Vec<usize> = Vec::new();
+    for (index, line) in lines.iter().enumerate().rev() {
         let fields: Vec<&str> = line.splitn(4, '\t').collect();
+        let mut note = |r: io::Result<()>, file_step: bool| {
+            if let Err(e) = r {
+                if file_step {
+                    failed.push(index);
+                }
+                first_error.get_or_insert(e);
+            }
+        };
         match fields.as_slice() {
-            ["F", had, id, rel] => note(undo_file(root, rel, *had == "1", id)),
+            ["F", had, id, rel] => note(undo_file(root, rel, *had == "1", id), true),
             // Only an empty folder this transaction created is removed; anything else is left alone.
             ["D", rel] if safe_entry_path(rel).is_ok() => {
                 let path = root.join(rel);
@@ -279,22 +289,36 @@ fn rollback_dir(root: &Path) -> io::Result<()> {
                 }
             }
             // A folder this transaction removed: make it again.
-            ["R", rel] => note(resolve(root, rel).and_then(|(path, missing)| {
-                if missing.is_empty() {
-                    match fs::create_dir(&path) {
-                        Err(e) if e.kind() != io::ErrorKind::AlreadyExists => Err(e),
-                        _ => Ok(()),
+            ["R", rel] => note(
+                resolve(root, rel).and_then(|(path, missing)| {
+                    if missing.is_empty() {
+                        match fs::create_dir(&path) {
+                            Err(e) if e.kind() != io::ErrorKind::AlreadyExists => Err(e),
+                            _ => Ok(()),
+                        }
+                    } else {
+                        Ok(())
                     }
-                } else {
-                    Ok(())
-                }
-            })),
+                }),
+                false,
+            ),
             _ => {}
         }
     }
     match first_error {
-        // Keep the journal and the backups: the next start tries again.
-        Some(e) => Err(e),
+        // Keep the journal (reduced to the steps still to undo) and the backups: the next start tries again.
+        Some(e) => {
+            let mut rest = String::new();
+            for (index, line) in lines.iter().enumerate() {
+                if !line.starts_with("F\t") || failed.contains(&index) {
+                    rest.push_str(line);
+                    rest.push('\n');
+                }
+            }
+            // If this cannot be written the old journal stays, which is the earlier behaviour.
+            let _ = write_atomic(&dir.join(JOURNAL), rest.as_bytes());
+            Err(e)
+        }
         None => {
             match fs::remove_dir_all(&dir) {
                 Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
@@ -555,6 +579,29 @@ mod tests {
             b"precious"
         );
         assert!(!outside.path().join("new.txt").exists());
+    }
+
+    #[test]
+    fn a_rollback_that_fails_part_way_can_be_retried_without_losing_originals() {
+        let dir = game();
+        let mut txn = Txn::begin(dir.path()).unwrap();
+        txn.put("rsrc/z.txt", b"new").unwrap();
+        txn.delete("rsrc/two.txt").unwrap();
+        txn.put("rsrc/two.txt", b"again").unwrap();
+        std::mem::forget(txn);
+        // Make the undo of the earliest step fail: a folder now stands where the new file was.
+        let z = dir.path().join("rsrc/z.txt");
+        fs::remove_file(&z).unwrap();
+        fs::create_dir(&z).unwrap();
+        assert!(recover(dir.path()).is_err());
+        // The originals of the later steps were already put back; the retry must not undo that.
+        assert_eq!(fs::read(dir.path().join("rsrc/two.txt")).unwrap(), b"two");
+        fs::remove_dir(&z).unwrap();
+        assert!(recover(dir.path()).unwrap());
+        assert_eq!(fs::read(dir.path().join("rsrc/two.txt")).unwrap(), b"two");
+        assert_eq!(fs::read(dir.path().join("rsrc/a/one.txt")).unwrap(), b"one");
+        assert!(!z.exists());
+        assert!(!txn_dir(dir.path()).exists());
     }
 
     #[test]
