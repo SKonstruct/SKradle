@@ -8,6 +8,8 @@
 //! the next start. [`Txn::commit`] renames the journal to `committed` first, so a crash while the backups are being
 //! deleted is never mistaken for an unfinished change.
 //!
+//! Removing an empty folder ([`Txn::remove_dir_if_empty`]) is journaled the same way.
+//!
 //! Guarantees and limits: a crash of the launcher or an error leaves the files as they were. A power cut can lose
 //! journal lines that were still in the operating system's cache (the journal is not fsynced per entry, which would
 //! make a few thousand small writes crawl), in which case the files touched last may stay changed; the next apply
@@ -168,6 +170,22 @@ impl Txn {
         }
     }
 
+    /// Removes the folder at `rel` if it exists and is empty (a link is not a folder here), keeping the ability to
+    /// recreate it on a rollback. Returns whether a folder was removed.
+    pub fn remove_dir_if_empty(&mut self, rel: &str) -> io::Result<bool> {
+        let (path, missing) = resolve(&self.root, rel)?;
+        if !missing.is_empty() || !existing(&path)?.is_some_and(|m| m.is_dir()) {
+            return Ok(false);
+        }
+        if fs::read_dir(&path)?.next().is_some() {
+            return Ok(false);
+        }
+        self.log(&format!("R\t{rel}"))?;
+        self.fault()?;
+        fs::remove_dir(&path)?;
+        Ok(true)
+    }
+
     fn replace_with(
         &mut self,
         rel: &str,
@@ -260,6 +278,17 @@ fn rollback_dir(root: &Path) -> io::Result<()> {
                     let _ = fs::remove_dir(&path);
                 }
             }
+            // A folder this transaction removed: make it again.
+            ["R", rel] => note(resolve(root, rel).and_then(|(path, missing)| {
+                if missing.is_empty() {
+                    match fs::create_dir(&path) {
+                        Err(e) if e.kind() != io::ErrorKind::AlreadyExists => Err(e),
+                        _ => Ok(()),
+                    }
+                } else {
+                    Ok(())
+                }
+            })),
             _ => {}
         }
     }
@@ -450,6 +479,22 @@ mod tests {
         assert!(!recover(dir.path()).unwrap());
         assert_eq!(fs::read(dir.path().join("rsrc/two.txt")).unwrap(), b"final");
         assert!(!d.exists());
+    }
+
+    #[test]
+    fn removing_empty_folders_is_undone_by_a_rollback() {
+        let dir = game();
+        fs::create_dir_all(dir.path().join("rsrc/empty/deeper")).unwrap();
+        let before = snapshot(dir.path());
+        let mut txn = Txn::begin(dir.path()).unwrap();
+        assert!(!txn.remove_dir_if_empty("rsrc/a").unwrap(), "not empty");
+        assert!(!txn.remove_dir_if_empty("rsrc/nothing").unwrap(), "missing");
+        assert!(!txn.remove_dir_if_empty("rsrc/two.txt").unwrap(), "a file");
+        assert!(txn.remove_dir_if_empty("rsrc/empty/deeper").unwrap());
+        assert!(txn.remove_dir_if_empty("rsrc/empty").unwrap());
+        assert!(!dir.path().join("rsrc/empty").exists());
+        txn.rollback().unwrap();
+        assert_eq!(snapshot(dir.path()), before);
     }
 
     #[test]
