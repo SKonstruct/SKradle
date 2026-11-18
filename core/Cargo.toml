@@ -13,6 +13,11 @@ workspace = true
 # HTTPS client (rustls, bundled root certificates).
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
 sha2 = "0.11"
+sha1 = "0.10"
+# Zip/jar reading and writing (MIT). Deflate only: no encryption, bzip2, zstd or time features.
+zip = { version = "9", default-features = false, features = ["deflate"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 tempfile = "3"
