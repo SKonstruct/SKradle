@@ -1120,6 +1120,18 @@ impl ServerHost {
         client: &Client,
         progress: &mut dyn FnMut(Stage),
     ) -> Result<UpdateReport, HostError> {
+        // Looking is free: only an update that will really be installed stops the server and takes a backup (which
+        // also prunes the oldest). The licence and the version are checked first.
+        let release = match engine::check_latest(client, &self.layout)? {
+            engine::Latest::UpToDate(version) => {
+                return Ok(UpdateReport {
+                    outcome: engine::UpdateOutcome::UpToDate(version),
+                    backup: None,
+                    was_running: self.is_alive(),
+                });
+            }
+            engine::Latest::Newer(release) => release,
+        };
         self.run_stopped(|layout, proof| {
             let first_install = !layout.server_yml().exists();
             let backup =
@@ -1133,9 +1145,9 @@ impl ServerHost {
                 } else {
                     None
                 };
-            let outcome = engine::update_to_latest(client, layout, progress)?;
+            let installed = engine::install_release(client, layout, &release, progress)?;
             finish_install(layout, first_install)?;
-            Ok((outcome, backup))
+            Ok((engine::UpdateOutcome::Installed(installed), backup))
         })
         .map(|done| UpdateReport {
             outcome: done.value.0,
@@ -1729,6 +1741,26 @@ exit 1
         let result = starter.join().unwrap();
         assert!(matches!(result, Err(HostError::Aborted)), "{result:?}");
         assert!(!f.host.is_alive());
+    }
+
+    #[test]
+    fn an_update_that_cannot_happen_leaves_the_running_server_and_the_backups_alone() {
+        let f = fixture("");
+        f.host.start().unwrap();
+        // The licence is not accepted: the check fails before anything is stopped or backed up.
+        std::fs::remove_file(f.layout.terms_record()).unwrap();
+        let client = Client::new();
+        let err = f.host.update_engine(&client, &mut |_| {}).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                HostError::Engine(engine::EngineError::TermsNotAccepted)
+            ),
+            "{err}"
+        );
+        assert!(f.host.status().pid.is_some(), "the server is still running");
+        assert!(backups::list(&f.layout).unwrap().is_empty());
+        f.host.stop().unwrap();
     }
 
     #[test]

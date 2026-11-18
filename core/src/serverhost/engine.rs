@@ -311,6 +311,36 @@ pub enum UpdateOutcome {
     Installed(InstalledEngine),
 }
 
+/// What a look at the newest release found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Latest {
+    /// The installed engine (this version) is at least as new as the newest release.
+    UpToDate(String),
+    Newer(Release),
+}
+
+/// Whether `release` is newer than what `layout` has installed.
+fn compare_installed(layout: &ServerLayout, release: Release) -> Latest {
+    if let EngineState::Installed(current) = installed(layout) {
+        if EngineVersion::parse(&current.version).is_some_and(|v| v >= release.version) {
+            return Latest::UpToDate(current.version);
+        }
+    }
+    Latest::Newer(release)
+}
+
+/// Looks up the newest release and compares it with the installed engine. Changes nothing, so it needs neither a
+/// stopped server nor a backup.
+pub fn check_latest(client: &Client, layout: &ServerLayout) -> Result<Latest, EngineError> {
+    require_terms(layout)?;
+    let Some(release) = fetch_latest(client)? else {
+        return Err(EngineError::BadListing(
+            "no release has the expected archive and checksum".into(),
+        ));
+    };
+    Ok(compare_installed(layout, release))
+}
+
 /// Installs the newest release unless the installed engine is already at least that new. The caller holds the
 /// lifecycle lock with the server stopped, and has backed up `data/` and `config/` first.
 pub fn update_to_latest(
@@ -318,18 +348,12 @@ pub fn update_to_latest(
     layout: &ServerLayout,
     progress: &mut dyn FnMut(Stage),
 ) -> Result<UpdateOutcome, EngineError> {
-    require_terms(layout)?;
-    let Some(release) = fetch_latest(client)? else {
-        return Err(EngineError::BadListing(
-            "no release has the expected archive and checksum".into(),
-        ));
-    };
-    if let EngineState::Installed(current) = installed(layout) {
-        if EngineVersion::parse(&current.version).is_some_and(|v| v >= release.version) {
-            return Ok(UpdateOutcome::UpToDate(current.version));
+    match check_latest(client, layout)? {
+        Latest::UpToDate(version) => Ok(UpdateOutcome::UpToDate(version)),
+        Latest::Newer(release) => {
+            install_release(client, layout, &release, progress).map(UpdateOutcome::Installed)
         }
     }
-    install_release(client, layout, &release, progress).map(UpdateOutcome::Installed)
 }
 
 fn require_terms(layout: &ServerLayout) -> Result<(), EngineError> {
@@ -1275,6 +1299,39 @@ mod tests {
             .previous_content()
             .join("maps/old_only.txt")
             .is_file());
+    }
+
+    #[test]
+    fn a_release_is_newer_only_when_it_is_ahead_of_the_installed_engine() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = accepted_layout(dir.path());
+        let release = |v: &str| Release {
+            version: EngineVersion::parse(v).unwrap(),
+            tag: format!("v{v}"),
+            prerelease: false,
+            url: String::new(),
+            sha256: String::new(),
+            size: None,
+            page_url: String::new(),
+        };
+        // Nothing installed: anything is newer.
+        assert!(matches!(
+            compare_installed(&layout, release("0.40.17")),
+            Latest::Newer(_)
+        ));
+        install(&layout, "0.40.17", &[]);
+        assert_eq!(
+            compare_installed(&layout, release("0.40.17")),
+            Latest::UpToDate("0.40.17".into())
+        );
+        assert_eq!(
+            compare_installed(&layout, release("0.40.8")),
+            Latest::UpToDate("0.40.17".into())
+        );
+        assert!(matches!(
+            compare_installed(&layout, release("0.40.18")),
+            Latest::Newer(_)
+        ));
     }
 
     #[test]
