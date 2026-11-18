@@ -84,6 +84,22 @@ pub(crate) fn copy_tree(from: &Path, to: &Path, skip: &dyn Fn(&str) -> bool) -> 
     Ok(bytes)
 }
 
+/// The total size in bytes of the regular files under `path` (0 when missing).
+pub(crate) fn tree_size(path: &Path) -> u64 {
+    let Ok(meta) = fs::symlink_metadata(path) else {
+        return 0;
+    };
+    if meta.is_file() {
+        return meta.len();
+    }
+    if !meta.is_dir() {
+        return 0;
+    }
+    fs::read_dir(path)
+        .map(|entries| entries.flatten().map(|e| tree_size(&e.path())).sum::<u64>())
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
