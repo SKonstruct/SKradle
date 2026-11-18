@@ -126,34 +126,53 @@ pub fn game_version(dir: &Path) -> Option<String> {
 }
 
 /// Turns the file URL a folder dialog gives (`file:///C:/Games/SK`, `file:///home/me/SK`) or a plain path into a
-/// path.
+/// path. On Windows a drive path gets backslashes: the game's updater reports its folder that way, which is how the
+/// running game is found again.
 pub fn path_from_url_text(text: &str) -> PathBuf {
+    path_from_url_text_for(text, cfg!(windows))
+}
+
+fn path_from_url_text_for(text: &str, windows: bool) -> PathBuf {
     let Some(rest) = text.strip_prefix("file://") else {
         return PathBuf::from(text);
     };
+    // `file://localhost/x` is the same as `file:///x`.
+    let rest = rest.strip_prefix("localhost").unwrap_or(rest);
     let decoded = percent_decode(rest);
     // `file:///C:/x` carries a slash before the drive letter.
     let bytes = decoded.as_bytes();
-    let path = if bytes.len() >= 3
-        && bytes[0] == b'/'
-        && bytes[2] == b':'
-        && bytes[1].is_ascii_alphabetic()
-    {
-        &decoded[1..]
-    } else {
-        &decoded[..]
-    };
-    PathBuf::from(path)
+    let drive =
+        bytes.len() >= 3 && bytes[0] == b'/' && bytes[2] == b':' && bytes[1].is_ascii_alphabetic();
+    if drive {
+        let path = &decoded[1..];
+        return if windows {
+            PathBuf::from(path.replace('/', "\\"))
+        } else {
+            PathBuf::from(path)
+        };
+    }
+    PathBuf::from(decoded)
 }
 
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+/// Decodes `%XX` escapes byte by byte, never slicing the text, so a multi-byte character cannot be split. Anything
+/// that is not a valid escape stays as it is; bytes that are not UTF-8 after decoding are replaced.
 fn percent_decode(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(v) = u8::from_str_radix(&text[i + 1..i + 3], 16) {
-                out.push(v);
+            if let (Some(high), Some(low)) = (hex_value(bytes[i + 1]), hex_value(bytes[i + 2])) {
+                out.push(high << 4 | low);
                 i += 3;
                 continue;
             }
@@ -283,7 +302,7 @@ mod tests {
             PathBuf::from("/home/me/Spiral Knights")
         );
         assert_eq!(
-            path_from_url_text("file:///C:/Games/SK"),
+            path_from_url_text_for("file:///C:/Games/SK", false),
             PathBuf::from("C:/Games/SK")
         );
         assert_eq!(
@@ -294,6 +313,77 @@ mod tests {
         assert_eq!(
             path_from_url_text("file:///bad%zz"),
             PathBuf::from("/bad%zz")
+        );
+    }
+
+    #[test]
+    fn a_percent_before_a_multibyte_character_does_not_panic() {
+        // The reviewer's case: `%`, one ASCII byte, then a two-byte character.
+        assert_eq!(
+            path_from_url_text("file:///Users/me/100%a\u{e9}"),
+            PathBuf::from("/Users/me/100%a\u{e9}")
+        );
+        assert_eq!(percent_decode("%\u{e9}"), "%\u{e9}");
+        assert_eq!(percent_decode("%e\u{e9}"), "%e\u{e9}");
+        assert_eq!(percent_decode("%%41"), "%A");
+        assert_eq!(percent_decode("caf%C3%A9"), "caf\u{e9}");
+    }
+
+    /// Fuzz-style: random mixes of `%`, hex digits, ASCII and multi-byte characters never panic, and text without a
+    /// `%` comes back unchanged.
+    #[test]
+    fn percent_decode_survives_random_text() {
+        let alphabet = [
+            "%",
+            "%",
+            "%",
+            "0",
+            "a",
+            "F",
+            "g",
+            "2",
+            "5",
+            " ",
+            "/",
+            "\u{e9}",
+            "\u{20ac}",
+            "\u{1f600}",
+            "\u{0}",
+            "z",
+        ];
+        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..20_000 {
+            let len = (next() % 12) as usize;
+            let text: String = (0..len)
+                .map(|_| alphabet[(next() % alphabet.len() as u64) as usize])
+                .collect();
+            let decoded = percent_decode(&text);
+            let _ = path_from_url_text(&format!("file://{text}"));
+            if !text.contains('%') {
+                assert_eq!(decoded, text);
+            }
+        }
+    }
+
+    #[test]
+    fn windows_drive_paths_use_backslashes() {
+        assert_eq!(
+            path_from_url_text_for("file:///C:/Games/Spiral%20Knights", true),
+            PathBuf::from("C:\\Games\\Spiral Knights")
+        );
+        assert_eq!(
+            path_from_url_text_for("file:///C:/Games/SK", false),
+            PathBuf::from("C:/Games/SK")
+        );
+        assert_eq!(
+            path_from_url_text_for("file://localhost/home/me", true),
+            PathBuf::from("/home/me")
         );
     }
 }

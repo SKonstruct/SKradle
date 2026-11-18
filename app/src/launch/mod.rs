@@ -15,6 +15,7 @@ pub mod memory;
 pub mod plan;
 pub mod supervisor;
 pub mod updater;
+pub mod winprobe;
 
 use std::sync::Arc;
 

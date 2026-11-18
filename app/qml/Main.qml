@@ -217,6 +217,14 @@ ApplicationWindow {
         running: AppEnv.selftest
         onTriggered: {
             const i = win.selftestStep
+            if (i === 0 && LaunchModel.state !== "ready") {
+                AppEnv.finishSelftest(false, "LaunchModel starts in state '" + LaunchModel.state + "', not 'ready'")
+                return
+            }
+            if (i === 0 && ["searching", "ready", "notfound"].indexOf(GameModel.state) < 0) {
+                AppEnv.finishSelftest(false, "GameModel starts in state '" + GameModel.state + "'")
+                return
+            }
             if (i > 0 && !win.pageItem(i - 1)) {
                 AppEnv.finishSelftest(false, "page " + (i - 1) + " did not load")
                 return

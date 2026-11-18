@@ -311,7 +311,18 @@ fn signal_group(group: u32, signal: &str) -> bool {
 }
 
 // Windows: the game is found by its command line (it holds the game folder's path) with PowerShell, since no
-// group is available without unsafe code. NOT TESTED on Windows.
+// group is available without unsafe code. The commands are built in `winprobe` (tested on every platform); this
+// part only runs them, hidden. NOT TESTED on Windows.
+#[cfg(not(unix))]
+fn hidden(command: &mut Command) -> &mut Command {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(super::winprobe::CREATE_NO_WINDOW);
+    }
+    command
+}
+
 #[cfg(not(unix))]
 impl GameProbe {
     fn new(_child: &Child, game_root: &Path) -> Self {
@@ -322,22 +333,19 @@ impl GameProbe {
     }
 
     fn pids(&self) -> Vec<u32> {
-        let root = self.root.display().to_string().replace('\'', "''");
-        let script = format!(
-            "Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like '*{root}*' -and $_.ProcessId -ne $PID -and $_.Name -match '^javaw?\\.exe$' }} | ForEach-Object {{ $_.ProcessId }}"
-        );
-        Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-            .stdin(Stdio::null())
-            .stderr(Stdio::null())
-            .output()
-            .map(|o| {
-                String::from_utf8_lossy(&o.stdout)
-                    .lines()
-                    .filter_map(|l| l.trim().parse().ok())
-                    .collect()
-            })
-            .unwrap_or_default()
+        hidden(
+            Command::new("powershell")
+                .args(super::winprobe::probe_args())
+                .env(
+                    super::winprobe::ROOT_VARIABLE,
+                    super::winprobe::root_text(&self.root),
+                ),
+        )
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .map(|o| super::winprobe::parse_pids(&String::from_utf8_lossy(&o.stdout)))
+        .unwrap_or_default()
     }
 
     fn game_alive(&mut self) -> bool {
@@ -347,8 +355,7 @@ impl GameProbe {
     fn terminate(&mut self, child: &mut Child, _grace: Duration) {
         let _ = child.kill();
         for pid in self.pids() {
-            let _ = Command::new("taskkill")
-                .args(["/PID", &pid.to_string(), "/T", "/F"])
+            let _ = hidden(Command::new("taskkill").args(super::winprobe::taskkill_args(pid)))
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
