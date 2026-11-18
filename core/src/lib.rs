@@ -12,6 +12,7 @@ pub mod launch;
 pub mod net;
 pub mod presence;
 pub mod runtime;
+pub mod servers;
 pub mod telemetry;
 pub mod update;
 pub mod vdf;
