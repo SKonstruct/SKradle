@@ -7,12 +7,13 @@
 
 use std::collections::BTreeMap;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
 use crate::getdown_txt::GetdownConfig;
+use crate::jar::{Jar, JarError, Limits};
 use crate::net::sha256_hex;
 
 /// The official service. These are facts about the game's own configuration.
@@ -382,6 +383,97 @@ pub fn is_local_network_host(host: &str) -> bool {
     h.ends_with(".local") || !h.contains('.')
 }
 
+/// The jar entry that holds the connection settings.
+const PROPERTIES_ENTRY: &str = "deployment.properties";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionOutcome {
+    /// The game has no `code/config.jar` yet (not installed), so there is nothing to point.
+    NotInstalled,
+    /// The jar already had exactly these settings.
+    Unchanged,
+    /// The jar was rewritten.
+    Updated,
+}
+
+#[derive(Debug)]
+pub enum ConnectionError {
+    Jar(JarError),
+    /// `config.jar` has no `deployment.properties`.
+    MissingProperties,
+    /// A value cannot be written in the properties file's Latin-1 encoding.
+    NotLatin1,
+}
+
+impl std::fmt::Display for ConnectionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConnectionError::Jar(e) => write!(f, "{e}"),
+            ConnectionError::MissingProperties => write!(f, "config.jar has no {PROPERTIES_ENTRY}"),
+            ConnectionError::NotLatin1 => write!(
+                f,
+                "a server setting contains characters the game cannot read"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ConnectionError {}
+
+impl From<JarError> for ConnectionError {
+    fn from(e: JarError) -> Self {
+        ConnectionError::Jar(e)
+    }
+}
+
+/// The path of the jar the connection settings live in.
+pub fn config_jar_path(game_root: &Path) -> PathBuf {
+    game_root.join("code").join("config.jar")
+}
+
+/// Points the game at `server` (Official when `None`) by rewriting the connection keys of the
+/// `deployment.properties` inside `code/config.jar`. Every launch should write the full set, so a previous server's
+/// settings never linger and a game update that restored the jar is healed. Only that one entry changes: class and
+/// locale mods merged into the jar are untouched, and the jar is replaced atomically.
+///
+/// Order matters: applying mods rebuilds `config.jar` from the game's original, which discards these settings, so
+/// call this AFTER `mods::apply`. Before launching a private server also check [`update_pending`]: the game's
+/// updater would replace `config.jar` again after this edit and the game would connect to Official.
+pub fn apply_connection(
+    game_root: &Path,
+    server: Option<&Server>,
+) -> Result<ConnectionOutcome, ConnectionError> {
+    let jar_path = config_jar_path(game_root);
+    if !jar_path.is_file() {
+        return Ok(ConnectionOutcome::NotInstalled);
+    }
+    let mut jar = Jar::read_path(&jar_path, &Limits::CODE_JAR)?;
+    let current = jar
+        .get(PROPERTIES_ENTRY)
+        .ok_or(ConnectionError::MissingProperties)?;
+    let text = latin1_decode(current);
+    let Some(updated) = apply_properties(&text, &desired_properties(server)) else {
+        return Ok(ConnectionOutcome::Unchanged);
+    };
+    jar.set(
+        PROPERTIES_ENTRY,
+        latin1_encode(&updated).ok_or(ConnectionError::NotLatin1)?,
+    )?;
+    jar.write_atomic(&jar_path)?;
+    Ok(ConnectionOutcome::Updated)
+}
+
+/// Java properties files are ISO-8859-1: every byte is one character, so unknown text survives a round trip.
+fn latin1_decode(bytes: &[u8]) -> String {
+    bytes.iter().map(|&b| char::from(b)).collect()
+}
+
+fn latin1_encode(text: &str) -> Option<Vec<u8>> {
+    text.chars()
+        .map(|c| u8::try_from(u32::from(c)).ok())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -670,6 +762,117 @@ mod tests {
         assert_eq!(
             ServerList::load(&dir.path().join("missing.json")),
             ServerList::default()
+        );
+    }
+
+    fn game_with_config_jar(properties: &[u8]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        let mut jar = Jar::default();
+        jar.set(PROPERTIES_ENTRY, properties.to_vec()).unwrap();
+        jar.set("com/example/Mod.class", vec![0xCA, 0xFE, 0xBA, 0xBE])
+            .unwrap();
+        jar.set("config/items.dat", vec![1, 2, 3]).unwrap();
+        std::fs::create_dir_all(dir.path().join("code")).unwrap();
+        jar.write_atomic(&config_jar_path(dir.path())).unwrap();
+        dir
+    }
+
+    fn read_entry(game: &Path, name: &str) -> Vec<u8> {
+        Jar::read_path(&config_jar_path(game), &Limits::CODE_JAR)
+            .unwrap()
+            .get(name)
+            .unwrap()
+            .to_vec()
+    }
+
+    #[test]
+    fn the_connection_is_written_into_config_jar_and_only_there() {
+        let game = game_with_config_jar(
+            b"# deployment
+server_host=old.example
+other=keep me
+",
+        );
+        let mut s = server("a", "A");
+        s.port = 5000;
+        assert_eq!(
+            apply_connection(game.path(), Some(&s)).unwrap(),
+            ConnectionOutcome::Updated
+        );
+        let props = String::from_utf8(read_entry(game.path(), PROPERTIES_ENTRY)).unwrap();
+        assert!(props.contains("server_host=play.example.org\n"));
+        assert!(props.contains("server_ports=5000"));
+        assert!(props.contains("other=keep me"));
+        assert_eq!(
+            read_entry(game.path(), "com/example/Mod.class"),
+            [0xCA, 0xFE, 0xBA, 0xBE],
+            "other entries are untouched"
+        );
+        assert_eq!(read_entry(game.path(), "config/items.dat"), [1, 2, 3]);
+        assert_eq!(
+            apply_connection(game.path(), Some(&s)).unwrap(),
+            ConnectionOutcome::Unchanged,
+            "idempotent"
+        );
+    }
+
+    #[test]
+    fn switching_back_to_official_leaves_nothing_of_the_private_server() {
+        let game = game_with_config_jar(
+            b"server_host=x
+",
+        );
+        apply_connection(game.path(), Some(&server("a", "A"))).unwrap();
+        assert_eq!(
+            apply_connection(game.path(), None).unwrap(),
+            ConnectionOutcome::Updated
+        );
+        let props = String::from_utf8(read_entry(game.path(), PROPERTIES_ENTRY)).unwrap();
+        assert!(props.contains(&format!("server_host={}", official::HOST)));
+        assert!(!props.contains("play.example.org"));
+    }
+
+    #[test]
+    fn non_ascii_bytes_in_the_properties_survive_the_rewrite() {
+        let game = game_with_config_jar(b"title=caf\xe9\nserver_host=old\n");
+        apply_connection(game.path(), None).unwrap();
+        let props = read_entry(game.path(), PROPERTIES_ENTRY);
+        assert!(
+            props.windows(5).any(|w| w == b"caf\xe9\n"),
+            "the Latin-1 byte is kept as one byte"
+        );
+    }
+
+    #[test]
+    fn a_missing_game_or_properties_entry_is_reported() {
+        let empty = tempfile::tempdir().unwrap();
+        assert_eq!(
+            apply_connection(empty.path(), None).unwrap(),
+            ConnectionOutcome::NotInstalled
+        );
+        let dir = tempfile::tempdir().unwrap();
+        let mut jar = Jar::default();
+        jar.set("x.txt", vec![1]).unwrap();
+        std::fs::create_dir_all(dir.path().join("code")).unwrap();
+        jar.write_atomic(&config_jar_path(dir.path())).unwrap();
+        assert!(matches!(
+            apply_connection(dir.path(), None),
+            Err(ConnectionError::MissingProperties)
+        ));
+    }
+
+    #[test]
+    fn a_corrupt_jar_is_an_error_and_is_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("code")).unwrap();
+        std::fs::write(config_jar_path(dir.path()), b"not a zip").unwrap();
+        assert!(matches!(
+            apply_connection(dir.path(), None),
+            Err(ConnectionError::Jar(_))
+        ));
+        assert_eq!(
+            std::fs::read(config_jar_path(dir.path())).unwrap(),
+            b"not a zip"
         );
     }
 
