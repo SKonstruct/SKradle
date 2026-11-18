@@ -10,6 +10,7 @@ pub mod index;
 pub mod install;
 pub mod launch;
 pub mod net;
+pub mod presence;
 pub mod runtime;
 pub mod telemetry;
 pub mod update;
