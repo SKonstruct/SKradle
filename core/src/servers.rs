@@ -266,7 +266,7 @@ struct StoredList {
 }
 
 impl ServerList {
-    /// Parses stored JSON. A malformed entry is skipped instead of failing, so one bad record never hides the rest;
+    /// Parses stored JSON. A malformed or invalid entry is skipped instead of failing, so one bad record never hides the rest;
     /// unreadable JSON gives an empty list.
     pub fn parse(json: &str) -> Self {
         let stored: StoredList = serde_json::from_str(json).unwrap_or_default();
@@ -275,11 +275,9 @@ impl ServerList {
             let Ok(server) = serde_json::from_value::<Server>(value) else {
                 continue;
             };
-            if server.id.is_empty()
-                || server.name.is_empty()
-                || server.host.is_empty()
-                || server.port == 0
-            {
+            // The same rules a record has to meet to be saved: a hand-edited file must not get a host or an address
+            // into the game's configuration that the launcher would have refused.
+            if server.id.is_empty() || validate(&server, &servers).is_some() {
                 continue;
             }
             if !servers.iter().any(|s| s.id == server.id) {
@@ -721,6 +719,23 @@ mod tests {
         assert_eq!(ServerList::parse(&list.to_json()), list);
         assert_eq!(ServerList::parse("not json"), ServerList::default());
         assert_eq!(ServerList::parse(""), ServerList::default());
+    }
+
+    #[test]
+    fn the_list_drops_records_the_launcher_would_refuse_to_save() {
+        let json = r#"{"servers":[
+            {"id":"ok","name":"Fine","host":"h.example","port":1},
+            {"id":"h1","name":"Spaced","host":"evil host","port":1},
+            {"id":"h2","name":"Newline","host":"a\nserver=evil","port":1},
+            {"id":"k","name":"Key","host":"h","port":1,"publicKey":"not a key"},
+            {"id":"u","name":"Url","host":"h","port":1,"contentUrl":"file:///etc/passwd"},
+            {"id":"u2","name":"Url2","host":"h","port":1,"clientUrl":"http://user@evil/"},
+            {"id":"n","name":"Official","host":"h","port":1},
+            {"id":"d","name":"fine","host":"h","port":1}
+        ]}"#;
+        let list = ServerList::parse(json);
+        let ids: Vec<_> = list.servers.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, ["ok"]);
     }
 
     #[test]
