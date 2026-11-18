@@ -100,6 +100,8 @@ pub struct GameModelRust {
     /// A state a screenshot forces ("" for none).
     forced: String,
     last: Resolved,
+    /// Identifies the latest scan; a result from an older one is dropped, so quick choices cannot undo each other.
+    scan_id: u64,
 }
 
 impl Default for GameModelRust {
@@ -115,6 +117,7 @@ impl Default for GameModelRust {
             error: QString::default(),
             forced: String::new(),
             last: Resolved::default(),
+            scan_id: 0,
         }
     }
 }
@@ -191,13 +194,25 @@ impl qobject::GameModel {
         self.set_state(QString::from(state));
     }
 
-    fn rescan(self: Pin<&mut Self>) {
+    /// Starts a new scan generation; results of earlier ones are ignored from now on.
+    fn next_scan(mut self: Pin<&mut Self>) -> u64 {
+        let mut rust = self.as_mut().rust_mut();
+        rust.scan_id += 1;
+        rust.scan_id
+    }
+
+    fn rescan(mut self: Pin<&mut Self>) {
+        let id = self.as_mut().next_scan();
         let thread: CxxQtThread<qobject::GameModel> = self.qt_thread();
         let spawned = std::thread::Builder::new()
             .name("skradle-scan".into())
             .spawn(move || {
                 let snapshot = scan(&settings::global().get(), &Env::current());
-                let _ = thread.queue(move |model| model.apply(snapshot));
+                let _ = thread.queue(move |model| {
+                    if model.scan_id == id {
+                        model.apply(snapshot);
+                    }
+                });
             });
         if spawned.is_err() {
             // No thread, no scan: say "not found" rather than searching forever.
@@ -218,6 +233,7 @@ impl qobject::GameModel {
     pub fn add_custom_folder(mut self: Pin<&mut Self>, folder: &QUrl) {
         self.as_mut().set_error(QString::default());
         let chosen = discovery::path_from_url_text(&folder.to_qstring().to_string());
+        let id = self.as_mut().next_scan();
         let thread = self.qt_thread();
         let _ = std::thread::Builder::new()
             .name("skradle-folder".into())
@@ -229,7 +245,11 @@ impl qobject::GameModel {
                         s.game_path = Some(text);
                     });
                     let snapshot = scan(&settings::global().get(), &Env::current());
-                    let _ = thread.queue(move |model| model.apply(snapshot));
+                    let _ = thread.queue(move |model| {
+                        if model.scan_id == id {
+                            model.apply(snapshot);
+                        }
+                    });
                 }
                 Err(e) => {
                     let message = QString::from(e.message());

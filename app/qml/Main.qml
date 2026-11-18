@@ -156,14 +156,15 @@ ApplicationWindow {
         "home-collapsed", "home-scrolled", "servers", "servers-dialog", "mods", "mods-search", "mods-drop", "graphics", "graphics-running",
         "about", "focus", "focus-controls", "servers-menu", "graphics-combo", "mods-toggle", "servers-myserver"]
     property int shotIndex: 0
+    property int shotsFailed: 0
     function nextShot() {
         if (shotIndex > 0) {
             const path = AppEnv.shotDir + "/" + AppEnv.shotPrefix + "-" + shotNames[shotIndex - 1] + ".png"
-            if (!AppEnv.grab(path)) AppEnv.report("failed to save " + path)
+            if (!AppEnv.grab(path)) { shotsFailed++; AppEnv.report("failed to save " + path) }
         }
         if (shotIndex >= shotNames.length) {
-            AppEnv.report("shots: " + shotNames.length + " saved to " + AppEnv.shotDir)
-            Qt.quit()
+            AppEnv.report("shots: " + (shotNames.length - shotsFailed) + " of " + shotNames.length + " saved to " + AppEnv.shotDir)
+            Qt.exit(shotsFailed > 0 ? 1 : 0)
             return
         }
         setupShot(shotNames[shotIndex])

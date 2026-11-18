@@ -8,10 +8,54 @@ use std::process::Command;
 
 use cxx_qt_build::{CxxQtBuilder, QmlFile, QmlModule};
 
+/// The `qmake` to ask about the Qt install: `QMAKE` if set, else `qmake6`, then `qmake` (the official Qt 6 packages,
+/// aqtinstall and install-qt-action ship `qmake`, Linux distributions `qmake6`). The first that answers wins, in the
+/// order cxx-qt's own discovery uses, so both build steps see the same Qt.
+fn find_qmake() -> Option<String> {
+    let from_env = std::env::var("QMAKE").ok().filter(|v| !v.is_empty());
+    from_env
+        .into_iter()
+        .chain(["qmake6".to_owned(), "qmake".to_owned()])
+        .find(|candidate| {
+            Command::new(candidate)
+                .args(["-query", "QT_VERSION"])
+                .output()
+                .is_ok_and(|o| o.status.success())
+        })
+}
+
+/// Escapes text for an XML attribute or element (paths may contain `&` or `<`).
+fn xml_escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+/// Asks cargo to rerun the build script when any file under `dir` changes (a directory-level directive only sees
+/// files being added or removed on some platforms, not edits).
+fn watch_files(dir: &Path) {
+    println!("cargo:rerun-if-changed={}", dir.display());
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            watch_files(&path);
+        } else {
+            println!("cargo:rerun-if-changed={}", path.display());
+        }
+    }
+}
+
 /// Whether the Qt in use has the QtWebView add-on (headers and library). Qt installs without it still build; the web
 /// view then compiles out and the UI falls back to the system browser.
 fn qt_has_webview() -> bool {
-    let qmake = std::env::var("QMAKE").unwrap_or_else(|_| "qmake6".to_owned());
+    let Some(qmake) = find_qmake() else {
+        return false;
+    };
     let query = |name: &str| {
         Command::new(&qmake)
             .args(["-query", name])
@@ -32,8 +76,8 @@ fn qt_has_webview() -> bool {
 /// Compiles the translation catalogues (`i18n/*.ts`) with Qt's `lrelease` and returns a resource file that embeds
 /// the results under `:/i18n/`. Without `lrelease` the build still works and the UI stays in English.
 fn compile_translations(out_dir: &Path) -> Option<std::path::PathBuf> {
-    println!("cargo:rerun-if-changed=i18n");
-    let qmake = std::env::var("QMAKE").unwrap_or_else(|_| "qmake6".to_owned());
+    watch_files(Path::new("i18n"));
+    let qmake = find_qmake()?;
     let bins = Command::new(&qmake)
         .args(["-query", "QT_HOST_BINS"])
         .output()
@@ -68,8 +112,8 @@ fn compile_translations(out_dir: &Path) -> Option<std::path::PathBuf> {
         assert!(status.success(), "lrelease failed for {}", source.display());
         files.push_str(&format!(
             "    <file alias=\"{}\">{}</file>\n",
-            qm.file_name()?.to_string_lossy(),
-            qm.display()
+            xml_escape(&qm.file_name()?.to_string_lossy()),
+            xml_escape(&qm.display().to_string())
         ));
     }
     let qrc = out_dir.join("i18n.qrc");
@@ -83,9 +127,12 @@ fn compile_translations(out_dir: &Path) -> Option<std::path::PathBuf> {
 
 fn main() {
     println!("cargo:rerun-if-env-changed=QMAKE");
-    println!("cargo:rerun-if-changed=qml");
-    println!("cargo:rerun-if-changed=cpp");
-    println!("cargo:rerun-if-changed=../assets");
+    println!("cargo:rerun-if-env-changed=PATH");
+    watch_files(Path::new("qml"));
+    watch_files(Path::new("qml-web"));
+    watch_files(Path::new("cpp"));
+    watch_files(Path::new("../assets"));
+    println!("cargo:rerun-if-changed=resources.qrc");
 
     // Every file in qml/ is part of the module; the ones that start with `pragma Singleton` are registered as
     // singletons.
@@ -115,6 +162,7 @@ fn main() {
         .qt_module("Quick")
         .qt_module("QuickControls2")
         .qt_module("QuickShapes")
+        .qt_module("QuickVectorImage")
         .qt_module("QuickDialogs2")
         .qrc("resources.qrc")
         .cpp_file("cpp/glue.cpp")

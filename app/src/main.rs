@@ -26,6 +26,13 @@ fn main() {
     };
     options::set(options.clone());
 
+    if let Some(dir) = &options.shots {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            eprintln!("skradle: cannot create {}: {e}", dir.display());
+            std::process::exit(2);
+        }
+    }
+
     // Tests and screenshot runs never touch the player's own settings.
     if (options.selftest || options.shots.is_some())
         && std::env::var_os("SKRADLE_CONFIG_DIR").is_none()
@@ -67,6 +74,12 @@ fn main() {
             &settings::global().get().language,
         ));
         engine.as_mut().load(&QUrl::from(MAIN_QML));
+    }
+    // A QML load error leaves no window; without this check the event loop would run forever, windowless.
+    if !bridge::glue::has_window() {
+        eprintln!("skradle: the interface could not be loaded (see the messages above)");
+        settings::global().flush();
+        std::process::exit(1);
     }
     let status = app.as_mut().map_or(1, |app| app.exec());
     settings::global().flush();

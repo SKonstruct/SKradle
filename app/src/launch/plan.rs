@@ -99,13 +99,19 @@ fn version_text(release: &JavaRelease) -> String {
     format!("{}.{}.{}", v.major, v.minor, v.patch)
 }
 
-/// A runtime the player pointed to: either a Java home or its `bin/java` file.
+/// A runtime the player pointed to: a Java home, its `bin/java` file (often a symlink such as `/usr/bin/java`), or
+/// a macOS `.jdk` bundle (whose home is `Contents/Home`).
 fn custom_runtime(path: &Path, os: Os) -> Option<Runtime> {
-    let home = if path.is_file() {
+    // Follow symlinks first: `/usr/bin/java` is only a link to the real `<home>/bin/java`.
+    let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let mut home = if path.is_file() {
         path.parent()?.parent()?.to_path_buf()
     } else {
-        path.to_path_buf()
+        path
     };
+    if !home.join("release").is_file() && home.join("Contents/Home/release").is_file() {
+        home = home.join("Contents/Home");
+    }
     let release = JavaRelease::read(&home)?;
     let runtime = Runtime {
         home,
@@ -271,15 +277,18 @@ mod tests {
             ..Settings::default()
         };
         let p = plan(&machine(None), Some(&install), &settings).unwrap();
-        assert_eq!(p.java_home, dir.path().join("mine"));
+        // The path is resolved (symlinks followed), so compare resolved paths.
+        let same =
+            |a: &Path, b: &Path| fs::canonicalize(a).unwrap() == fs::canonicalize(b).unwrap();
+        assert!(same(&p.java_home, &dir.path().join("mine")));
         // The `bin/java` file works as well as the home.
         settings.java_path = dir.path().join("mine/bin/java").display().to_string();
-        assert_eq!(
-            plan(&machine(None), Some(&install), &settings)
+        assert!(same(
+            &plan(&machine(None), Some(&install), &settings)
                 .unwrap()
                 .java_home,
-            dir.path().join("mine")
-        );
+            &dir.path().join("mine")
+        ));
 
         fake_java(&dir.path().join("old"), "11.0.1");
         settings.java_path = dir.path().join("old").display().to_string();
@@ -292,6 +301,35 @@ mod tests {
             plan(&machine(None), Some(&install), &settings),
             Err(LaunchError::CustomJavaInvalid { .. })
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_java_and_a_jdk_bundle_are_accepted() {
+        let dir = tempfile::tempdir().unwrap();
+        let install = game(&dir.path().join("g"), Some("25000000"));
+        // `/usr/bin/java` style: a link to the real file.
+        fake_java(&dir.path().join("real/jdk"), "26.0.0");
+        fs::create_dir_all(dir.path().join("usr/bin")).unwrap();
+        std::os::unix::fs::symlink(
+            dir.path().join("real/jdk/bin/java"),
+            dir.path().join("usr/bin/java"),
+        )
+        .unwrap();
+        let mut settings = Settings {
+            java_path: dir.path().join("usr/bin/java").display().to_string(),
+            ..Settings::default()
+        };
+        let p = plan(&machine(None), Some(&install), &settings).unwrap();
+        assert_eq!(
+            fs::canonicalize(&p.java_home).unwrap(),
+            fs::canonicalize(dir.path().join("real/jdk")).unwrap()
+        );
+        // A macOS `.jdk` bundle: the home is inside it.
+        fake_java(&dir.path().join("temurin-25.jdk/Contents/Home"), "25.0.2");
+        settings.java_path = dir.path().join("temurin-25.jdk").display().to_string();
+        let p = plan(&machine(None), Some(&install), &settings).unwrap();
+        assert!(p.java_home.ends_with("temurin-25.jdk/Contents/Home"));
     }
 
     #[test]

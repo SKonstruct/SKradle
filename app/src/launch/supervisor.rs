@@ -8,7 +8,7 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use skradle_core::getdown::CommandSpec;
@@ -69,7 +69,10 @@ const TAIL_LINES: usize = 12;
 
 type Tail = Arc<Mutex<VecDeque<String>>>;
 
-fn capture(stream: impl std::io::Read + Send + 'static, tail: Tail) {
+/// Reads a stream into `tail` on its own thread. The receiver gets a message when the stream ends, so the caller can
+/// wait for the last lines of an updater that failed (but not forever: a game the updater started keeps the pipe).
+fn capture(stream: impl std::io::Read + Send + 'static, tail: Tail) -> mpsc::Receiver<()> {
+    let (done, finished) = mpsc::channel();
     let _ = std::thread::Builder::new()
         .name("skradle-output".into())
         .spawn(move || {
@@ -80,7 +83,18 @@ fn capture(stream: impl std::io::Read + Send + 'static, tail: Tail) {
                 }
                 tail.push_back(line);
             }
+            let _ = done.send(());
         });
+    finished
+}
+
+/// Waits (briefly) until the captured streams have ended, so the failure message is complete.
+fn drain(finished: &[mpsc::Receiver<()>]) {
+    let deadline = Instant::now() + Duration::from_millis(750);
+    for rx in finished {
+        let left = deadline.saturating_duration_since(Instant::now());
+        let _ = rx.recv_timeout(left);
+    }
 }
 
 fn tail_text(tail: &Tail) -> String {
@@ -118,11 +132,12 @@ fn run(
         }
     };
     let output: Tail = Arc::default();
+    let mut readers = Vec::new();
     if let Some(out) = child.stdout.take() {
-        capture(out, output.clone());
+        readers.push(capture(out, output.clone()));
     }
     if let Some(err) = child.stderr.take() {
-        capture(err, output.clone());
+        readers.push(capture(err, output.clone()));
     }
     let mut probe = GameProbe::new(&child, &game_root);
     sink(Event::Phase(Phase::Updating, Step::Checking));
@@ -152,6 +167,8 @@ fn run(
             Ok(Some(status)) => break status,
             Ok(None) => std::thread::sleep(timing.poll),
             Err(e) => {
+                // Cannot tell what the updater is doing: end it rather than leave it running.
+                probe.terminate(&mut child, timing.grace);
                 sink(Event::Failed(LaunchError::Spawn(e.to_string())));
                 return;
             }
@@ -171,6 +188,7 @@ fn run(
     }
 
     if !status.success() {
+        drain(&readers);
         let mut detail = tail_text(&output);
         if detail.is_empty() {
             detail = log_lines
@@ -201,10 +219,15 @@ fn run(
         std::thread::sleep(timing.poll);
         alive = probe.game_alive();
     }
+    if stop.load(Ordering::SeqCst) {
+        // Stop was asked for while the updater handed over: the game may be just starting, so end the group
+        // whether or not it has shown up yet.
+        probe.terminate(&mut child, timing.grace);
+        sink(Event::Stopped);
+        return;
+    }
     if !alive {
-        if stop.load(Ordering::SeqCst) {
-            sink(Event::Stopped);
-        } else if phase.0 == Phase::Launching {
+        if phase.0 == Phase::Launching {
             // The game started and ended again within moments: it crashed or was closed at once.
             sink(Event::Finished);
         } else {
