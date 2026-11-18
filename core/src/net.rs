@@ -149,6 +149,38 @@ impl Client {
             .map_err(|e| NetError::Io(io::Error::new(io::ErrorKind::InvalidData, e)))
     }
 
+    /// Sends `body` with a POST and returns the (size-capped) response body. HTTPS only like everything else.
+    pub fn post(
+        &self,
+        url: &str,
+        headers: &[(&str, &str)],
+        content_type: &str,
+        body: &[u8],
+        max_response: u64,
+    ) -> Result<Vec<u8>, NetError> {
+        self.check_url(url)?;
+        let mut request = self.agent.post(url).content_type(content_type);
+        for (name, value) in headers {
+            request = request.header(*name, *value);
+        }
+        let mut response = request.send(body).map_err(|e| match e {
+            ureq::Error::StatusCode(code) => NetError::Status(code),
+            other => NetError::Request(other.to_string()),
+        })?;
+        let mut out = Vec::new();
+        response
+            .body_mut()
+            .as_reader()
+            .take(max_response + 1)
+            .read_to_end(&mut out)?;
+        if out.len() as u64 > max_response {
+            return Err(NetError::TooLarge {
+                limit: max_response,
+            });
+        }
+        Ok(out)
+    }
+
     /// Downloads `url` to `dest`. The bytes go to `<dest>.part` first; `dest` appears only when the size cap held and
     /// the checksum (if given) matched, so a failed or interrupted download never leaves a believable file behind.
     pub fn download(
@@ -402,6 +434,64 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, NetError::TooLarge { limit: 1000 }), "{err}");
         assert!(std::fs::read_dir(dir.path()).unwrap().next().is_none());
+    }
+
+    #[test]
+    fn post_sends_the_headers_and_the_body() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/envelope", listener.local_addr().unwrap());
+        let (tx, rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut reader = io::BufReader::new(stream.try_clone().unwrap());
+            let mut head = String::new();
+            let mut length = 0usize;
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if line == "\r\n" {
+                    break;
+                }
+                if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap();
+                }
+                head.push_str(&line);
+            }
+            let mut body = vec![0u8; length];
+            reader.read_exact(&mut body).unwrap();
+            let mut stream = stream;
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                .unwrap();
+            tx.send((head, body)).unwrap();
+        });
+        let reply = test_client()
+            .post(
+                &url,
+                &[("X-Test", "yes")],
+                "application/x-test",
+                b"payload",
+                100,
+            )
+            .unwrap();
+        assert_eq!(reply, b"ok");
+        let (head, body) = rx.recv().unwrap();
+        assert!(head.starts_with("POST /envelope"), "{head}");
+        assert!(head.to_ascii_lowercase().contains("x-test: yes"), "{head}");
+        assert!(
+            head.to_ascii_lowercase()
+                .contains("content-type: application/x-test"),
+            "{head}"
+        );
+        assert_eq!(body, b"payload");
+    }
+
+    #[test]
+    fn post_refuses_plain_http_by_default() {
+        let err = Client::new()
+            .post("http://example.invalid/x", &[], "text/plain", b"x", 10)
+            .unwrap_err();
+        assert!(matches!(err, NetError::InsecureUrl(_)));
     }
 
     #[test]
