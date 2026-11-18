@@ -38,13 +38,15 @@ pub fn is_free(port: u16) -> bool {
     if TcpStream::connect_timeout(&loopback, Duration::from_millis(250)).is_ok() {
         return false;
     }
-    // Hold both binds at once: a probe that released the first would hide a conflict between the two.
-    let on_loopback = TcpListener::bind(loopback);
+    // One after the other, each released before the next: on Linux a wildcard bind conflicts with any listener on
+    // the same port, including a loopback listener of this very probe.
+    let on_loopback = TcpListener::bind(loopback).is_ok();
     let on_all = TcpListener::bind(SocketAddr::V4(SocketAddrV4::new(
         Ipv4Addr::UNSPECIFIED,
         port,
-    )));
-    on_loopback.is_ok() && on_all.is_ok()
+    )))
+    .is_ok();
+    on_loopback && on_all
 }
 
 /// The first port above `start` (up to 200 further) that `free` accepts and is not in `avoid`.

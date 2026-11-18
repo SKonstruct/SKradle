@@ -125,6 +125,17 @@ fn finish(layout: &ServerLayout, tmp: &Path, info: &BackupInfo) -> io::Result<()
 /// Copies `data/` and `config/` into a new backup and prunes the oldest beyond [`KEEP`].
 pub fn create(
     layout: &ServerLayout,
+    stopped: &Stopped<'_>,
+    label: Option<&str>,
+    now: u64,
+) -> io::Result<BackupInfo> {
+    let info = create_unpruned(layout, stopped, label, now)?;
+    prune(layout, KEEP, None)?;
+    Ok(info)
+}
+
+fn create_unpruned(
+    layout: &ServerLayout,
     _stopped: &Stopped<'_>,
     label: Option<&str>,
     now: u64,
@@ -150,16 +161,10 @@ pub fn create(
         finish(layout, &tmp, &info)?;
         Ok(info)
     })();
-    match result {
-        Ok(info) => {
-            prune(layout, KEEP)?;
-            Ok(info)
-        }
-        Err(e) => {
-            let _ = remove_all(&tmp);
-            Err(e)
-        }
+    if result.is_err() {
+        let _ = remove_all(&tmp);
     }
+    result
 }
 
 /// Backups, newest first. Folders without a readable `backup.json` (and hidden temporary ones) are not listed.
@@ -192,9 +197,12 @@ pub fn list(layout: &ServerLayout) -> io::Result<Vec<BackupInfo>> {
     Ok(found)
 }
 
-fn prune(layout: &ServerLayout, keep: usize) -> io::Result<()> {
+/// Deletes the backups beyond the newest `keep`, except `protect` (a backup that is being restored from).
+fn prune(layout: &ServerLayout, keep: usize, protect: Option<&str>) -> io::Result<()> {
     for old in list(layout)?.into_iter().skip(keep) {
-        remove_all(&layout.backups_dir().join(old.name))?;
+        if protect != Some(old.name.as_str()) {
+            remove_all(&layout.backups_dir().join(old.name))?;
+        }
     }
     Ok(())
 }
@@ -248,7 +256,8 @@ pub fn restore(
     if !source.join("data").is_dir() && !source.join("config").is_dir() {
         return Err(invalid("the backup holds no data or configuration"));
     }
-    let safety = create(layout, stopped, Some("before-restore"), now)?;
+    // Not pruned yet: with the folder full, the oldest backup may be the very one being restored.
+    let safety = create_unpruned(layout, stopped, Some("before-restore"), now)?;
     let safety_dir = layout.backups_dir().join(&safety.name);
     let pairs = [
         (source.join("data"), layout.data_dir()),
@@ -272,7 +281,7 @@ pub fn restore(
         }
         return Err(e);
     }
-    Ok(())
+    prune(layout, KEEP, Some(name))
 }
 
 /// Retires the current `data/` into a backup named `...-reset` and leaves no `data/` for a fresh start. With
@@ -326,7 +335,7 @@ pub fn reset(
             return Err(e);
         }
     }
-    prune(layout, KEEP)?;
+    prune(layout, KEEP, None)?;
     Ok(info)
 }
 
@@ -437,6 +446,27 @@ mod tests {
         ] {
             assert!(!layout.root().join(leftover).exists(), "{leftover}");
         }
+    }
+
+    #[test]
+    fn restoring_the_oldest_backup_of_a_full_folder_keeps_it_and_applies_it() {
+        let (_d, layout) = server();
+        fs::write(layout.database(), b"oldest state").unwrap();
+        let oldest = create(&layout, &stopped(), Some("oldest"), 100).unwrap();
+        for i in 0..(KEEP as u64 - 1) {
+            fs::write(layout.database(), format!("state {i}")).unwrap();
+            create(&layout, &stopped(), None, 200 + i).unwrap();
+        }
+        assert_eq!(list(&layout).unwrap().len(), KEEP);
+        assert_eq!(list(&layout).unwrap().last().unwrap().name, oldest.name);
+        restore(&layout, &stopped(), &oldest.name, 1000).unwrap();
+        assert_eq!(fs::read(layout.database()).unwrap(), b"oldest state");
+        let names: Vec<_> = list(&layout).unwrap().into_iter().map(|i| i.name).collect();
+        assert!(
+            names.contains(&oldest.name),
+            "the source survives the prune"
+        );
+        assert!(names.len() <= KEEP + 1);
     }
 
     #[test]

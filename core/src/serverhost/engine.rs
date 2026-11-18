@@ -11,6 +11,8 @@
 //! **What the launcher installs from it**: the jar, `content/` and `webui/` (each replaced as a whole, the old
 //! copy kept as `.previous`), the default `config/` files (added only where missing, an existing configuration is
 //! never touched) and the licence texts, which stay next to the jar. The docs, README and the like are skipped.
+//! The player's News edits (the WebUI saves them in `content/shared/news`) are carried over into the new
+//! `content/`; nothing else in `content/` is kept.
 //! The engine serves its administration pages from `webui/`, so a release without `webui/index.html` is refused.
 //! Replacing `webui/` is safe: the engine restores its locally prepared artwork from `data/` on the next start.
 //!
@@ -632,6 +634,15 @@ fn swap_in(layout: &ServerLayout, staging: &Path) -> Result<(), EngineError> {
         fs::rename(staging.join("tortodrone.jar"), &jar)?;
         undo.push(Undo::Created(jar));
 
+        // The WebUI saves News edits and uploaded banners under `content/shared/news`; they are the player's, so
+        // they are carried into the new content instead of being replaced by the release's defaults.
+        let old_news = layout.previous_content().join("shared").join("news");
+        if old_news.is_dir() {
+            let target = layout.content_dir().join("shared").join("news");
+            remove_all(&target)?;
+            copy_tree(&old_news, &target, &|_| false)?;
+        }
+
         // Default configuration: only what is missing.
         if let Ok(entries) = fs::read_dir(staging.join("config")) {
             fs::create_dir_all(layout.config_dir())?;
@@ -954,6 +965,41 @@ mod tests {
         assert!(!layout.staging_dir().exists());
         assert!(is_ready(&layout));
         assert_eq!(installed(&layout), EngineState::Installed(record));
+    }
+
+    #[test]
+    fn the_players_news_edits_survive_an_update() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = accepted_layout(dir.path());
+        install(
+            &layout,
+            "0.40.8",
+            &[("content/shared/news/news.yml", b"release default 1")],
+        );
+        fs::write(
+            layout.content_dir().join("shared/news/news.yml"),
+            "edited by the player",
+        )
+        .unwrap();
+        fs::write(layout.content_dir().join("shared/news/banner.png"), b"png").unwrap();
+        install(
+            &layout,
+            "0.40.17",
+            &[
+                ("content/shared/news/news.yml", b"release default 2"),
+                ("content/maps/new_map/map.yml", b"type: town\n"),
+            ],
+        );
+        let news = layout.content_dir().join("shared/news");
+        assert_eq!(
+            fs::read_to_string(news.join("news.yml")).unwrap(),
+            "edited by the player"
+        );
+        assert_eq!(fs::read(news.join("banner.png")).unwrap(), b"png");
+        assert!(
+            layout.content_dir().join("maps/new_map/map.yml").is_file(),
+            "the rest is the new release's"
+        );
     }
 
     #[test]

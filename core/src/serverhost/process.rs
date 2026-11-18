@@ -244,7 +244,7 @@ pub enum HostError {
     Reentrant,
     NotInstalled,
     NoJava,
-    /// `config/server.yml` does not enable the WebUI the launcher embeds; call [`ServerHost::configure`].
+    /// `config/server.yml` is not in the form [`ServerHost::configure`] writes (the engine's shipped file, for one).
     NotConfigured,
     PortConflict(Vec<Conflict>),
     Spawn(io::Error),
@@ -456,17 +456,32 @@ impl Run {
     }
 
     /// Notes the child's exit if it has happened.
+    ///
+    /// Lock order: the `child` and `state` locks are never held together (this reads the child, lets go, then
+    /// takes the state), so no other thread can wait on them in the opposite order.
     fn refresh_exit(&self) {
-        let mut child = lock(&self.child);
-        if let Some(c) = child.as_mut() {
-            if let Ok(Some(status)) = c.try_wait() {
-                let mut state = lock(&self.state);
-                if state.exit.is_none() {
-                    state.exit = Some(status.code());
-                }
-                self.changed.notify_all();
+        let exited = {
+            let mut child = lock(&self.child);
+            child
+                .as_mut()
+                .and_then(|c| c.try_wait().ok().flatten())
+                .map(|status| status.code())
+        };
+        if let Some(code) = exited {
+            let mut state = lock(&self.state);
+            if state.exit.is_none() {
+                state.exit = Some(code);
             }
+            self.changed.notify_all();
         }
+    }
+
+    /// Whether a child is held that has not been seen to exit.
+    fn has_live_child(&self) -> bool {
+        self.refresh_exit();
+        let has_child = lock(&self.child).is_some();
+        let exited = lock(&self.state).exit.is_some();
+        has_child && !exited
     }
 
     /// Waits until `done` is true for the state or the timeout passes, checking for the child's exit every 25 ms.
@@ -682,6 +697,10 @@ impl ServerHost {
             };
         };
         run.refresh_exit();
+        // Read the settings before taking the state lock: the output readers wait on it.
+        let web_ui_url = config::read_file(&self.layout)
+            .ok()
+            .map(|c| c.host_config().web_ui_url());
         let mut state = lock(&run.state);
         if let Some(code) = state.exit {
             match state.phase {
@@ -695,13 +714,7 @@ impl ServerHost {
                 _ => {}
             }
         }
-        let web_ui_url = (state.phase == Phase::Running)
-            .then(|| {
-                config::read_file(&self.layout)
-                    .ok()
-                    .map(|c| c.host_config().web_ui_url())
-            })
-            .flatten();
+        let web_ui_url = web_ui_url.filter(|_| state.phase == Phase::Running);
         Status {
             phase: state.phase.clone(),
             game_ready: state.game_ready && state.exit.is_none(),
@@ -741,10 +754,7 @@ impl ServerHost {
     }
 
     fn is_alive(&self) -> bool {
-        self.current().is_some_and(|run| {
-            run.refresh_exit();
-            lock(&run.state).exit.is_none() && lock(&run.child).is_some()
-        })
+        self.current().is_some_and(|run| run.has_live_child())
     }
 
     /// Starts the server and returns when the game listener is ready, the web listener has been probed and (unless
@@ -783,10 +793,12 @@ impl ServerHost {
             return Err(HostError::NoJava);
         }
         let current = config::read_file(&self.layout)?;
-        if current.webui_enabled != Some(true) {
+        let host_config = current.host_config();
+        // The engine's shipped file has the WebUI on but binds every interface in "automatic" Host mode; only a file
+        // written by `configure` (the web origin pinned to loopback, plain HTTP) is started.
+        if !current.is_launcher_configured() {
             return Err(HostError::NotConfigured);
         }
-        let host_config = current.host_config();
         if self.options.check_ports {
             let conflicts = ports::check(&host_config);
             if !conflicts.is_empty() {
@@ -967,8 +979,7 @@ impl ServerHost {
         let Some(run) = self.current() else {
             return Ok(StopKind::NotRunning);
         };
-        run.refresh_exit();
-        if lock(&run.state).exit.is_some() || lock(&run.child).is_none() {
+        if !run.has_live_child() {
             let mut state = lock(&run.state);
             if state.phase != Phase::Stopped && !matches!(state.phase, Phase::Failed(_)) {
                 state.phase = Phase::Stopped;
@@ -1035,7 +1046,9 @@ impl ServerHost {
     /// Collects the exited child and closes its stdin.
     fn reap(&self, run: &Arc<Run>) -> io::Result<()> {
         *lock(&run.stdin) = None;
-        if let Some(mut child) = lock(&run.child).take() {
+        // Take the child out first: waiting must not hold the lock the status readers use.
+        let taken = lock(&run.child).take();
+        if let Some(mut child) = taken {
             let status = child.wait()?;
             let mut state = lock(&run.state);
             if state.exit.is_none() {
@@ -1089,6 +1102,7 @@ impl ServerHost {
         progress: &mut dyn FnMut(Stage),
     ) -> Result<UpdateReport, HostError> {
         self.run_stopped(|layout, proof| {
+            let first_install = !layout.server_yml().exists();
             let backup =
                 if layout.data_dir().exists() || layout.config_dir().join("server.yml").exists() {
                     Some(backups::create(
@@ -1101,6 +1115,7 @@ impl ServerHost {
                     None
                 };
             let outcome = engine::update_to_latest(client, layout, progress)?;
+            finish_install(layout, first_install)?;
             Ok((outcome, backup))
         })
         .map(|done| UpdateReport {
@@ -1114,6 +1129,15 @@ impl ServerHost {
     pub fn rollback_engine(&self) -> Result<WhileStopped<engine::InstalledEngine>, HostError> {
         self.run_stopped(|layout, _| Ok(engine::rollback_to_previous(layout)?))
     }
+}
+
+/// After an install: a server folder that had no `server.yml` before gets the launcher's own (loopback-only
+/// defaults) instead of the engine's shipped file, which binds every interface in "automatic" Host mode.
+fn finish_install(layout: &ServerLayout, first_install: bool) -> Result<(), HostError> {
+    if first_install {
+        HostConfig::default().write(layout)?;
+    }
+    Ok(())
 }
 
 impl Drop for ServerHost {
@@ -1249,6 +1273,28 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0].len(), MAX_LINE_BYTES);
         assert_eq!(lines[1], "ok \u{fffd} end");
+    }
+
+    #[test]
+    fn a_first_install_replaces_the_shipped_config_and_a_later_one_leaves_the_players_alone() {
+        use super::super::engine::testkit;
+        let dir = tempfile::tempdir().unwrap();
+        let layout = testkit::accepted_layout(dir.path());
+        testkit::install(&layout, "0.40.17", &[]);
+        // As installed, the engine's shipped file is not startable by the launcher.
+        assert!(!config::read_file(&layout).unwrap().is_launcher_configured());
+        finish_install(&layout, true).unwrap();
+        let now = config::read_file(&layout).unwrap();
+        assert!(now.is_launcher_configured());
+        assert_eq!(now.host_config(), HostConfig::default());
+        // A LAN choice made later survives an update.
+        let lan = HostConfig {
+            lan: true,
+            ..HostConfig::default()
+        };
+        lan.write(&layout).unwrap();
+        finish_install(&layout, false).unwrap();
+        assert_eq!(config::read_file(&layout).unwrap().host_config(), lan);
     }
 
     #[test]
@@ -1669,6 +1715,60 @@ exit 1
             Err(HostError::PortConflict(list)) => assert_eq!(list.len(), 2),
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn status_polling_never_deadlocks_with_lifecycle_calls() {
+        let f = fixture_with(
+            &format!("{BANNER}{SHELL_LOOP}"),
+            |o| o.manage_admin = false,
+            200,
+        );
+        let stop = Arc::new(AtomicBool::new(false));
+        let pollers: Vec<_> = (0..3)
+            .map(|_| {
+                let host = f.host.clone();
+                let stop = stop.clone();
+                thread::spawn(move || {
+                    let mut polls = 0u32;
+                    while !stop.load(Ordering::SeqCst) {
+                        let _ = host.status();
+                        let _ = host.log_since(0);
+                        polls += 1;
+                    }
+                    polls
+                })
+            })
+            .collect();
+        let host = f.host.clone();
+        let cycles = thread::spawn(move || {
+            for _ in 0..3 {
+                host.start().unwrap();
+                host.stop().unwrap();
+            }
+        });
+        let began = Instant::now();
+        while !cycles.is_finished() {
+            assert!(
+                began.elapsed() < Duration::from_secs(60),
+                "start/stop did not finish: deadlock"
+            );
+            thread::sleep(Duration::from_millis(20));
+        }
+        cycles.join().unwrap();
+        stop.store(true, Ordering::SeqCst);
+        for poller in pollers {
+            assert!(poller.join().unwrap() > 0);
+        }
+    }
+
+    #[test]
+    fn the_engines_shipped_config_is_refused_until_the_launcher_has_written_its_own() {
+        let f = fixture("");
+        let shipped = "server-ip: 0.0.0.0\nserver-port: 47624\nwebui-enabled: true\nwebui-public-url: 0.0.0.0\nwebui/content_url-port: 8080\nwebui-tls-mode: http\n";
+        std::fs::write(f.layout.server_yml(), shipped).unwrap();
+        assert!(matches!(f.host.start(), Err(HostError::NotConfigured)));
+        assert!(!f.host.is_alive());
     }
 
     #[test]

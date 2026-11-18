@@ -74,6 +74,9 @@ Tortodrone is under the **PolyForm Noncommercial License 1.0.0**; SKradle is MIT
   database schema it does not know and does not downgrade one, so after a rollback restore the backup made before the
   update if the old engine will not start.
 - `ServerHost::update_engine` stops the server, makes a `before-update` backup (no backup, no update) and installs.
+- The WebUI saves News edits and uploaded banners under `content/shared/news`. They are the player's: an update carries that
+  folder over into the new `content/`; nothing else in `content/` is kept. **They are not part of the backups** (which hold
+  `data/` and `config/` only): copy that folder by hand if the News matters.
 - Replacing `webui/` is safe: per the engine's operations guide it restores locally prepared artwork from
   `data/client-artwork/` on the next start.
 
@@ -82,6 +85,11 @@ Tortodrone is under the **PolyForm Noncommercial License 1.0.0**; SKradle is MIT
 `HostConfig::apply` rewrites exactly these lines of `config/server.yml` and leaves everything else (other keys, comments,
 blank lines, line endings) as it was. A file with a line it cannot safely edit around (indentation, a list, a repeated
 key) is refused and not touched. The engine refuses unknown settings, so nothing else is ever added.
+
+The engine's own shipped `server.yml` binds every interface in "automatic" Host mode, which is not what the launcher
+wants. A first install therefore rewrites it with the loopback-only defaults (keeping its comments), and `start` refuses a
+file that is not in the launcher's form (`NotConfigured`: WebUI on, plain HTTP, `webui-public-url` equal to
+`http://127.0.0.1:<web port>`, an explicit web port). `ServerHost::configure` writes it, while the server is stopped.
 
 | Key | Value |
 | --- | --- |
@@ -146,8 +154,8 @@ game's own trimmed runtime probably lacks them.
 `127.0.0.1` (`200` means ready; `403` means the listener is up but refuses the Host, i.e. a custom `webui-public-url`).
 `WebUI Ready` is not used: the engine also prints it when startup failed.
 
-**Port conflicts.** Before a start both ports are checked (bind on loopback and on all interfaces, plus a connection to
-loopback; the two ports must differ) and the failure names which one and suggests the next free port. The engine's own
+**Port conflicts.** Before a start both ports are checked (a connection to loopback, then a bind on loopback and a bind on all
+interfaces one after the other; the two ports must differ; tested on macOS only, Linux and Windows unverified) and the failure names which one and suggests the next free port. The engine's own
 failure lines are read as well, because a port can be taken between the check and the start: `Server startup failed: ...
 Address already in use` is the game port (with the WebUI on the process then stays alive, idle, and the launcher shuts it
 down), `Cannot bind shared HTTP listener` is the web port (the process exits with code 1).
@@ -159,7 +167,8 @@ again, then kill. `StopKind` reports which one was needed. A start that is still
 
 **Locking.** Start, stop, restart, engine update/rollback, configure, backup, restore, reset and admin reset run under one
 lifecycle lock. `status`, `log_since` and the reader threads never take it. A lifecycle call from the thread that holds the
-lock (for example from a callback) fails with `Reentrant` instead of deadlocking. `run_stopped` is the extension point for
+lock (for example from a callback) fails with `Reentrant` instead of deadlocking. Inside the process module the child and
+state locks are never held together, so status polling cannot deadlock with a start or stop (a test polls while cycling). `run_stopped` is the extension point for
 operations that need the server stopped; backups require the `Stopped` proof it provides.
 
 ## Backups
@@ -168,7 +177,7 @@ operations that need the server stopped; backups require the `Stopped` proof it 
 a running server can be torn; the lifecycle lock and the `Stopped` token enforce this). Built in a hidden temporary folder
 and renamed into place; newest 10 kept; `server.lock` and `*.tmp` are not copied; a symbolic link anywhere in the tree makes
 the backup fail rather than be followed. Restore first makes a `before-restore` backup, replaces `data/` and `config/`
-through a staging copy and puts the old ones back if a step fails. Reset moves `data/` into a `...-reset` backup; with
+through a staging copy and puts the old ones back if a step fails. Restoring never prunes the backup it restores from. Reset moves `data/` into a `...-reset` backup; with
 `keep_keys` the key pair is copied back so players keep the public key they configured.
 
 ## Connecting the game

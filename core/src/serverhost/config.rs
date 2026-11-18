@@ -206,9 +206,19 @@ pub struct Current {
     pub web_port: Option<u16>,
     pub webui_enabled: Option<bool>,
     pub public_url: Option<String>,
+    pub tls_mode: Option<String>,
 }
 
 impl Current {
+    /// Whether the file is in the form [`HostConfig::apply`] writes: WebUI on, plain HTTP, the admin origin pinned
+    /// to `127.0.0.1` on the web port, and an explicit web port (the engine's shipped file has none of that).
+    pub fn is_launcher_configured(&self) -> bool {
+        self.webui_enabled == Some(true)
+            && self.tls_mode.as_deref() == Some("http")
+            && self.web_port.is_some()
+            && self.public_url.as_deref() == Some(self.host_config().public_url().as_str())
+    }
+
     /// The launcher's view: LAN when the bind is not loopback; ports default to the engine's defaults.
     pub fn host_config(&self) -> HostConfig {
         HostConfig {
@@ -236,6 +246,7 @@ pub fn read(text: &str) -> Result<Current, ConfigError> {
             }
             "webui-enabled" => current.webui_enabled = value.parse().ok(),
             "webui-public-url" => current.public_url = Some(value),
+            "webui-tls-mode" => current.tls_mode = Some(value),
             _ => {}
         }
     }
@@ -488,6 +499,21 @@ mod tests {
                 "{game} {web}"
             );
         }
+    }
+
+    #[test]
+    fn the_engines_shipped_file_is_not_the_launchers_configuration() {
+        let shipped = read(SHIPPED).unwrap();
+        assert!(!shipped.is_launcher_configured());
+        assert!(!Current::default().is_launcher_configured());
+        let written = read(&cfg(true).apply(SHIPPED).unwrap()).unwrap();
+        assert!(written.is_launcher_configured());
+        // A hand edit that points the origin elsewhere is not.
+        let edited = cfg(true)
+            .apply(SHIPPED)
+            .unwrap()
+            .replace("http://127.0.0.1:8080", "http://192.168.1.5:8080");
+        assert!(!read(&edited).unwrap().is_launcher_configured());
     }
 
     #[test]
