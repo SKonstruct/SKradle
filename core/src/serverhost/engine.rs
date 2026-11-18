@@ -698,6 +698,11 @@ fn exchange(live: &Path, previous: &Path, undo: &mut Vec<Undo>) -> io::Result<()
     });
     if had_live {
         fs::rename(&temp, previous)?;
+        // Without this step a later failure would delete the stashed live engine at `previous`.
+        undo.push(Undo::Moved {
+            from: temp,
+            to: previous.to_path_buf(),
+        });
     }
     Ok(())
 }
@@ -1235,6 +1240,41 @@ mod tests {
         assert!(matches!(installed(&layout), EngineState::Installed(r) if r.version == "0.40.8"));
         // And forward again.
         assert_eq!(rollback_to_previous(&layout).unwrap().version, "0.40.17");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_rollback_to_previous_keeps_both_engines() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let layout = accepted_layout(dir.path());
+        install(&layout, "0.40.8", &[("content/maps/old_only.txt", b"old")]);
+        install(&layout, "0.40.17", &[("content/maps/new_only.txt", b"new")]);
+        // The jar swaps first, then `content/`; make the content swap fail by leaving an undeletable leftover
+        // where its temporary name goes.
+        let blocker = sibling(&layout.content_dir(), "swap");
+        fs::create_dir_all(blocker.join("inner")).unwrap();
+        fs::write(blocker.join("inner/f"), b"x").unwrap();
+        fs::set_permissions(blocker.join("inner"), fs::Permissions::from_mode(0o555)).unwrap();
+        let can_fail = fs::remove_dir_all(&blocker).is_err();
+        let result = if can_fail {
+            Some(rollback_to_previous(&layout))
+        } else {
+            None // running as a user that ignores permissions: nothing to inject
+        };
+        fs::set_permissions(blocker.join("inner"), fs::Permissions::from_mode(0o755)).ok();
+        let Some(result) = result else { return };
+        assert!(matches!(result, Err(EngineError::Io(_))));
+        assert_eq!(fs::read(layout.jar()).unwrap(), jar_bytes("0.40.17"));
+        assert_eq!(
+            fs::read(layout.previous_jar()).unwrap(),
+            jar_bytes("0.40.8")
+        );
+        assert!(layout.content_dir().join("maps/new_only.txt").is_file());
+        assert!(layout
+            .previous_content()
+            .join("maps/old_only.txt")
+            .is_file());
     }
 
     #[test]
