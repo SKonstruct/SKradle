@@ -7,8 +7,9 @@
 //! SHA-256 over the uncompressed contents of every entry, taken in entry-name order (names compared as UTF-16 code
 //! units, as Java sorts strings), with the names themselves, folder entries and the zip layout left out. Rewriting a
 //! jar with different compression or entry order therefore gives the same digest, while changing any entry's
-//! contents (or adding or removing a file entry) changes it. Every other file is hashed by its bytes. All 32 jars
-//! of a real install verify this way and none verifies by file bytes.
+//! contents (or adding or removing a file entry) changes it. Every other file is hashed by its bytes. All 32
+//! unmodified jars of a real install verify this way (a 33rd had been edited by another tool) and none verifies by
+//! file bytes.
 
 use std::collections::BTreeMap;
 use std::fs::File;
