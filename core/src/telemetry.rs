@@ -64,12 +64,20 @@ impl Dsn {
 #[derive(Debug, Clone, Default)]
 pub struct Scrubber {
     /// The home folder, replaced by `~` wherever it appears.
-    pub home: Option<String>,
-    /// The account name, replaced by `<user>` wherever it appears as a word.
-    pub username: Option<String>,
+    home: Option<String>,
+    /// The account name as a whole-word pattern, replaced by `<user>`; compiled once.
+    username: Option<Regex>,
 }
 
 impl Scrubber {
+    /// `home` is replaced by `~`; `username` (when at least two characters) by `<user>` wherever it appears as a word.
+    pub fn new(home: Option<String>, username: Option<String>) -> Self {
+        let username = username
+            .filter(|name| name.chars().count() > 1)
+            .and_then(|name| Regex::new(&format!(r"\b{}\b", regex::escape(&name))).ok());
+        Self { home, username }
+    }
+
     pub fn from_environment() -> Self {
         let home = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
@@ -79,7 +87,7 @@ impl Scrubber {
             .or_else(|_| std::env::var("USERNAME"))
             .ok()
             .filter(|u| u.len() > 1);
-        Self { home, username }
+        Self::new(home, username)
     }
 
     pub fn scrub(&self, text: &str) -> String {
@@ -89,14 +97,21 @@ impl Scrubber {
             out = out.replace(&home.replace('\\', "/"), "~");
         }
         out = user_folder().replace_all(&out, "$1<user>$2").into_owned();
-        if let Some(name) = &self.username {
-            if let Ok(word) = Regex::new(&format!(r"\b{}\b", regex::escape(name))) {
-                out = word.replace_all(&out, "<user>").into_owned();
-            }
+        if let Some(word) = &self.username {
+            out = word.replace_all(&out, "<user>").into_owned();
         }
         out = email().replace_all(&out, "<email>").into_owned();
         out = ipv4().replace_all(&out, "<ip>").into_owned();
-        out = long_token().replace_all(&out, "<token>").into_owned();
+        out = hex_run().replace_all(&out, "<token>").into_owned();
+        out = key_like_run()
+            .replace_all(&out, |caps: &regex::Captures| {
+                if looks_like_secret(&caps[0]) {
+                    "<token>".to_owned()
+                } else {
+                    caps[0].to_owned()
+                }
+            })
+            .into_owned();
         out
     }
 }
@@ -120,10 +135,24 @@ fn ipv4() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"\b(?:\d{1,3}\.){3}\d{1,3}\b").expect("valid regex"))
 }
 
-/// Keys, tokens and hashes: 32 or more characters of hex or base64-looking text.
-fn long_token() -> &'static Regex {
+/// Hex keys and hashes: 32 or more hex digits as a whole word.
+fn hex_run() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"[A-Za-z0-9+/_=-]{32,}").expect("valid regex"))
+    RE.get_or_init(|| Regex::new(r"\b[0-9A-Fa-f]{32,}\b").expect("valid regex"))
+}
+
+/// Candidates for base64-style keys: 40 or more characters. A slash is NOT part of it, so file paths and module paths
+/// (long runs of letters and slashes) are never swallowed whole and backtraces stay readable.
+fn key_like_run() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"[A-Za-z0-9+_=-]{40,}").expect("valid regex"))
+}
+
+/// A run is taken for a secret only when it mixes digits, upper and lower case, as keys do and identifiers rarely do.
+fn looks_like_secret(run: &str) -> bool {
+    run.bytes().any(|b| b.is_ascii_digit())
+        && run.bytes().any(|b| b.is_ascii_uppercase())
+        && run.bytes().any(|b| b.is_ascii_lowercase())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,7 +179,8 @@ pub fn build_envelope(
     scrubber: &Scrubber,
     release: &str,
 ) -> String {
-    let clip = |text: &str, max: usize| scrubber.scrub(&text.chars().take(max).collect::<String>());
+    // Scrub first, then cut: cutting first could leave half of a secret that no pattern recognises any more.
+    let clip = |text: &str, max: usize| scrubber.scrub(text).chars().take(max).collect::<String>();
     let mut tags: BTreeMap<&str, String> = BTreeMap::new();
     for (k, v) in &report.tags {
         tags.insert(k, clip(v, 200));
@@ -197,7 +227,11 @@ impl Reporter {
             release: release.into(),
             scrubber: Scrubber::from_environment(),
             counter: AtomicU64::new(0),
-            client: Client::new(),
+            // Short timeouts: a report is sent from a panic hook and must not keep a dying program waiting.
+            client: Client::with_timeouts(
+                std::time::Duration::from_secs(3),
+                std::time::Duration::from_secs(6),
+            ),
         })
     }
 
@@ -221,6 +255,15 @@ impl Reporter {
             .spawn(move || {
                 let _ = this.send_now(&report);
             });
+    }
+
+    /// Sends a report now and waits for the answer, for tools and tests that check a Sentry project. Does nothing
+    /// (and succeeds) when reporting is off or no DSN is set.
+    pub fn send_blocking(&self, report: &Report) -> Result<(), crate::net::NetError> {
+        if !self.is_active() {
+            return Ok(());
+        }
+        self.send_now(report)
     }
 
     fn send_now(&self, report: &Report) -> Result<(), crate::net::NetError> {
@@ -291,10 +334,7 @@ mod tests {
     use super::*;
 
     fn scrubber() -> Scrubber {
-        Scrubber {
-            home: Some("/Users/alice".into()),
-            username: Some("alice".into()),
-        }
+        Scrubber::new(Some("/Users/alice".into()), Some("alice".into()))
     }
 
     #[test]
@@ -366,10 +406,7 @@ mod tests {
 
     #[test]
     fn scrubbing_handles_windows_home_in_both_slash_styles() {
-        let s = Scrubber {
-            home: Some(r"C:\Users\me".into()),
-            username: None,
-        };
+        let s = Scrubber::new(Some(r"C:\Users\me".into()), None);
         assert_eq!(s.scrub(r"C:\Users\me\Documents\f"), r"~\Documents\f");
         assert_eq!(s.scrub("C:/Users/me/Documents/f"), "~/Documents/f");
     }
@@ -459,5 +496,73 @@ mod tests {
         assert_eq!(a.len(), 32);
         assert!(a.bytes().all(|c| c.is_ascii_hexdigit()));
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn file_paths_and_module_paths_survive_the_token_scrub() {
+        let s = Scrubber::new(Some("/Users/alice".into()), Some("alice".into()));
+        let trace = "  at skradle_core::serverhost::process::ServerHost::start_locked\n     \
+                     at /rustc/90b35a6239c3d8bdabc530a6a0816f7ff89a3a43/library/std/src/panicking.rs:697\n     \
+                     at core/src/serverhost/engine/exchange_swap_in_rollback.rs:310";
+        let out = s.scrub(trace);
+        assert!(
+            out.contains("skradle_core::serverhost::process::ServerHost::start_locked"),
+            "{out}"
+        );
+        assert!(out.contains("library/std/src/panicking.rs:697"), "{out}");
+        assert!(
+            out.contains("core/src/serverhost/engine/exchange_swap_in_rollback.rs:310"),
+            "{out}"
+        );
+        assert!(
+            out.contains("/rustc/<token>/"),
+            "the compiler's 40-digit commit hash is a hex token: {out}"
+        );
+    }
+
+    #[test]
+    fn real_keys_are_still_caught() {
+        let s = Scrubber::default();
+        assert_eq!(
+            s.scrub("key=3f2a9c4e8b7d1a6f5e0c9b8a7d6e5f4a3b2c1d0e end"),
+            "key=<token> end"
+        );
+        let base64_key = "dGhpcyBpcyBhIHNlY3JldCBrZXkgd2l0aCBtaXhlZCBDYXNlIDEyMw";
+        assert_eq!(
+            s.scrub(&format!("token {base64_key} end")),
+            "token <token> end"
+        );
+        assert_eq!(
+            s.scrub("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"),
+            "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+            "a plain word run is not a key"
+        );
+    }
+
+    #[test]
+    fn a_secret_across_the_length_cut_is_scrubbed_before_cutting() {
+        let dsn = Dsn::parse("https://abc@sentry.example.io/42").unwrap();
+        let secret = "3f2a9c4e8b7d1a6f5e0c9b8a7d6e5f4a3b2c1d0e";
+        let message = format!("{}{secret}", "x ".repeat(MAX_MESSAGE_CHARS / 2 - 10));
+        let report = Report {
+            level: Level::Error,
+            message,
+            backtrace: None,
+            tags: BTreeMap::new(),
+        };
+        let envelope = build_envelope(&report, &dsn, &"0".repeat(32), 1, &Scrubber::default(), "0");
+        assert!(
+            !envelope.contains("3f2a9c4e8b7d1a6f5e"),
+            "not even the start of the key leaks"
+        );
+    }
+
+    #[test]
+    fn the_username_pattern_is_built_once_and_short_names_are_ignored() {
+        let s = Scrubber::new(None, Some("alice".into()));
+        assert_eq!(s.scrub("alice and alice"), "<user> and <user>");
+        assert_eq!(s.scrub("malice"), "malice", "whole words only");
+        let short = Scrubber::new(None, Some("a".into()));
+        assert_eq!(short.scrub("a banana"), "a banana");
     }
 }

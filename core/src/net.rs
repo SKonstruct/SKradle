@@ -107,12 +107,26 @@ impl Client {
         Self::build(false)
     }
 
+    /// A client with short timeouts, for requests that must not hold anything up (crash reports sent from a panic
+    /// hook, status pings). Everything else uses [`Client::new`], which allows a long download.
+    pub fn with_timeouts(connect: Duration, total: Duration) -> Self {
+        Self::build_with(true, connect, total)
+    }
+
     fn build(https_only: bool) -> Self {
+        Self::build_with(
+            https_only,
+            Duration::from_secs(15),
+            Duration::from_secs(30 * 60),
+        )
+    }
+
+    fn build_with(https_only: bool, connect: Duration, total: Duration) -> Self {
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .https_only(https_only)
             .max_redirects(4)
-            .timeout_connect(Some(Duration::from_secs(15)))
-            .timeout_global(Some(Duration::from_secs(30 * 60)))
+            .timeout_connect(Some(connect))
+            .timeout_global(Some(total))
             .user_agent(USER_AGENT)
             .build()
             .into();
@@ -511,5 +525,30 @@ mod tests {
             .download(&format!("{base}/file"), &dest, &options, &mut |_| {})
             .is_err());
         assert_eq!(std::fs::read(&dest).unwrap(), b"old");
+    }
+
+    #[test]
+    fn a_server_that_never_answers_is_abandoned_within_the_short_timeout() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/slow", listener.local_addr().unwrap());
+        thread::spawn(move || {
+            // Accept and hold the connection open without ever replying.
+            let held: Vec<_> = listener.incoming().flatten().collect();
+            thread::sleep(std::time::Duration::from_secs(10));
+            drop(held);
+        });
+        let client = Client::build_with(
+            false,
+            std::time::Duration::from_secs(1),
+            std::time::Duration::from_secs(1),
+        );
+        let started = std::time::Instant::now();
+        let err = client.post(&url, &[], "text/plain", b"x", 10).unwrap_err();
+        assert!(matches!(err, NetError::Request(_)), "{err}");
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(4),
+            "gave up after {:?}",
+            started.elapsed()
+        );
     }
 }

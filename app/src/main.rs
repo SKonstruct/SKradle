@@ -33,7 +33,10 @@ fn main() {
         let dir = std::env::temp_dir().join(format!("skradle-run-{}", std::process::id()));
         std::env::set_var("SKRADLE_CONFIG_DIR", dir);
     }
-    reporter::init(settings::global().get().crash_reports && !options.selftest);
+    // No reports from the self-test or screenshot runs, which are not a player's session.
+    reporter::init(
+        settings::global().get().crash_reports && !(options.selftest || options.shots.is_some()),
+    );
 
     // The Basic style looks the same on every OS and all visible controls are our own templates.
     if let Some(style) = &options.style {
