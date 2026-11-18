@@ -209,6 +209,7 @@ ApplicationWindow {
 
     // ---- self-test driver (skradle --selftest): visit every page, check each one loaded, report, exit ------------
     property int selftestStep: 0
+    property int selftestWait: 0
     Timer {
         interval: 250
         repeat: true
@@ -220,7 +221,15 @@ ApplicationWindow {
                 return
             }
             if (i >= win.navItems.length) {
-                AppEnv.finishSelftest(true, "window and " + win.navItems.length + " pages loaded, Qt " + AppEnv.qtVersion)
+                // Last: open "My server" and see whether it embeds a web view or falls back to the browser.
+                const servers = win.pageItem(1)
+                win.go(1)
+                servers.showHost = true
+                win.selftestWait++
+                if (servers.hostMode === "loading" && win.selftestWait < 40) return
+                const mode = servers.hostMode
+                servers.showHost = false
+                AppEnv.finishSelftest(mode !== "loading", "window and " + win.navItems.length + " pages loaded, Qt " + AppEnv.qtVersion + ", my-server view: " + mode)
                 return
             }
             win.go(i)

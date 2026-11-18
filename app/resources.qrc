@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="/qt/qml/com/skradle/app">
+    <file alias="web/WebPane.qml">qml-web/WebPane.qml</file>
     <file alias="brand/logo.svg">../assets/brand/logo.svg</file>
     <file alias="icons/skradle-16.png">../assets/icons/skradle-16.png</file>
     <file alias="icons/skradle-24.png">../assets/icons/skradle-24.png</file>

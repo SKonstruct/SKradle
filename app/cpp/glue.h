@@ -6,6 +6,12 @@
 
 namespace skradle {
 
+// Qt WebView must be initialised before the QGuiApplication is created. A no-op when this build has no QtWebView.
+void init_webview();
+
+// Whether a web view backend plugin is installed (the platform's own on macOS and Windows; WebEngine's on Linux).
+bool webview_backend_available();
+
 // Application name, organisation and window icon. Call once, after the QGuiApplication exists.
 void init_app();
 

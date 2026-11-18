@@ -5,13 +5,17 @@ import QtQuick.Layouts
 
 Item {
     id: page
+    property bool showHost: false
+    // For the self-test: what the "My server" panel ended up showing.
+    readonly property string hostMode: panel.mode
     function openAdd() { dlg.open() }
-    function closeAll() { dlg.close(); const it = lv.itemAtIndex(0); if (it) it.card.closeMenu() }
+    function closeAll() { page.showHost = false; dlg.close(); const it = lv.itemAtIndex(0); if (it) it.card.closeMenu() }
     function openMenu() { const it = lv.itemAtIndex(0); if (it) it.card.openMenu() }
     readonly property real cw: Math.min(Theme.pageMax, lv.width - 2 * Theme.s8)
 
     ListView {
         id: lv
+        visible: !page.showHost
         anchors.fill: parent
         model: Data.servers
         clip: true
@@ -29,6 +33,11 @@ Item {
                 width: page.cw
                 title: qsTr("Servers")
                 subtitle: qsTr("Choose where to play. Players and ping update live.")
+                SButton {
+                    text: qsTr("My server")
+                    onClicked: page.showHost = true
+                    Accessible.name: text
+                }
                 SButton {
                     text: qsTr("Add server")
                     highlighted: true
@@ -82,6 +91,15 @@ Item {
         displaced: Transition {
             NumberAnimation { property: "y"; duration: Motion.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.standard }
         }
+    }
+
+    MyServerPanel {
+        id: panel
+        anchors.fill: parent
+        anchors.leftMargin: Theme.s8; anchors.rightMargin: Theme.s8
+        anchors.topMargin: Theme.s8; anchors.bottomMargin: Theme.s8
+        visible: page.showHost
+        onBack: page.showHost = false
     }
 
     AddServerDialog {

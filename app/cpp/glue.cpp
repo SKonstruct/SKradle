@@ -7,7 +7,11 @@
 #include <QtGui/QIcon>
 #include <QtGui/QImage>
 #include <QtQuick/QQuickWindow>
+#include <QtCore/QDir>
 #include <atomic>
+#ifdef SKRADLE_WEBVIEW
+#include <QtWebView/QtWebView>
+#endif
 #include <cstdio>
 #include <memory>
 
@@ -20,7 +24,7 @@ QtMessageHandler g_previous_handler = nullptr;
 // Counts warnings that point into our own QML files (binding errors, undefined values, missing types), so the
 // self-test can fail on them. Everything is still passed on to Qt's normal output.
 void message_handler(QtMsgType type, const QMessageLogContext &context, const QString &message) {
-    if ((type == QtWarningMsg || type == QtCriticalMsg) && message.startsWith(QLatin1String("qrc:/qt/qml/com/skradle/app/"))) {
+    if ((type == QtWarningMsg || type == QtCriticalMsg) && message.startsWith(QLatin1String("qrc:/qt/qml/com/skradle/app/qml/"))) {
         ++g_qml_warnings;
     }
     if (g_previous_handler) g_previous_handler(type, context, message);
@@ -61,6 +65,23 @@ public:
 }  // namespace
 
 namespace skradle {
+
+void init_webview() {
+#ifdef SKRADLE_WEBVIEW
+    QtWebView::initialize();
+#endif
+}
+
+bool webview_backend_available() {
+#ifdef SKRADLE_WEBVIEW
+    // The web view loads one of the plugins in <plugins>/webview.
+    for (const QString &path : QCoreApplication::libraryPaths()) {
+        const QDir dir(path + QStringLiteral("/webview"));
+        if (!dir.entryList(QDir::Files).isEmpty()) return true;
+    }
+#endif
+    return false;
+}
 
 void init_app() {
     g_previous_handler = qInstallMessageHandler(message_handler);

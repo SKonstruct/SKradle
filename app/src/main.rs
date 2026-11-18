@@ -6,6 +6,7 @@ mod launch;
 mod options;
 mod reporter;
 mod selfupdate;
+mod server_host;
 mod settings;
 
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, QUrl};
@@ -50,6 +51,8 @@ fn main() {
         });
     }
 
+    // Qt WebView needs this before the application object exists.
+    bridge::glue::init_webview();
     let mut app = QGuiApplication::new();
     bridge::glue::init_app();
     options::set_style_name(QQuickStyle::name().to_string());

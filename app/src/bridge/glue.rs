@@ -12,6 +12,10 @@ pub mod ffi {
         #[namespace = "skradle"]
         fn init_app();
         #[namespace = "skradle"]
+        fn init_webview();
+        #[namespace = "skradle"]
+        fn webview_backend_available() -> bool;
+        #[namespace = "skradle"]
         fn register_engine(engine: Pin<&mut QQmlApplicationEngine>);
         #[namespace = "skradle"]
         fn grab_window(path: &QString) -> bool;
@@ -24,7 +28,7 @@ pub mod ffi {
     }
 }
 
-pub use ffi::{init_app, register_engine};
+pub use ffi::{init_app, init_webview, register_engine, webview_backend_available};
 
 /// Installs the translator for `language`; returns the catalogue in use (empty for the English source text).
 pub fn set_language(language: &str) -> String {

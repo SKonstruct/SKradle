@@ -18,6 +18,13 @@ pub mod qobject {
         #[qproperty(bool, reduce_motion, cxx_name = "reduceMotion", READ, CONSTANT)]
         #[qproperty(QString, scheme, READ, CONSTANT)]
         #[qproperty(QString, style_name, cxx_name = "styleName", READ, CONSTANT)]
+        #[qproperty(
+            bool,
+            web_view_available,
+            cxx_name = "webViewAvailable",
+            READ,
+            CONSTANT
+        )]
         #[qproperty(QString, version, READ, CONSTANT)]
         #[qproperty(QString, qt_version, cxx_name = "qtVersion", READ, CONSTANT)]
         #[qproperty(i32, initial_page, cxx_name = "initialPage", READ, CONSTANT)]
@@ -58,6 +65,7 @@ pub struct AppEnvRust {
     reduce_motion: bool,
     scheme: QString,
     style_name: QString,
+    web_view_available: bool,
     version: QString,
     qt_version: QString,
     initial_page: i32,
@@ -77,6 +85,7 @@ impl Default for AppEnvRust {
             reduce_motion: o.reduce_motion,
             scheme: QString::from(o.scheme.as_str()),
             style_name: QString::from(options::style_name().as_str()),
+            web_view_available: super::glue::webview_backend_available(),
             version: QString::from(env!("CARGO_PKG_VERSION")),
             qt_version: QString::from(super::glue::qt_version().as_str()),
             initial_page: o.page,
