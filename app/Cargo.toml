@@ -1,0 +1,36 @@
+[package]
+name = "skradle-app"
+description = "SKradle desktop launcher: Qt Quick UI bridged to skradle-core with cxx-qt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+default-run = "skradle"
+
+[[bin]]
+name = "skradle"
+path = "src/main.rs"
+
+# The cxx-qt macros generate `unsafe` code, which the workspace-wide `forbid` would reject. Hand-written code
+# stays free of it: `deny` still fails the build for any `unsafe` that is not generated.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[dependencies]
+skradle-core = { path = "../core" }
+cxx = "1"
+cxx-qt = "0.10"
+cxx-qt-lib = { version = "0.10", features = ["qt_full"] }
+# Per-user config folder (settings.json).
+dirs = "6"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+
+[dev-dependencies]
+tempfile = "3"
+
+[build-dependencies]
+cxx-qt-build = { version = "0.10", features = ["link_qt_object_files"] }

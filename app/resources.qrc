@@ -1,0 +1,13 @@
+<RCC>
+  <qresource prefix="/qt/qml/com/skradle/app">
+    <file alias="brand/logo.svg">../assets/brand/logo.svg</file>
+    <file alias="icons/skradle-16.png">../assets/icons/skradle-16.png</file>
+    <file alias="icons/skradle-24.png">../assets/icons/skradle-24.png</file>
+    <file alias="icons/skradle-32.png">../assets/icons/skradle-32.png</file>
+    <file alias="icons/skradle-48.png">../assets/icons/skradle-48.png</file>
+    <file alias="icons/skradle-64.png">../assets/icons/skradle-64.png</file>
+    <file alias="icons/skradle-128.png">../assets/icons/skradle-128.png</file>
+    <file alias="icons/skradle-256.png">../assets/icons/skradle-256.png</file>
+    <file alias="icons/skradle-512.png">../assets/icons/skradle-512.png</file>
+  </qresource>
+</RCC>
