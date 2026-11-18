@@ -85,7 +85,8 @@ pub enum PathProblem {
     Colon,
     /// An empty, `.` or `..` component.
     BadComponent,
-    /// A component that Windows would silently rewrite or treat as a device (`CON`, `a.`, `a `).
+    /// A component that Windows would silently rewrite or treat as a device (`CON`, `a.`, `a `), or that holds a
+    /// character Windows does not allow in a file name (`< > " | ? *`).
     WindowsName,
 }
 
@@ -214,7 +215,11 @@ pub fn safe_entry_path(name: &str) -> Result<(String, bool), PathProblem> {
         if part.contains(':') {
             return Err(PathProblem::Colon);
         }
-        if part.ends_with('.') || part.ends_with(' ') || is_windows_device(part) {
+        if part.contains(['<', '>', '"', '|', '?', '*'])
+            || part.ends_with('.')
+            || part.ends_with(' ')
+            || is_windows_device(part)
+        {
             return Err(PathProblem::WindowsName);
         }
     }
@@ -712,6 +717,21 @@ mod tests {
         assert_eq!(a.read(meta.index).unwrap(), b"hello");
         assert!(a.find("d").unwrap().is_dir);
         assert_eq!(a.skipped(), 0);
+    }
+
+    #[test]
+    fn rejects_names_windows_cannot_have_so_every_platform_refuses_them() {
+        for name in [
+            "a<b.txt",
+            "a>b.txt",
+            "a\"b.txt",
+            "a|b.txt",
+            "a?.txt",
+            "dir/a*.txt",
+        ] {
+            let err = open(simple_zip(&[(name, b"x")])).err().expect(name);
+            assert!(matches!(err, JarError::UnsafePath { .. }), "{name}: {err}");
+        }
     }
 
     #[test]

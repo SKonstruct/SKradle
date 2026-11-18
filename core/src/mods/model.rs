@@ -285,14 +285,7 @@ impl Mod {
             .ok_or(ModError::UnsupportedName)?
             .to_owned();
         let container = Container::from_file_name(&file_name).ok_or(ModError::UnsupportedName)?;
-        let meta = std::fs::symlink_metadata(path)?;
-        if !meta.is_file() {
-            return Err(ModError::NotAFile);
-        }
-        if meta.len() > MAX_MOD_FILE_BYTES {
-            return Err(ModError::TooLarge);
-        }
-        let mut archive = Archive::open(File::open(path)?, &Limits::MOD)?;
+        let mut archive = Archive::open(open_regular(path)?, &Limits::MOD)?;
         let mut warnings = Vec::new();
         match container {
             Container::Zip | Container::Jar => {
@@ -359,13 +352,10 @@ impl Mod {
         self.info.name.as_deref().unwrap_or(&self.file_name)
     }
 
-    /// The metadata whose locale changes apply, in the order they apply (later wins): for a modpack the contained
-    /// mods and then the pack itself; for a single mod, the mod.
-    pub fn locale_sources<'a>(&'a self, part: &'a Part) -> Vec<&'a ModInfo> {
-        match self.container {
-            Container::Modpack => vec![&part.info, &self.info],
-            _ => vec![&part.info],
-        }
+    /// The pack's own metadata when this is a modpack. Its locale changes apply once, after those of the mods it
+    /// holds (so the pack wins), not once per part.
+    pub fn pack_info(&self) -> Option<&ModInfo> {
+        (self.container == Container::Modpack).then_some(&self.info)
     }
 
     /// Reads every file of `part` that will be written (protected ones excluded) from the archive at `path` and
@@ -388,8 +378,9 @@ impl Mod {
         want: impl Fn(&PartFile) -> bool,
         mut f: impl FnMut(&PartFile, Vec<u8>) -> Result<(), E>,
     ) -> Result<(), E> {
-        let mut outer = Archive::open(File::open(path).map_err(ModError::from)?, &Limits::MOD)
-            .map_err(ModError::from)?;
+        // The archive is checked again as it is opened: a file swapped for a link or a huge one since the scan is
+        // refused, not read.
+        let mut outer = Archive::open(open_regular(path)?, &Limits::MOD).map_err(ModError::from)?;
         match &part.source {
             PartSource::Archive => each_in(&mut outer, part, &want, &mut f),
             PartSource::Inner {
@@ -409,6 +400,18 @@ impl Mod {
             }
         }
     }
+}
+
+/// Opens a mod file after checking it is a plain file (not a link, not a folder) within the size limit.
+fn open_regular(path: &Path) -> Result<File, ModError> {
+    let meta = std::fs::symlink_metadata(path)?;
+    if !meta.is_file() {
+        return Err(ModError::NotAFile);
+    }
+    if meta.len() > MAX_MOD_FILE_BYTES {
+        return Err(ModError::TooLarge);
+    }
+    Ok(File::open(path)?)
 }
 
 fn each_in<R: io::Read + io::Seek, E: From<ModError>>(
@@ -583,7 +586,7 @@ mod tests {
             "{:?}",
             m.warnings
         );
-        assert_eq!(m.locale_sources(&m.parts[1]).len(), 2);
+        assert_eq!(m.pack_info().is_some(), m.container == Container::Modpack);
         assert_eq!(m.parts[1].info.locale_changes(), 1);
     }
 
@@ -664,5 +667,18 @@ mod tests {
             std::os::unix::fs::symlink(&real, &link).unwrap();
             assert!(matches!(Mod::open(&link), Err(ModError::NotAFile)));
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_mod_swapped_for_a_link_after_the_scan_is_not_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write(dir.path(), "m.zip", &simple_zip(&[("a.txt", b"1")]));
+        let scanned = Mod::open(&path).unwrap();
+        let elsewhere = write(dir.path(), "elsewhere.zip", &simple_zip(&[("a.txt", b"1")]));
+        std::fs::remove_file(&path).unwrap();
+        std::os::unix::fs::symlink(&elsewhere, &path).unwrap();
+        let result = scanned.each_file::<ModError>(&path, &scanned.parts[0], |_, _| Ok(()));
+        assert!(matches!(result, Err(ModError::NotAFile)), "{result:?}");
     }
 }

@@ -359,14 +359,12 @@ impl ServerList {
             .unwrap_or_default()
     }
 
-    /// Writes through a temporary file so a crash never leaves a half-written list.
+    /// Writes through a temporary file (synced, then renamed) so a crash never leaves a half-written list.
     pub fn store(&self, path: &Path) -> io::Result<()> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        let tmp = path.with_extension("json.tmp");
-        std::fs::write(&tmp, self.to_json())?;
-        std::fs::rename(&tmp, path)
+        crate::jar::write_atomic(path, self.to_json().as_bytes())
     }
 }
 
@@ -811,7 +809,7 @@ mod tests {
         list.save(server("a", "A")).unwrap();
         list.store(&path).unwrap();
         assert_eq!(ServerList::load(&path), list);
-        assert!(!path.with_extension("json.tmp").exists());
+        assert!(!crate::jar::temp_path(&path).exists());
         assert_eq!(
             ServerList::load(&dir.path().join("missing.json")),
             ServerList::default()

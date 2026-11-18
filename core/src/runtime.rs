@@ -45,11 +45,12 @@ impl JavaVersion {
         })
     }
 
-    /// The updater's number for this version: `25.0.3` is `25000300`.
+    /// The updater's number for this version: `25.0.3` is `25000300`. Minor and patch have two digits each, so a
+    /// larger one (Java 8's `1.8.0_452`) is capped at 99 rather than spilling into the digits before it.
     pub fn getdown_encoded(&self) -> u64 {
         u64::from(self.major) * 1_000_000
-            + u64::from(self.minor) * 10_000
-            + u64::from(self.patch) * 100
+            + u64::from(self.minor.min(99)) * 10_000
+            + u64::from(self.patch.min(99)) * 100
     }
 }
 
@@ -294,6 +295,15 @@ mod tests {
             25_000_000
         );
         assert!(JavaVersion::parse("25.0.3").unwrap() > JavaVersion::parse("25.0.1").unwrap());
+    }
+
+    #[test]
+    fn a_java_8_update_number_does_not_spill_into_the_minor_digits() {
+        // 1.8.0_452 is major 8, minor 0, patch 452: it must stay far below Java 9 and above 8.0.1.
+        let update = JavaVersion::parse("1.8.0_452").unwrap().getdown_encoded();
+        assert_eq!(update, 8_000_000 + 99 * 100);
+        assert!(update < JavaVersion::parse("9").unwrap().getdown_encoded());
+        assert!(update > JavaVersion::parse("8.0.1").unwrap().getdown_encoded());
     }
 
     #[test]

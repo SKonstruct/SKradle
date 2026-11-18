@@ -33,12 +33,14 @@ fn main() {
         }
     }
 
-    // Tests and screenshot runs never touch the player's own settings.
+    // Tests and screenshot runs never touch the player's own settings; their throw-away folder goes at the end.
+    let mut run_dir = None;
     if (options.selftest || options.shots.is_some())
         && std::env::var_os("SKRADLE_CONFIG_DIR").is_none()
     {
         let dir = std::env::temp_dir().join(format!("skradle-run-{}", std::process::id()));
-        std::env::set_var("SKRADLE_CONFIG_DIR", dir);
+        std::env::set_var("SKRADLE_CONFIG_DIR", &dir);
+        run_dir = Some(dir);
     }
     // No reports from the self-test or screenshot runs, which are not a player's session.
     reporter::init(
@@ -79,6 +81,7 @@ fn main() {
     if !bridge::glue::has_window() {
         eprintln!("skradle: the interface could not be loaded (see the messages above)");
         settings::global().flush();
+        remove_run_dir(&run_dir);
         std::process::exit(1);
     }
     let status = app.as_mut().map_or(1, |app| app.exec());
@@ -87,5 +90,13 @@ fn main() {
     // the C++ static destructors; with them alive Qt crashes on the way out.
     drop(engine);
     drop(app);
+    remove_run_dir(&run_dir);
     std::process::exit(status);
+}
+
+/// Deletes the settings folder a self-test or screenshot run made for itself, if it made one.
+fn remove_run_dir(dir: &Option<std::path::PathBuf>) {
+    if let Some(dir) = dir {
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

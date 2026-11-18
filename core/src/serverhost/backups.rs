@@ -177,7 +177,8 @@ pub fn list(layout: &ServerLayout) -> io::Result<Vec<BackupInfo>> {
     };
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if !is_valid_backup_name(&name) || !entry.path().is_dir() {
+        // A real folder only: a link in `backups/` is not followed (nothing else in the host follows links).
+        if !is_valid_backup_name(&name) || !entry.file_type().is_ok_and(|t| t.is_dir()) {
             continue;
         }
         let Some(mut info) = fs::read_to_string(entry.path().join(META))

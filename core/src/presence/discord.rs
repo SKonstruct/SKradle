@@ -21,6 +21,10 @@ use super::{activity, Activity, Presence, PresenceResult, Status};
 const OP_HANDSHAKE: u32 = 0;
 const OP_FRAME: u32 = 1;
 const OP_CLOSE: u32 = 2;
+const OP_PING: u32 = 3;
+const OP_PONG: u32 = 4;
+/// Frames read while waiting for the answer to one request (pings and events Discord sends on its own come first).
+const MAX_FRAMES_PER_REPLY: usize = 8;
 /// A reply larger than this is not from Discord.
 const MAX_FRAME: usize = 64 * 1024;
 const SOCKET_COUNT: u32 = 10;
@@ -103,18 +107,35 @@ pub(crate) fn set_activity(
     })
     .to_string();
     io.write_all(&encode_frame(OP_FRAME, &request))?;
-    let (opcode, reply) = read_frame(io)?;
-    if opcode == OP_CLOSE {
-        return Err(bad("Discord closed the connection"));
+    // The answer is the frame for this request, not simply the next one: Discord may ping, or announce an event,
+    // first, and reading those as the answer would leave the real one queued and misread the next request.
+    for _ in 0..MAX_FRAMES_PER_REPLY {
+        let (opcode, reply) = read_frame(io)?;
+        match opcode {
+            OP_CLOSE => return Err(bad("Discord closed the connection")),
+            OP_PING => {
+                io.write_all(&encode_frame(OP_PONG, &reply.to_string()))?;
+                continue;
+            }
+            _ => {}
+        }
+        let is_error = reply.get("evt").and_then(Value::as_str) == Some("ERROR");
+        let ours = reply.get("nonce").and_then(Value::as_str) == Some(nonce)
+            || reply.get("cmd").and_then(Value::as_str) == Some("SET_ACTIVITY")
+            || is_error;
+        if !ours {
+            continue;
+        }
+        if is_error {
+            let message = reply
+                .pointer("/data/message")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown error");
+            return Err(bad(format!("Discord rejected the activity: {message}")));
+        }
+        return Ok(());
     }
-    if reply.get("evt").and_then(Value::as_str) == Some("ERROR") {
-        let message = reply
-            .pointer("/data/message")
-            .and_then(Value::as_str)
-            .unwrap_or("unknown error");
-        return Err(bad(format!("Discord rejected the activity: {message}")));
-    }
-    Ok(())
+    Err(bad("Discord did not answer the activity"))
 }
 
 /// The socket paths to try, in Discord's order. `env` looks up an environment variable.
@@ -411,6 +432,45 @@ mod tests {
         };
         let err = set_activity(&mut peer, 1, None, "x").unwrap_err();
         assert!(err.to_string().contains("bad activity"));
+    }
+
+    #[test]
+    fn pings_and_unrelated_events_are_not_taken_for_the_answer() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let event = encode_frame(
+            OP_FRAME,
+            r#"{"cmd":"DISPATCH","evt":"ACTIVITY_JOIN","data":{}}"#,
+        );
+        let ping = encode_frame(OP_PING, r#"{"t":1}"#);
+        let answer = encode_frame(
+            OP_FRAME,
+            r#"{"cmd":"SET_ACTIVITY","evt":null,"nonce":"n9"}"#,
+        );
+        let mut peer = Script {
+            replies: Cursor::new([ping, event, answer].concat()),
+            sent: sent.clone(),
+        };
+        set_activity(&mut peer, 1, None, "n9").unwrap();
+        // The request, then the pong for the ping, which echoed the payload.
+        let sent = frames(&sent.lock().unwrap());
+        assert_eq!(sent.len(), 2);
+        assert_eq!((sent[1].0, sent[1].1.clone()), (OP_PONG, json!({"t": 1})));
+        // Nothing is left unread to be mistaken for the next answer.
+        assert_eq!(
+            peer.replies.position() as usize,
+            peer.replies.get_ref().len()
+        );
+    }
+
+    #[test]
+    fn a_peer_that_never_answers_is_an_error_not_an_endless_read() {
+        let noise = encode_frame(OP_FRAME, r#"{"cmd":"DISPATCH","evt":"VOICE","data":{}}"#);
+        let mut peer = Script {
+            replies: Cursor::new(noise.repeat(MAX_FRAMES_PER_REPLY + 4)),
+            sent: Default::default(),
+        };
+        let err = set_activity(&mut peer, 1, None, "x").unwrap_err();
+        assert!(err.to_string().contains("did not answer"));
     }
 
     #[test]

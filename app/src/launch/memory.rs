@@ -60,9 +60,7 @@ pub fn write_limit(dir: &std::path::Path, mb: u32) -> std::io::Result<()> {
     if updated == existing {
         return Ok(());
     }
-    let tmp = path.with_extension("txt.skradle-tmp");
-    std::fs::write(&tmp, &updated)?;
-    std::fs::rename(&tmp, &path)
+    skradle_core::jar::write_atomic(&path, updated.as_bytes())
 }
 
 #[cfg(test)]
@@ -116,6 +114,6 @@ mod tests {
             "-Xmx3072M\n"
         );
         write_limit(dir.path(), 3072).unwrap();
-        assert!(!dir.path().join("extra.skradle-tmp").exists());
+        assert!(!dir.path().join("extra.txt.skradle-tmp").exists());
     }
 }

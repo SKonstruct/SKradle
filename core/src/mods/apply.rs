@@ -57,7 +57,7 @@ use crate::getdown_txt::GetdownConfig;
 use crate::jar::{safe_entry_path, write_atomic, Archive, Jar, JarError, Limits};
 
 use super::list;
-use super::metadata::{locale_jar_path, set_properties};
+use super::metadata::{locale_jar_path, set_properties, ModInfo};
 use super::model::{Kind, Mod, ModError};
 use super::source::{HttpSource, NoSource, PristineSource};
 use super::txn::{self, Txn, STATE_DIR};
@@ -492,6 +492,27 @@ fn file_equals(path: &Path, bytes: &[u8]) -> bool {
     }
 }
 
+/// Adds a mod's locale changes to `locale`, keyed by the jar path of each bundle; a bundle name that is not a plain
+/// path is skipped with a warning.
+fn merge_locale(
+    info: &ModInfo,
+    file_name: &str,
+    locale: &mut BTreeMap<String, BTreeMap<String, String>>,
+    warnings: &mut Vec<String>,
+) {
+    for (bundle, changes) in &info.locale {
+        match locale_jar_path(bundle) {
+            Some(jar_path) => locale
+                .entry(jar_path)
+                .or_default()
+                .extend(changes.iter().map(|(k, v)| (k.clone(), v.clone()))),
+            None => warnings.push(format!(
+                "{file_name}: locale bundle {bundle:?} is not a plain path, ignored"
+            )),
+        }
+    }
+}
+
 fn read_manifest(root: &Path, warnings: &mut Vec<String>) -> BTreeSet<String> {
     let bytes = match read_small(&root.join(MANIFEST)) {
         Ok(b) => b,
@@ -686,20 +707,16 @@ pub(crate) fn run(
                 .map_err(|e| bad_mod(&c.m.file_name, e))?;
                 class_files.extend(local);
             }
-            for info in c.m.locale_sources(part) {
-                for (bundle, changes) in &info.locale {
-                    match locale_jar_path(bundle) {
-                        Some(jar_path) => locale
-                            .entry(jar_path)
-                            .or_default()
-                            .extend(changes.iter().map(|(k, v)| (k.clone(), v.clone()))),
-                        None => report.warnings.push(format!(
-                            "{}: locale bundle {bundle:?} is not a plain path, ignored",
-                            c.m.file_name
-                        )),
-                    }
-                }
-            }
+            merge_locale(
+                &part.info,
+                &c.m.file_name,
+                &mut locale,
+                &mut report.warnings,
+            );
+        }
+        // A pack's own locale changes come after its mods', once.
+        if let Some(info) = c.m.pack_info().filter(|_| !c.parts.is_empty()) {
+            merge_locale(info, &c.m.file_name, &mut locale, &mut report.warnings);
         }
     }
 
@@ -1308,6 +1325,32 @@ mod tests {
         assert_eq!(fx.read("rsrc/texture/a.png"), b"PACK");
         let cfg = Jar::from_bytes(&fx.read("code/config.jar"), &Limits::CODE_JAR).unwrap();
         assert!(cfg.contains("p/Q.class"));
+        let px = Jar::from_bytes(&fx.read("code/projectx-config.jar"), &Limits::CODE_JAR).unwrap();
+        assert_eq!(px.get("rsrc/i18n/other.properties"), Some(&b"x=2\n"[..]));
+    }
+
+    #[test]
+    fn a_packs_own_locale_is_applied_once_not_once_per_part() {
+        let fx = fixture();
+        let inner_res = resource_mod(&[("texture/a.png", b"PACK")]);
+        let inner_cls = class_mod("20261110044614", &[("p/Q.class", b"q")]);
+        let pack = simple_zip(&[
+            (
+                "mod.json",
+                br#"{"mod": {"name": "pack", "locale": {"../../../steam.creds": {"a": "b"}, "other.properties": {"x": "2"}}}}"#,
+            ),
+            ("r.zip", &inner_res),
+            ("c.zip", &inner_cls),
+        ]);
+        fx.add_mod("pack.modpack", &pack);
+        let report = fx.apply().unwrap();
+        assert_eq!(report.applied[0].parts, 2);
+        let plain = report
+            .warnings
+            .iter()
+            .filter(|w| w.contains("not a plain path"))
+            .count();
+        assert_eq!(plain, 1, "{:?}", report.warnings);
         let px = Jar::from_bytes(&fx.read("code/projectx-config.jar"), &Limits::CODE_JAR).unwrap();
         assert_eq!(px.get("rsrc/i18n/other.properties"), Some(&b"x=2\n"[..]));
     }

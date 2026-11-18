@@ -35,8 +35,8 @@ use std::path::Path;
 use serde::Deserialize;
 use sha1::{Digest, Sha1};
 
-use crate::jar::write_atomic;
-use crate::net::{hex, Client};
+use crate::jar::{temp_path, write_atomic};
+use crate::net::{hex, Client, DownloadOptions};
 
 use super::model::Container;
 
@@ -54,8 +54,9 @@ const DOWNLOAD_HOST: &str = "raw.githubusercontent.com";
 pub trait PackHttp {
     /// The JSON listing of the pack's `mods/` folder.
     fn listing(&self) -> Result<Vec<u8>, String>;
-    /// One file, at most `max_bytes`. `url` has been checked by [`is_trusted_download_url`].
-    fn download(&self, url: &str, max_bytes: u64) -> Result<Vec<u8>, String>;
+    /// One file, streamed to `dest` (never held whole in memory), at most `max_bytes`. `url` has been checked by
+    /// [`is_trusted_download_url`]. On an error nothing may be left at `dest`.
+    fn download(&self, url: &str, dest: &Path, max_bytes: u64) -> Result<(), String>;
 }
 
 /// The real thing, over [`Client`] (HTTPS only, size caps).
@@ -84,12 +85,13 @@ impl PackHttp for GithubHttp {
             .map_err(|e| e.to_string())
     }
 
-    fn download(&self, url: &str, max_bytes: u64) -> Result<Vec<u8>, String> {
+    fn download(&self, url: &str, dest: &Path, max_bytes: u64) -> Result<(), String> {
         if !is_trusted_download_url(url) {
             return Err(format!("refusing to download from {url}"));
         }
         self.client
-            .get_bytes(url, max_bytes)
+            .download(url, dest, &DownloadOptions::new(max_bytes), &mut |_| {})
+            .map(|_| ())
             .map_err(|e| e.to_string())
     }
 }
@@ -439,11 +441,23 @@ fn sync_with(
                 Decision::Skip => Ok(false),
                 Decision::Blocked => Err("a folder is in the way".to_owned()),
                 Decision::Download(_) => {
-                    let bytes = http.download(&file.url, MAX_MOD_BYTES)?;
-                    if git_blob_sha1(&bytes) != file.sha {
-                        return Err("the download did not match its published hash".to_owned());
+                    // Streamed to a temporary file next to the target, hashed from disk in chunks, then renamed
+                    // over it: a mod is never held whole in memory and `dest` is only ever old or complete.
+                    let tmp = temp_path(&dest);
+                    let fetched = http
+                        .download(&file.url, &tmp, MAX_MOD_BYTES)
+                        .and_then(|()| match git_blob_sha1_file(&tmp) {
+                            Ok(sha) if sha == file.sha => Ok(()),
+                            Ok(_) => {
+                                Err("the download did not match its published hash".to_owned())
+                            }
+                            Err(e) => Err(e.to_string()),
+                        })
+                        .and_then(|()| fs::rename(&tmp, &dest).map_err(|e| e.to_string()));
+                    if let Err(why) = fetched {
+                        let _ = fs::remove_file(&tmp);
+                        return Err(why);
                     }
-                    write_atomic(&dest, &bytes).map_err(|e| e.to_string())?;
                     Ok(true)
                 }
             }
@@ -551,16 +565,18 @@ mod tests {
             Ok(serde_json::to_vec(&entries).unwrap())
         }
 
-        fn download(&self, url: &str, _max: u64) -> Result<Vec<u8>, String> {
+        fn download(&self, url: &str, dest: &Path, _max: u64) -> Result<(), String> {
             self.downloads.borrow_mut().push(url.to_owned());
-            if let Some(b) = self.served.borrow().get(url) {
-                return Ok(b.clone());
-            }
-            self.files
-                .iter()
-                .find(|(n, _)| Self::url(n) == url)
-                .map(|(_, b)| b.clone())
-                .ok_or_else(|| "404".to_owned())
+            let bytes = match self.served.borrow().get(url) {
+                Some(b) => b.clone(),
+                None => self
+                    .files
+                    .iter()
+                    .find(|(n, _)| Self::url(n) == url)
+                    .map(|(_, b)| b.clone())
+                    .ok_or_else(|| "404".to_owned())?,
+            };
+            fs::write(dest, bytes).map_err(|e| e.to_string())
         }
     }
 
@@ -977,14 +993,36 @@ mod tests {
     #[test]
     fn the_real_http_adapter_refuses_untrusted_urls_without_a_request() {
         let http = GithubHttp::new();
+        let dest = std::env::temp_dir().join("skradle-never-written.zip");
         assert!(http
-            .download("http://raw.githubusercontent.com/a.zip", 10)
+            .download("http://raw.githubusercontent.com/a.zip", &dest, 10)
             .unwrap_err()
             .contains("refusing"));
         assert!(http
-            .download("https://evil.example/a.zip", 10)
+            .download("https://evil.example/a.zip", &dest, 10)
             .unwrap_err()
             .contains("refusing"));
+        assert!(!dest.exists());
+    }
+
+    #[test]
+    fn a_download_is_verified_on_disk_and_leaves_no_temporary_file_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = FakePack::with(&[("good.zip", b"GOOD"), ("bad.zip", b"BAD")]);
+        // The listing promises one hash, the server then delivers other bytes.
+        pack.tamper("bad.zip", b"EVIL");
+        let report = sync_with(dir.path(), &pack, &mut |_| {}, false).unwrap();
+        assert_eq!(report.downloaded, ["good.zip"]);
+        assert_eq!(report.failed.len(), 1);
+        assert_eq!(report.failed[0].0, "bad.zip");
+        assert_eq!(fs::read(dir.path().join("good.zip")).unwrap(), b"GOOD");
+        assert!(!dir.path().join("bad.zip").exists());
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".skradle-tmp") || n.ends_with(".part"))
+            .collect();
+        assert!(leftovers.is_empty(), "{leftovers:?}");
     }
 
     /// Reads the real listing (network, api.github.com only) and prints it. Changes nothing on disk.

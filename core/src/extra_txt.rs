@@ -54,9 +54,7 @@ pub fn update_file(path: &Path, managed: &[String], owns: impl Fn(&str) -> bool)
             _ => Ok(()),
         };
     }
-    let tmp = path.with_extension("txt.skradle-tmp");
-    std::fs::write(&tmp, &updated)?;
-    std::fs::rename(&tmp, path)
+    crate::jar::write_atomic(path, updated.as_bytes())
 }
 
 #[cfg(test)]

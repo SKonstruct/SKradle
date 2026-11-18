@@ -546,7 +546,12 @@ impl Run {
     }
 
     /// Runs a console exchange: sends the command and answers its prompts as they come. Needs a running process.
-    fn run_script(&self, script: PromptScript, timeout: Duration) -> Result<Outcome, HostError> {
+    fn run_script(
+        &self,
+        script: PromptScript,
+        timeout: Duration,
+        abort: &AtomicBool,
+    ) -> Result<Outcome, HostError> {
         let command = script.command().to_owned();
         {
             let mut state = lock(&self.state);
@@ -564,10 +569,11 @@ impl Run {
                 let mut outcome = None;
                 let finished = self.wait_for(timeout, |s| {
                     outcome = s.script.as_ref().and_then(|a| a.outcome.clone());
-                    outcome.is_some() || s.exit.is_some()
+                    outcome.is_some() || s.exit.is_some() || abort.load(Ordering::SeqCst)
                 });
                 match outcome {
                     Some(outcome) => Ok(outcome),
+                    None if abort.load(Ordering::SeqCst) => Err(HostError::Aborted),
                     None if finished => Err(HostError::NotRunning),
                     None => Err(HostError::Console("no answer in time".into())),
                 }
@@ -577,6 +583,9 @@ impl Run {
         result
     }
 }
+
+/// An abort flag that is never set, for steps that must finish even while a stop is under way.
+static NEVER: AtomicBool = AtomicBool::new(false);
 
 /// Hides what must not be kept: the first-run WebUI setup code.
 fn redact(line: String) -> String {
@@ -788,6 +797,11 @@ impl ServerHost {
     }
 
     pub fn stop(&self) -> Result<StopKind, HostError> {
+        // A call from inside a lifecycle call is refused before it can touch the flag: setting and clearing it
+        // here would wipe an abort that another thread's stop has requested.
+        if *lock(&self.owner) == Some(thread::current().id()) {
+            return Err(HostError::Reentrant);
+        }
         // A start that is waiting must not make this wait for its whole timeout.
         self.abort.store(true, Ordering::SeqCst);
         let guard = self.lifecycle();
@@ -859,16 +873,25 @@ impl ServerHost {
             stdout.map(|s| Box::new(s) as Box<dyn Read + Send>),
             stderr.map(|s| Box::new(s) as Box<dyn Read + Send>),
         ] {
-            let run = run.clone();
-            thread::Builder::new()
+            let reader_run = run.clone();
+            let spawned = thread::Builder::new()
                 .name("server-output".into())
                 .spawn(move || {
                     if let Some(stream) = stream {
-                        read_lines(stream, |line| run.handle_line(line));
+                        read_lines(stream, |line| reader_run.handle_line(line));
                     }
-                    run.reader_done();
-                })
-                .map_err(HostError::Spawn)?;
+                    reader_run.reader_done();
+                });
+            if let Err(e) = spawned {
+                // Without its readers the engine would run unobserved (and block on a full pipe): end it and
+                // forget the run, so nothing mistakes it for a started server.
+                if let Some(child) = lock(&run.child).as_mut() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                *lock(&self.run) = None;
+                return Err(HostError::Spawn(e));
+            }
         }
 
         let failed = |this: &Self, run: &Arc<Run>, error: HostError| {
@@ -974,7 +997,11 @@ impl ServerHost {
                 WebProbe::NotListening => {}
             }
             run.refresh_exit();
-            if Instant::now() >= deadline || lock(&run.state).exit.is_some() {
+            // An abort ends the wait at once; the caller then sees it and fails the start as aborted.
+            if Instant::now() >= deadline
+                || self.abort.load(Ordering::SeqCst)
+                || lock(&run.state).exit.is_some()
+            {
                 return WebState::NotAnswering;
             }
             thread::sleep(Duration::from_millis(100));
@@ -996,6 +1023,7 @@ impl ServerHost {
             match run.run_script(
                 PromptScript::webui_password(&credentials.username, &secret),
                 timeout,
+                &self.abort,
             )? {
                 Outcome::Done => return Ok(admin::mark_applied(&self.layout)?),
                 // The account is missing (a reset of the database): create it instead.
@@ -1005,6 +1033,7 @@ impl ServerHost {
         match run.run_script(
             PromptScript::webui_user(&credentials.username, &secret),
             timeout,
+            &self.abort,
         )? {
             Outcome::Done => Ok(admin::mark_applied(&self.layout)?),
             Outcome::Refused(why) => Err(HostError::Console(why)),
@@ -1058,9 +1087,11 @@ impl ServerHost {
             return Ok(StopKind::NotRunning);
         }
         // 1. The confirmed shutdown. A refusal or a missing answer just moves on to the next step.
+        // Not abortable: a stop sets the abort flag, and this is the stop itself.
         let _ = run.run_script(
             PromptScript::shutdown(),
             self.options.prompt_timeout.min(timeout),
+            &NEVER,
         );
         if exited(run, timeout) {
             self.reap(run)?;
@@ -2011,6 +2042,40 @@ exit 1
         });
         assert_eq!(result.unwrap().value, 7);
         assert!(!f.host.is_busy());
+    }
+
+    #[test]
+    fn a_reentrant_stop_does_not_wipe_an_abort_another_thread_requested() {
+        let f = fixture("");
+        let host = f.host.clone();
+        f.host
+            .run_stopped(|_, _| {
+                // Another thread's stop has asked a start to give up; this nested stop is refused outright.
+                host.abort.store(true, Ordering::SeqCst);
+                assert!(matches!(host.stop(), Err(HostError::Reentrant)));
+                assert!(host.abort.load(Ordering::SeqCst));
+                host.abort.store(false, Ordering::SeqCst);
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn waiting_for_the_web_ui_ends_at_once_when_a_stop_is_requested() {
+        let f = fixture("");
+        let run = Arc::new(Run::new(16));
+        // A port nothing listens on, so the probe would otherwise be retried for the whole ten seconds.
+        let port = {
+            let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+            listener.local_addr().unwrap().port()
+        };
+        f.host.abort.store(true, Ordering::SeqCst);
+        let started = Instant::now();
+        assert!(matches!(
+            f.host.wait_for_web(port, &run),
+            WebState::NotAnswering
+        ));
+        assert!(started.elapsed() < Duration::from_secs(3));
     }
 
     #[test]

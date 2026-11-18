@@ -3,6 +3,7 @@
 //! here: an asset without one is never offered. Only download URLs under this project's own releases are accepted.
 //! Starting the downloaded installer is up to the application.
 
+use std::io;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -150,7 +151,7 @@ pub fn parse_release(json: &str) -> Result<Option<Release>, UpdateError> {
         .into_iter()
         .filter_map(|a| {
             let sha256 = a.digest?.strip_prefix("sha256:")?.to_ascii_lowercase();
-            let valid_name = !a.name.is_empty() && !a.name.contains(['/', '\\']);
+            let valid_name = is_plain_file_name(&a.name);
             let valid_url = a.browser_download_url.starts_with(DOWNLOAD_PREFIX)
                 && !a.browser_download_url[DOWNLOAD_PREFIX.len()..].contains("..");
             let valid_hash = sha256.len() == 64 && sha256.bytes().all(|b| b.is_ascii_hexdigit());
@@ -203,6 +204,11 @@ pub fn check(
     Ok(parse_release(&json)?.and_then(|release| pick_update(&release, current, os, arch, skipped)))
 }
 
+/// A name that is one plain file name: not empty, not `.` or `..`, and no path separator.
+fn is_plain_file_name(name: &str) -> bool {
+    !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\'])
+}
+
 /// Downloads the installer into `dir`, verified against its published SHA-256, and returns its path.
 pub fn download(
     client: &Client,
@@ -210,6 +216,10 @@ pub fn download(
     dir: &Path,
     progress: &mut dyn FnMut(Progress),
 ) -> Result<PathBuf, NetError> {
+    // `Update` can be built by anyone, so the name is checked here again, not trusted from `parse_release`.
+    if !is_plain_file_name(&update.asset.name) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "unsafe installer name").into());
+    }
     std::fs::create_dir_all(dir)?;
     let dest = dir.join(&update.asset.name);
     let options =
@@ -408,6 +418,8 @@ mod tests {
                 "http://github.com/SKonstruct/SKradle/releases/download/",
             ),
             asset_json("../evil.exe", Some(&digest), DOWNLOAD_PREFIX),
+            asset_json("..", Some(&digest), DOWNLOAD_PREFIX),
+            asset_json(".", Some(&digest), DOWNLOAD_PREFIX),
             asset_json("SKradle-1.3.0-ok.zip", Some(&digest), DOWNLOAD_PREFIX),
         ];
         let release = parse_release(&release_json("v1.3.0", "", &assets))
