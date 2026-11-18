@@ -356,8 +356,9 @@ fn is_plain_relative_path(path: &str) -> bool {
         && path.split('/').all(|part| part != ".." && part != ".")
 }
 
+/// (Public so tests and tools can turn the index's dates into Unix seconds.)
 /// Parses `YYYY-MM-DDTHH:MM:SS` with an optional fraction and `Z` or `+HH:MM`/`-HH:MM`; returns Unix seconds.
-fn parse_rfc3339(text: &str) -> Option<u64> {
+pub fn parse_rfc3339(text: &str) -> Option<u64> {
     let (date, time) = text.trim().split_once(['T', 't'])?;
     let mut d = date.split('-');
     let (year, month, day): (i64, i64, i64) = (
