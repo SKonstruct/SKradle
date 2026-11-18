@@ -672,7 +672,8 @@ fn swap_in(layout: &ServerLayout, staging: &Path) -> Result<(), EngineError> {
             fs::create_dir_all(layout.config_dir())?;
             for entry in entries.flatten() {
                 let target = layout.config_dir().join(entry.file_name());
-                if !target.exists() {
+                // A link counts as present, even a dangling one: copying would write through it.
+                if fs::symlink_metadata(&target).is_err() {
                     fs::copy(entry.path(), &target)?;
                     undo.push(Undo::Created(target));
                 }
@@ -684,7 +685,9 @@ fn swap_in(layout: &ServerLayout, staging: &Path) -> Result<(), EngineError> {
         for name in TERM_FILES {
             let from = staging.join(name);
             if from.is_file() {
-                fs::copy(&from, layout.root().join(name))?;
+                let to = layout.root().join(name);
+                remove_all(&to)?; // a link is replaced, never written through
+                fs::copy(&from, &to)?;
             }
         }
         if staging.join("licenses").is_dir() {
@@ -1332,6 +1335,32 @@ mod tests {
             compare_installed(&layout, release("0.40.18")),
             Latest::Newer(_)
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn installing_never_writes_through_links_in_the_server_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = accepted_layout(dir.path());
+        let outside = dir.path().join("outside");
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("precious.txt"), b"precious").unwrap();
+        fs::create_dir_all(layout.config_dir()).unwrap();
+        // A dangling link where a default config file would be copied, and a link in place of a licence text.
+        std::os::unix::fs::symlink(
+            outside.join("planted.yml"),
+            layout.config_dir().join("extra.yml"),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(outside.join("precious.txt"), layout.root().join("LICENSE"))
+            .unwrap();
+        install(&layout, "0.40.8", &[("config/extra.yml", b"default: 1\n")]);
+        assert!(!outside.join("planted.yml").exists());
+        assert_eq!(fs::read(outside.join("precious.txt")).unwrap(), b"precious");
+        assert!(!fs::symlink_metadata(layout.root().join("LICENSE"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
     }
 
     #[test]
