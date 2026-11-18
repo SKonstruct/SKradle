@@ -158,7 +158,12 @@ pub fn find_runtimes(
 ) -> Vec<Runtime> {
     let mut found: Vec<Runtime> = Vec::new();
     let mut add = |home: PathBuf, source: Source| {
-        if found.iter().any(|r| r.home == home) {
+        // The same runtime reached through a link counts once.
+        let key = std::fs::canonicalize(&home).unwrap_or_else(|_| home.clone());
+        if found
+            .iter()
+            .any(|r| r.home == home || std::fs::canonicalize(&r.home).is_ok_and(|c| c == key))
+        {
             return;
         }
         if let Some(release) = JavaRelease::read(&home) {
@@ -191,11 +196,22 @@ pub fn find_runtimes(
         add(home.clone(), Source::JavaHome);
     }
     for dir in &env.path {
-        if let Some(home) = dir
-            .parent()
-            .filter(|_| dir.join("java").is_file() || dir.join("java.exe").is_file())
-        {
+        let Some(java) = ["java", "java.exe"]
+            .iter()
+            .map(|name| dir.join(name))
+            .find(|p| p.is_file())
+        else {
+            continue;
+        };
+        // `<home>/bin/java` as found on PATH, and where a link such as /usr/bin/java really leads.
+        if let Some(home) = dir.parent() {
             add(home.to_path_buf(), Source::Path);
+        }
+        if let Some(home) = std::fs::canonicalize(&java)
+            .ok()
+            .and_then(|real| real.parent()?.parent().map(Path::to_path_buf))
+        {
+            add(home, Source::Path);
         }
     }
     found
@@ -371,6 +387,33 @@ mod tests {
         let found = find_runtimes(&env, None, None);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].source, Source::JavaHome);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_java_on_path_that_is_a_link_into_a_runtime_is_found() {
+        let root = tempfile::tempdir().unwrap();
+        let home = root.path().join("lib/jvm/jdk-25");
+        make_runtime(&home, FULL_JRE);
+        // Like /usr/bin/java -> /usr/lib/jvm/jdk-25/bin/java: `/usr` has no `release` file.
+        let usr_bin = root.path().join("usr/bin");
+        fs::create_dir_all(&usr_bin).unwrap();
+        std::os::unix::fs::symlink(home.join("bin/java"), usr_bin.join("java")).unwrap();
+        let env = RuntimeEnv {
+            java_home: None,
+            path: vec![usr_bin],
+        };
+        let found = find_runtimes(&env, None, None);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].home, fs::canonicalize(&home).unwrap());
+        assert_eq!(found[0].source, Source::Path);
+
+        // The same runtime also given as JAVA_HOME (by its unresolved name) is not listed twice.
+        let env = RuntimeEnv {
+            java_home: Some(home),
+            path: env.path,
+        };
+        assert_eq!(find_runtimes(&env, None, None).len(), 1);
     }
 
     #[test]
