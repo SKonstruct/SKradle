@@ -7,6 +7,7 @@ pub mod getdown_launch;
 pub mod getdown_txt;
 pub mod index;
 pub mod install;
+pub mod launch;
 pub mod net;
 pub mod runtime;
 pub mod telemetry;
