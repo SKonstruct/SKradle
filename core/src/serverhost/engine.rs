@@ -686,7 +686,10 @@ fn swap_in(layout: &ServerLayout, staging: &Path) -> Result<(), EngineError> {
             let from = staging.join(name);
             if from.is_file() {
                 let to = layout.root().join(name);
-                remove_all(&to)?; // a link is replaced, never written through
+                // A link (or a stale file) is replaced, never written through; a folder is left, so the copy fails.
+                if fs::symlink_metadata(&to).is_ok_and(|m| !m.is_dir()) {
+                    fs::remove_file(&to)?;
+                }
                 fs::copy(&from, &to)?;
             }
         }
