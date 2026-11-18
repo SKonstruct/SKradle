@@ -45,7 +45,10 @@ pub struct PlanInputs<'a> {
     pub graphics_args: Option<&'a [String]>,
     /// Official has a newer game than the installed one (`servers::update_pending`; an unreachable server is false).
     pub update_pending: bool,
-    /// Memory and extra JVM arguments the player chose.
+    /// Memory and extra JVM arguments the player chose. On the updater path only `jvm_args` are used (for the
+    /// updater's own JVM; the updater starts the game with the game's own settings, so `memory` waits for the next,
+    /// direct launch). On the direct path `skip_extra_line` is replaced by the planner's own rule for the graphics
+    /// module's lines.
     pub options: &'a DirectOptions,
 }
 
