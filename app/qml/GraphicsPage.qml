@@ -55,19 +55,39 @@ PageScaffold {
                 Txt { Layout.margins: Theme.s5; Layout.bottomMargin: Theme.s1; text: qsTr("Rendering"); kind: "heading"; Accessible.role: Accessible.Heading }
                 SettingRow {
                     label: qsTr("Render scale"); hint: qsTr("Lower values trade sharpness for speed.")
-                    SSlider { id: scale; Layout.fillWidth: true; from: 50; to: 200; value: Settings.renderScale; onMoved: Settings.renderScale = Math.round(value); Accessible.name: qsTr("Render scale") }
+                    SSlider {
+                        id: scale; Layout.fillWidth: true; from: 50; to: 200
+                        onMoved: Settings.renderScale = Math.round(value)
+                        // A Binding element keeps following the setting (a clamp, a reload) after the player has moved the handle.
+                        Binding on value { value: Settings.renderScale }
+                        Accessible.name: qsTr("Render scale")
+                    }
                     Txt { Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight; text: Math.round(scale.value) + "%"; font.features: { "tnum": 1 }; wrapMode: Text.NoWrap }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
                     label: qsTr("Sharpening"); hint: qsTr("Crisper edges after scaling.")
-                    SSlider { id: sharp; Layout.fillWidth: true; from: 0; to: 100; value: Settings.sharpening; onMoved: Settings.sharpening = Math.round(value); Accessible.name: qsTr("Sharpening") }
+                    SSlider {
+                        id: sharp; Layout.fillWidth: true; from: 0; to: 100
+                        onMoved: Settings.sharpening = Math.round(value)
+                        Binding on value { value: Settings.sharpening }
+                        Accessible.name: qsTr("Sharpening")
+                    }
                     Txt { Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight; text: Math.round(sharp.value); font.features: { "tnum": 1 }; wrapMode: Text.NoWrap }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
                     label: qsTr("Anti-aliasing")
-                    SComboBox { id: aaCombo; Layout.fillWidth: true; model: [qsTr("Off"), "FXAA", "MSAA 4x"]; currentIndex: Settings.antiAliasing; onActivated: (i) => Settings.antiAliasing = i; Accessible.name: qsTr("Anti-aliasing") }
+                    SComboBox {
+                        id: aaCombo; Layout.fillWidth: true; model: [qsTr("Off"), "FXAA", "MSAA 4x"]
+                        // A retranslation resets the index of a combo box with a new model: set it again.
+                        function sync() { currentIndex = Settings.antiAliasing }
+                        Component.onCompleted: sync()
+                        onModelChanged: sync()
+                        Connections { target: Settings; function onAntiAliasingChanged() { aaCombo.sync() } }
+                        onActivated: (i) => Settings.antiAliasing = i
+                        Accessible.name: qsTr("Anti-aliasing")
+                    }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
@@ -117,13 +137,26 @@ PageScaffold {
                 }
                 SettingRow {
                     label: qsTr("Mode")
-                    SComboBox { Layout.fillWidth: true; model: [qsTr("Adaptive"), qsTr("Fixed multiplier")]; currentIndex: Settings.frameGenMode; onActivated: (i) => Settings.frameGenMode = i; Accessible.name: qsTr("Mode") }
+                    SComboBox {
+                        id: modeBox; Layout.fillWidth: true; model: [qsTr("Adaptive"), qsTr("Fixed multiplier")]
+                        function sync() { currentIndex = Settings.frameGenMode }
+                        Component.onCompleted: sync()
+                        onModelChanged: sync()
+                        Connections { target: Settings; function onFrameGenModeChanged() { modeBox.sync() } }
+                        onActivated: (i) => Settings.frameGenMode = i
+                        Accessible.name: qsTr("Mode")
+                    }
                 }
                 Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
                 SettingRow {
                     label: qsTr("Target frame rate"); hint: qsTr("Frames per second to aim for.")
                     Item { Layout.fillWidth: true }
-                    SSpinBox { from: 30; to: 360; value: Settings.targetFps; editable: true; onValueModified: Settings.targetFps = value; Accessible.name: qsTr("Target frame rate") }
+                    SSpinBox {
+                        from: 30; to: 360; editable: true
+                        onValueModified: Settings.targetFps = value
+                        Binding on value { value: Settings.targetFps }
+                        Accessible.name: qsTr("Target frame rate")
+                    }
                 }
                 Item { Layout.preferredHeight: Theme.s1 }
             }
@@ -147,7 +180,16 @@ PageScaffold {
             SettingRow {
                 label: qsTr("Java path"); hint: qsTr("Leave empty to use the game's own runtime, or a Java found on this computer.")
                 controlWidth: 330
-                STextField { Layout.fillWidth: true; text: Settings.javaPath; placeholderText: qsTr("Automatic"); onEditingFinished: Settings.javaPath = text.trim(); Accessible.name: qsTr("Java path") }
+                STextField {
+                    id: javaField
+                    Layout.fillWidth: true; placeholderText: qsTr("Automatic")
+                    onEditingFinished: Settings.javaPath = text.trim()
+                    // Typing and "Browse…" both change the text; the setting is the source of truth, so a path
+                    // chosen in the dialog replaces what was typed and a typed value is not undone by a stale binding.
+                    Component.onCompleted: text = Settings.javaPath
+                    Connections { target: Settings; function onJavaPathChanged() { if (javaField.text.trim() !== Settings.javaPath) javaField.text = Settings.javaPath } }
+                    Accessible.name: qsTr("Java path")
+                }
                 SButton { text: qsTr("Browse…"); onClicked: javaDialog.open() }
             }
             Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
@@ -157,8 +199,8 @@ PageScaffold {
                 // Only a change by the player is saved: until then the game keeps the limit in its own extra.txt, shown here.
                 SSpinBox {
                     from: 512; to: 16384; stepSize: 256; editable: true
-                    value: Settings.memoryMb > 0 ? Settings.memoryMb : (GameModel.detectedMemoryMb > 0 ? GameModel.detectedMemoryMb : 2048)
                     onValueModified: Settings.memoryMb = value
+                    Binding on value { value: Settings.memoryMb > 0 ? Settings.memoryMb : (GameModel.detectedMemoryMb > 0 ? GameModel.detectedMemoryMb : 2048) }
                     Accessible.name: qsTr("Memory limit")
                 }
             }

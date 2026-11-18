@@ -377,18 +377,23 @@ fn is_plain_relative_path(path: &str) -> bool {
 /// (Public so tests and tools can turn the index's dates into Unix seconds.)
 /// Parses `YYYY-MM-DDTHH:MM:SS` with an optional fraction and `Z` or `+HH:MM`/`-HH:MM`; returns Unix seconds.
 pub fn parse_rfc3339(text: &str) -> Option<u64> {
+    // Digits only: `i64::from_str` would also take "+5" and "-5".
+    fn number(part: &str) -> Option<i64> {
+        (!part.is_empty() && part.len() <= 9 && part.bytes().all(|b| b.is_ascii_digit()))
+            .then(|| part.parse().ok())?
+    }
     let (date, time) = text.trim().split_once(['T', 't'])?;
     let mut d = date.split('-');
-    let (year, month, day): (i64, i64, i64) = (
-        d.next()?.parse().ok()?,
-        d.next()?.parse().ok()?,
-        d.next()?.parse().ok()?,
-    );
-    if d.next().is_some()
-        || !(1..=12).contains(&month)
-        || !(1..=31).contains(&day)
-        || !(1970..=9999).contains(&year)
-    {
+    let (year, month, day) = (number(d.next()?)?, number(d.next()?)?, number(d.next()?)?);
+    let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    let month_days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return None,
+    };
+    if d.next().is_some() || !(1..=month_days).contains(&day) || !(1970..=9999).contains(&year) {
         return None;
     }
     let (clock, offset_secs) = if let Some(clock) = time.strip_suffix(['Z', 'z']) {
@@ -398,18 +403,15 @@ pub fn parse_rfc3339(text: &str) -> Option<u64> {
         let (clock, off) = time.split_at(at);
         let sign = if off.starts_with('-') { -1 } else { 1 };
         let (oh, om) = off[1..].split_once(':')?;
-        (
-            clock,
-            sign * (oh.parse::<i64>().ok()? * 3600 + om.parse::<i64>().ok()? * 60),
-        )
+        let (oh, om) = (number(oh)?, number(om)?);
+        if oh > 23 || om > 59 {
+            return None;
+        }
+        (clock, sign * (oh * 3600 + om * 60))
     };
     let clock = clock.split('.').next()?;
     let mut t = clock.split(':');
-    let (h, m, s): (i64, i64, i64) = (
-        t.next()?.parse().ok()?,
-        t.next()?.parse().ok()?,
-        t.next()?.parse().ok()?,
-    );
+    let (h, m, s) = (number(t.next()?)?, number(t.next()?)?, number(t.next()?)?);
     if t.next().is_some() || h > 23 || m > 59 || s > 60 {
         return None;
     }
@@ -423,6 +425,35 @@ pub fn parse_rfc3339(text: &str) -> Option<u64> {
     let days = era * 146_097 + doe - 719_468;
     let secs = days * 86_400 + h * 3600 + m * 60 + s - offset_secs;
     u64::try_from(secs).ok()
+}
+
+#[cfg(test)]
+mod time_tests {
+    use super::*;
+
+    #[test]
+    fn impossible_dates_and_times_are_refused() {
+        for bad in [
+            "2026-02-30T00:00:00Z",
+            "2026-04-31T00:00:00Z",
+            "2025-02-29T00:00:00Z",
+            "2026-11-18T-1:00:00Z",
+            "2026-11-18T00:-5:00Z",
+            "2026-11-18T00:00:+5Z",
+            "2026-11-18T00:00:00+24:00",
+            "2026-11-18T00:00:00+01:60",
+            "2026-11-18T00:00:00+-1:00",
+            "+2026-11-18T00:00:00Z",
+            "2026-11-18T24:00:00Z",
+        ] {
+            assert_eq!(parse_rfc3339(bad), None, "{bad}");
+        }
+        assert!(
+            parse_rfc3339("2024-02-29T12:00:00Z").is_some(),
+            "a leap day"
+        );
+        assert!(parse_rfc3339("2026-11-18T00:00:00-05:30").is_some());
+    }
 }
 
 #[cfg(test)]

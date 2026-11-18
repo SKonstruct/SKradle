@@ -7,6 +7,7 @@
 
 use std::collections::BTreeMap;
 use std::io;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -177,7 +178,7 @@ pub fn apply_properties(text: &str, wanted: &BTreeMap<&'static str, String>) -> 
     let mut out = String::with_capacity(text.len() + 128);
     let mut seen: Vec<&str> = Vec::new();
     let mut changed = false;
-    for raw in text.split_inclusive('\n') {
+    for raw in logical_lines(text) {
         let line = raw.trim_end_matches(['\r', '\n']);
         let ending = &raw[line.len()..];
         // A key the caller gave no value for is not managed: its lines stay as they are.
@@ -213,6 +214,32 @@ pub fn apply_properties(text: &str, wanted: &BTreeMap<&'static str, String>) -> 
         }
     }
     changed.then_some(out)
+}
+
+/// The text split into logical lines: a physical line that ends in an odd number of backslashes continues on the next
+/// one (comments and blank lines never continue). Each piece keeps its line endings.
+fn logical_lines(text: &str) -> Vec<&str> {
+    let mut pieces = Vec::new();
+    let (mut start, mut end) = (0, 0);
+    let mut continuing = false;
+    for raw in text.split_inclusive('\n') {
+        let body = raw.trim_end_matches(['\r', '\n']);
+        let alone = !continuing && {
+            let first = body.trim_start_matches([' ', '\t', '\u{c}']);
+            first.starts_with(['#', '!']) || first.trim().is_empty()
+        };
+        end += raw.len();
+        let slashes = body.chars().rev().take_while(|&c| c == '\\').count();
+        continuing = !alone && slashes % 2 == 1;
+        if !continuing {
+            pieces.push(&text[start..end]);
+            start = end;
+        }
+    }
+    if start < text.len() {
+        pieces.push(&text[start..]); // a continuation that runs into the end of the file
+    }
+    pieces
 }
 
 /// The key of a `key=value`, `key: value` or `key value` line, or `None` for comments and blanks.
@@ -361,25 +388,21 @@ pub fn is_local_network_host(host: &str) -> bool {
     if h.is_empty() || h == "localhost" {
         return false;
     }
-    let octets: Vec<&str> = h.split('.').collect();
-    if octets.len() == 4
-        && octets
-            .iter()
-            .all(|o| !o.is_empty() && o.len() <= 3 && o.bytes().all(|b| b.is_ascii_digit()))
-    {
-        let (a, b): (u32, u32) = (
-            octets[0].parse().unwrap_or(0),
-            octets[1].parse().unwrap_or(0),
-        );
-        return a == 10
-            || (a == 172 && (16..=31).contains(&b))
-            || (a == 192 && b == 168)
-            || (a == 169 && b == 254);
+    // An address is classified as one (a zone such as `%en0` is not part of it).
+    let bare = h.split('%').next().unwrap_or(&h);
+    if let Ok(ip) = bare.parse::<IpAddr>() {
+        return match ip {
+            IpAddr::V4(v4) => v4.is_private() || v4.is_link_local(),
+            // Unique local fc00::/7 and link-local fe80::/10.
+            IpAddr::V6(v6) => {
+                let first = v6.segments()[0];
+                first & 0xfe00 == 0xfc00 || first & 0xffc0 == 0xfe80
+            }
+        };
     }
-    if h.contains(':') {
-        return h.starts_with("fe80") || h.starts_with("fc") || h.starts_with("fd");
-    }
-    h.ends_with(".local") || !h.contains('.')
+    // A name, perhaps with a port (`host:47624`): only the name counts.
+    let name = h.rsplit_once(':').map_or(h.as_str(), |(name, _)| name);
+    name.ends_with(".local") || !name.contains('.')
 }
 
 /// The jar entry that holds the connection settings.
@@ -939,6 +962,71 @@ other=keep me
             "2001:db8::1",
         ] {
             assert!(!is_local_network_host(no), "{no}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod logical_line_tests {
+    use super::*;
+
+    fn wanted(pairs: &[(&'static str, &str)]) -> BTreeMap<&'static str, String> {
+        pairs.iter().map(|(k, v)| (*k, (*v).to_owned())).collect()
+    }
+
+    #[test]
+    fn a_managed_key_that_wraps_over_several_lines_is_replaced_whole() {
+        let text = "a=1\nkey.public=aaaa\\\n  bbbb\\\n  cccc\nb=2\n";
+        let out = apply_properties(text, &wanted(&[("key.public", "new")])).unwrap();
+        assert_eq!(out, "a=1\nkey.public=new\nb=2\n");
+    }
+
+    #[test]
+    fn a_comment_ending_in_a_backslash_does_not_swallow_the_next_line() {
+        let text = "# old note \\\nkey.public=aaaa\n";
+        let out = apply_properties(text, &wanted(&[("key.public", "new")])).unwrap();
+        assert_eq!(out, "# old note \\\nkey.public=new\n");
+    }
+
+    #[test]
+    fn logical_lines_keep_their_line_endings_and_a_dangling_continuation() {
+        assert_eq!(
+            logical_lines("a=1\r\nb=2\\\r\n3\r\n"),
+            ["a=1\r\n", "b=2\\\r\n3\r\n"]
+        );
+        assert_eq!(logical_lines("a=1\\\n"), ["a=1\\\n"]);
+        assert_eq!(logical_lines("a=1\\\\\nb=2"), ["a=1\\\\\n", "b=2"]);
+    }
+
+    #[test]
+    fn local_network_hosts_are_told_by_address_not_by_text_prefix() {
+        for local in [
+            "192.168.1.5",
+            "10.0.0.1",
+            "172.16.0.1",
+            "169.254.1.1",
+            "fe80::1",
+            "febf::1",
+            "fe80::1%en0",
+            "[fd00::1]",
+            "fc00::1",
+            "myserver",
+            "myserver:47624",
+            "box.local",
+        ] {
+            assert!(is_local_network_host(local), "{local}");
+        }
+        for remote in [
+            "fd-game.example.com:47624",
+            "fc.example.org",
+            "fec0::1",
+            "2001:db8::1",
+            "8.8.8.8",
+            "172.32.0.1",
+            "localhost",
+            "",
+        ] {
+            assert!(!is_local_network_host(remote), "{remote}");
         }
     }
 }

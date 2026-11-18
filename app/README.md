@@ -52,7 +52,7 @@ app/
   src/
     main.rs options.rs reporter.rs
     settings.rs discovery.rs selfupdate.rs server_host.rs
-    launch/{mod,plan,log,memory,supervisor,updater}.rs
+    launch/{mod,plan,planned,log,memory,supervisor,winprobe}.rs
     bridge/*.rs       the QObjects
 ```
 
@@ -84,16 +84,27 @@ to its default; a file that is not a JSON object is moved to `settings.json.corr
 atomic (temporary file, then rename) and coalesced. The memory limit is `null` until the player changes it: until then
 the game's own `-Xmx` in `extra.txt` is shown and left alone. When set, it is written to the game's `extra.txt`
 (`-Xmx`, and `-Xms` lowered to fit) before launching. The Graphics page values are stored but **the game does not read
-them yet** (`TODO(graphics)`).
+them unless the graphics agent is installed (see below; `TODO(graphics)` for downloading it).
 
 ### Launching and the updater's progress
 
 `LaunchModel` asks a `Launcher` (trait, `launch/mod.rs`) to run a launch and maps its events to the states above.
-`UpdaterLauncher` is the implementation today: it picks a Java (`runtime::find_runtimes`, `pick_for_game`, the install's
-minimum from `getdown.txt`, or the Java the player chose), writes the memory limit, and runs
-`getdown::update_and_launch`. The core's launch planner (`skradle_core::launch::plan`, with mods, server connection,
-direct launch and the graphics agent) is the second implementation to add; `Event::Progress` already exists for
-launchers that know a percentage.
+`PlannedLauncher` (`launch/planned.rs`) is the implementation: on the supervisor's thread it picks a Java (the
+player's choice is checked first so its problems keep their precise messages), gathers the planner's inputs and runs
+`skradle_core::launch::plan` with the real effects. The planner decides (see `docs/launching.md`): a pending update or
+missing files go through the game's own updater (the memory limit is written to `extra.txt` for it); otherwise mods,
+then the server settings, then the game is started **directly** (memory and extra JVM arguments through
+`DirectOptions`), and a failed step stops the launch before the game starts. The supervisor follows an updater launch
+as described below and a direct launch as the game itself: "launching" until it has lived 3 s, then "running"; a
+non-zero exit within 20 s is a failed start and carries the end of the game's output. A private server is refused while
+the game needs an update. Planner warnings and mod notes go to standard error for now (no UI for them yet).
+
+Where the inputs come from: the selected server from `servers.json` in the config folder (none is Official; there is
+no UI that writes it yet, `TODO(servers)`), the player's mods from `<data dir>/SKradle/mods` (no folder, no mods), the
+graphics agent from `<data dir>/SKradle/skgfx/skgfx-agent.jar` (no file, no graphics enhancements; the Graphics page
+values become `-Dskgfx.*` arguments through `skradle_core::graphics`; the anti-aliasing choice has no agent property
+and is not used; **nothing downloads the agent yet**, `TODO(graphics)`), and "an update is pending" from the game's
+newest `getdown.txt` (fetched with short timeouts; offline counts as no update).
 
 What the game's updater (`getdown-pro.jar`, read in the installed game's classes; **it was not run in tests**) shows:
 

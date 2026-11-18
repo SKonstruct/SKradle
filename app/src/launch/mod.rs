@@ -13,8 +13,8 @@
 pub mod log;
 pub mod memory;
 pub mod plan;
+pub mod planned;
 pub mod supervisor;
-pub mod updater;
 pub mod winprobe;
 
 use std::sync::Arc;
@@ -94,6 +94,15 @@ pub enum LaunchError {
     },
     /// The updater ended cleanly but no game is running.
     NothingStarted,
+    /// The launch planner refused (the sentence says why and what to do, for example to update first).
+    Refused(String),
+    /// A step before the game started failed (applying mods, writing the server settings); the game was not started.
+    Prepare(String),
+    /// A game that was started directly ended with an error soon after the start.
+    GameFailed {
+        code: Option<i32>,
+        detail: String,
+    },
 }
 
 fn java_name(encoded: u64) -> String {
@@ -143,6 +152,18 @@ impl LaunchError {
             LaunchError::NothingStarted => {
                 "The updater finished but the game did not start. Try again.".to_owned()
             }
+            LaunchError::Refused(why) => why.clone(),
+            LaunchError::Prepare(why) => {
+                format!("The game was not started because a step before it failed: {why}")
+            }
+            LaunchError::GameFailed { code, detail } => {
+                let code = code.map_or("no exit code".to_owned(), |c| format!("exit code {c}"));
+                if detail.is_empty() {
+                    format!("The game stopped right after it started ({code}).")
+                } else {
+                    format!("The game stopped right after it started ({code}): {detail}")
+                }
+            }
         }
     }
 }
@@ -163,8 +184,8 @@ pub trait Running: Send {
     fn stop(&self);
 }
 
-/// Something that can run a launch. `UpdaterLauncher` runs the game's own updater; the core's launch planner
-/// (update check, mods, server connection, direct launch, graphics agent) is meant to be another implementation.
+/// Something that can run a launch. `PlannedLauncher` is the real one: it follows the core's launch planner (the update
+/// check, mods, server connection, then the updater or a direct launch with the graphics agent).
 /// `start` may block on file access: it is called on a worker thread, never the UI thread. Progress, phase changes
 /// and the end are reported through the sink; an `Err` means nothing was started.
 pub trait Launcher: Send + Sync {

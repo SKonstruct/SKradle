@@ -88,7 +88,7 @@ pub fn safe_relative(name: &str) -> Result<PathBuf, PathError> {
         if part.len() > MAX_COMPONENT_BYTES {
             return Err(PathError::TooLong);
         }
-        if part.ends_with('.') || part.ends_with(' ') {
+        if part.ends_with('.') || part.ends_with(' ') || crate::jar::is_windows_device(part) {
             return Err(PathError::WindowsUnsafe);
         }
         out.push(part);
@@ -275,6 +275,10 @@ mod tests {
             ("a\nb", PathError::BadCharacter),
             ("dir./x", PathError::WindowsUnsafe),
             ("x ", PathError::WindowsUnsafe),
+            ("content/CON", PathError::WindowsUnsafe),
+            ("nul.txt", PathError::WindowsUnsafe),
+            ("a/com1.yml", PathError::WindowsUnsafe),
+            ("lpt9", PathError::WindowsUnsafe),
         ] {
             assert_eq!(safe_relative(name).unwrap_err(), why, "{name:?}");
         }

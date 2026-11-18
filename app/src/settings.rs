@@ -66,6 +66,8 @@ pub struct Settings {
     pub minimize_while_playing: bool,
     /// Crash reports (the telemetry switch).
     pub crash_reports: bool,
+    /// Look for a newer launcher a moment after start (on by default; the About page's button always works).
+    pub auto_update_check: bool,
     /// A launcher version the player chose not to be offered again.
     pub skipped_update: Option<String>,
     // The Graphics page. Stored for the page; the game does not read them yet (TODO(graphics)).
@@ -93,6 +95,7 @@ impl Default for Settings {
             memory_mb: None,
             minimize_while_playing: true,
             crash_reports: true,
+            auto_update_check: true,
             skipped_update: None,
             render_scale: 100,
             sharpening: 40,
@@ -118,6 +121,7 @@ const KNOWN_KEYS: &[&str] = &[
     "memoryMb",
     "minimizeWhilePlaying",
     "crashReports",
+    "autoUpdateCheck",
     "skippedUpdate",
     "renderScale",
     "sharpening",
@@ -156,6 +160,7 @@ impl Settings {
             minimize_while_playing: get(map, "minimizeWhilePlaying")
                 .unwrap_or(d.minimize_while_playing),
             crash_reports: get(map, "crashReports").unwrap_or(d.crash_reports),
+            auto_update_check: get(map, "autoUpdateCheck").unwrap_or(d.auto_update_check),
             skipped_update: path_value(map, "skippedUpdate"),
             render_scale: get(map, "renderScale").unwrap_or(d.render_scale),
             sharpening: get(map, "sharpening").unwrap_or(d.sharpening),
@@ -206,6 +211,7 @@ impl Settings {
             Value::from(self.minimize_while_playing),
         );
         put("crashReports", Value::from(self.crash_reports));
+        put("autoUpdateCheck", Value::from(self.auto_update_check));
         put("skippedUpdate", self.skipped_update.clone().into());
         put("renderScale", Value::from(self.render_scale));
         put("sharpening", Value::from(self.sharpening));
@@ -427,6 +433,7 @@ mod tests {
             memory_mb: Some(4096),
             game_path: Some("/games/sk".into()),
             crash_reports: false,
+            auto_update_check: false,
             ..Settings::default()
         };
         save(&path, &s).unwrap();
@@ -434,6 +441,16 @@ mod tests {
         assert_eq!(back, s);
         assert_eq!(outcome, LoadOutcome::Loaded);
         assert!(!dir.path().join("sub/settings.json.tmp").exists());
+    }
+
+    #[test]
+    fn the_update_check_is_on_by_default_and_a_wrong_type_falls_back_to_that() {
+        assert!(Settings::default().auto_update_check);
+        let mut map = Map::new();
+        map.insert("autoUpdateCheck".into(), Value::from("no"));
+        assert!(Settings::from_map(&map).auto_update_check);
+        map.insert("autoUpdateCheck".into(), Value::from(false));
+        assert!(!Settings::from_map(&map).auto_update_check);
     }
 
     #[test]

@@ -123,10 +123,16 @@ PageScaffold {
             SettingRow {
                 label: qsTr("Appearance")
                 SComboBox {
+                    id: themeBox
                     Layout.fillWidth: true
                     readonly property var values: ["system", "light", "dark"]
                     model: [qsTr("Follow the system"), qsTr("Light"), qsTr("Dark")]
-                    currentIndex: Math.max(0, values.indexOf(Settings.theme))
+                    // A retranslation hands the box a new model, which resets its index without touching a binding,
+                    // so the index is set from the setting at start, on a new model and on a change.
+                    function sync() { currentIndex = Math.max(0, values.indexOf(Settings.theme)) }
+                    Component.onCompleted: sync()
+                    onModelChanged: sync()
+                    Connections { target: Settings; function onThemeChanged() { themeBox.sync() } }
                     onActivated: (i) => Settings.theme = values[i]
                     Accessible.name: qsTr("Appearance")
                 }
@@ -141,11 +147,17 @@ PageScaffold {
             SettingRow {
                 label: qsTr("Language")
                 SComboBox {
+                    id: languageBox
                     Layout.fillWidth: true
                     // Each language is named in itself. Add a catalogue in i18n/ and a row here.
                     readonly property var values: ["system", "en"]
                     model: [qsTr("Follow the system"), "English"]
-                    currentIndex: Math.max(0, values.indexOf(Settings.language))
+                    // Choosing a language retranslates the window, which gives the box a new model and resets its
+                    // index to the first row: set it again from the setting.
+                    function sync() { currentIndex = Math.max(0, values.indexOf(Settings.language)) }
+                    Component.onCompleted: sync()
+                    onModelChanged: sync()
+                    Connections { target: Settings; function onLanguageChanged() { languageBox.sync() } }
                     onActivated: (i) => Settings.language = values[i]
                     Accessible.name: qsTr("Language")
                 }
@@ -155,6 +167,12 @@ PageScaffold {
                 label: qsTr("Send crash reports"); hint: qsTr("Error reports contain no names, folders or addresses.")
                 Item { Layout.fillWidth: true }
                 SSwitch { checked: Settings.crashReports; onToggled: Settings.crashReports = checked; Accessible.name: qsTr("Send crash reports") }
+            }
+            Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
+            SettingRow {
+                label: qsTr("Check for updates automatically"); hint: qsTr("Looks for a newer SKradle a moment after it starts. You always choose when to install.")
+                Item { Layout.fillWidth: true }
+                SSwitch { checked: Settings.autoUpdateCheck; onToggled: Settings.autoUpdateCheck = checked; Accessible.name: qsTr("Check for updates automatically") }
             }
             Item { Layout.preferredHeight: Theme.s1 }
         }

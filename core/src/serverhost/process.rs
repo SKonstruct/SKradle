@@ -691,7 +691,11 @@ impl ServerHost {
 
     /// True while some lifecycle call is in progress.
     pub fn is_busy(&self) -> bool {
-        self.lifecycle.try_lock().is_err()
+        // Only a held lock means busy; a lock poisoned by a panicked call is free again.
+        matches!(
+            self.lifecycle.try_lock(),
+            Err(std::sync::TryLockError::WouldBlock)
+        )
     }
 
     fn current(&self) -> Option<Arc<Run>> {
@@ -831,6 +835,12 @@ impl ServerHost {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        // A background server must not open a console window of its own.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
         let mut child = command.spawn().map_err(HostError::Spawn)?;
         let run = Arc::new(Run::new(self.options.log_capacity));
         {
@@ -1070,9 +1080,16 @@ impl ServerHost {
 
     #[cfg(unix)]
     fn terminate(&self, run: &Arc<Run>) -> bool {
-        let Some(pid) = lock(&run.state).pid else {
+        // The child stays locked while it is signalled: once it has been collected its number may belong to another
+        // process, and only a child that has not exited yet may be signalled.
+        let mut child = lock(&run.child);
+        let Some(child) = child.as_mut() else {
             return false;
         };
+        if !matches!(child.try_wait(), Ok(None)) {
+            return false;
+        }
+        let pid = child.id();
         Command::new("kill")
             .args(["-TERM", &pid.to_string()])
             .stdout(Stdio::null())
@@ -1941,6 +1958,39 @@ exit 1
         let h = fixture("");
         std::fs::write(h.layout.server_yml(), "server-port: 47624\n").unwrap();
         assert!(matches!(h.host.start(), Err(HostError::NotConfigured)));
+    }
+
+    #[test]
+    fn a_lifecycle_lock_poisoned_by_a_panic_does_not_make_the_host_busy_for_good() {
+        let f = fixture("");
+        let host = f.host.clone();
+        assert!(!host.is_busy());
+        let poisoned = std::thread::spawn({
+            let host = host.clone();
+            move || {
+                let _guard = host.lifecycle.lock().unwrap();
+                panic!("a lifecycle call failed");
+            }
+        })
+        .join();
+        assert!(poisoned.is_err());
+        assert!(!host.is_busy());
+        let held = host.lifecycle.lock();
+        let _held = held.unwrap_or_else(|e| e.into_inner());
+        assert!(host.is_busy(), "a held lock still counts as busy");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_stopped_run_is_never_signalled_again() {
+        let f = fixture("");
+        f.host.start().unwrap();
+        let run = f.host.current().unwrap();
+        f.host.stop().unwrap();
+        assert!(
+            !f.host.terminate(&run),
+            "its number may belong to someone else now"
+        );
     }
 
     #[test]

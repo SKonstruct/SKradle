@@ -88,6 +88,9 @@ impl DownloadOptions {
 pub struct Client {
     agent: ureq::Agent,
     https_only: bool,
+    /// The whole-request limit for small documents (a status, a listing, a report): a stalled connection must not
+    /// hold them up for as long as a big download is allowed to take.
+    document_timeout: Duration,
 }
 
 impl Default for Client {
@@ -126,11 +129,16 @@ impl Client {
             .https_only(https_only)
             .max_redirects(4)
             .timeout_connect(Some(connect))
+            .timeout_recv_response(Some(total.min(Duration::from_secs(60))))
             .timeout_global(Some(total))
             .user_agent(USER_AGENT)
             .build()
             .into();
-        Self { agent, https_only }
+        Self {
+            agent,
+            https_only,
+            document_timeout: total.min(Duration::from_secs(120)),
+        }
     }
 
     fn check_url(&self, url: &str) -> Result<(), NetError> {
@@ -148,14 +156,29 @@ impl Client {
         })
     }
 
+    /// Like `open`, with the shorter limit for small documents.
+    fn open_document(&self, url: &str) -> Result<ureq::http::Response<ureq::Body>, NetError> {
+        self.check_url(url)?;
+        self.agent
+            .get(url)
+            .config()
+            .timeout_global(Some(self.document_timeout))
+            .build()
+            .call()
+            .map_err(|e| match e {
+                ureq::Error::StatusCode(code) => NetError::Status(code),
+                other => NetError::Request(other.to_string()),
+            })
+    }
+
     /// Fetches a small document into memory.
     pub fn get_bytes(&self, url: &str, max_bytes: u64) -> Result<Vec<u8>, NetError> {
-        let mut response = self.open(url)?;
+        let mut response = self.open_document(url)?;
         let mut out = Vec::new();
         response
             .body_mut()
             .as_reader()
-            .take(max_bytes + 1)
+            .take(max_bytes.saturating_add(1))
             .read_to_end(&mut out)?;
         if out.len() as u64 > max_bytes {
             return Err(NetError::TooLarge { limit: max_bytes });
@@ -179,7 +202,13 @@ impl Client {
         max_response: u64,
     ) -> Result<Vec<u8>, NetError> {
         self.check_url(url)?;
-        let mut request = self.agent.post(url).content_type(content_type);
+        let mut request = self
+            .agent
+            .post(url)
+            .config()
+            .timeout_global(Some(self.document_timeout))
+            .build()
+            .content_type(content_type);
         for (name, value) in headers {
             request = request.header(*name, *value);
         }
@@ -191,7 +220,7 @@ impl Client {
         response
             .body_mut()
             .as_reader()
-            .take(max_response + 1)
+            .take(max_response.saturating_add(1))
             .read_to_end(&mut out)?;
         if out.len() as u64 > max_response {
             return Err(NetError::TooLarge {
@@ -219,7 +248,20 @@ impl Client {
         }
         let part = part_path(dest);
         let result = (|| {
-            let mut file = File::create(&part)?;
+            if let Some(folder) = dest.parent().filter(|p| !p.as_os_str().is_empty()) {
+                std::fs::create_dir_all(folder)?;
+            }
+            // Whatever is at the temporary path (a stale file, a link planted there) is removed, never written
+            // through; the new file must not exist yet.
+            match std::fs::remove_file(&part) {
+                Ok(()) => {}
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e.into()),
+            }
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&part)?;
             let mut hasher = Sha256::new();
             let mut reader = response.body_mut().as_reader();
             let mut buf = vec![0u8; CHUNK];
@@ -513,6 +555,52 @@ mod tests {
             .post("http://example.invalid/x", &[], "text/plain", b"x", 10)
             .unwrap_err();
         assert!(matches!(err, NetError::InsecureUrl(_)));
+    }
+
+    #[test]
+    fn a_download_creates_missing_folders() {
+        let base = serve(vec![("/file", 200, b"payload".to_vec())]);
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("a/b/file.bin");
+        test_client()
+            .download(
+                &format!("{base}/file"),
+                &dest,
+                &DownloadOptions::new(100),
+                &mut |_| {},
+            )
+            .unwrap();
+        assert_eq!(std::fs::read(&dest).unwrap(), b"payload");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_planted_at_the_temporary_path_is_replaced_not_written_through() {
+        let base = serve(vec![("/file", 200, b"payload".to_vec())]);
+        let dir = tempfile::tempdir().unwrap();
+        let victim = dir.path().join("victim.txt");
+        std::fs::write(&victim, b"precious").unwrap();
+        let dest = dir.path().join("file.bin");
+        std::os::unix::fs::symlink(&victim, dir.path().join("file.bin.part")).unwrap();
+        test_client()
+            .download(
+                &format!("{base}/file"),
+                &dest,
+                &DownloadOptions::new(100),
+                &mut |_| {},
+            )
+            .unwrap();
+        assert_eq!(std::fs::read(&dest).unwrap(), b"payload");
+        assert_eq!(std::fs::read(&victim).unwrap(), b"precious");
+    }
+
+    #[test]
+    fn a_limit_of_u64_max_does_not_overflow() {
+        let base = serve(vec![("/doc", 200, b"hello".to_vec())]);
+        let bytes = test_client()
+            .get_bytes(&format!("{base}/doc"), u64::MAX)
+            .unwrap();
+        assert_eq!(bytes, b"hello");
     }
 
     #[test]

@@ -60,14 +60,14 @@ impl Digests {
     }
 
     pub fn read(path: &Path) -> std::io::Result<Self> {
-        let meta = std::fs::metadata(path)?;
-        if meta.len() > MAX_DIGEST_FILE_BYTES {
-            return Err(std::io::Error::new(
+        let bytes = crate::bounded::read_regular(path, MAX_DIGEST_FILE_BYTES)?;
+        let text = String::from_utf8(bytes).map_err(|_| {
+            std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                "digest2.txt is implausibly large",
-            ));
-        }
-        Ok(Self::parse(&std::fs::read_to_string(path)?))
+                "digest2.txt is not valid text",
+            )
+        })?;
+        Ok(Self::parse(&text))
     }
 
     /// The expected SHA-256 (lower-case hex) of the file at `path`.

@@ -12,6 +12,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use skradle_core::getdown::CommandSpec;
+use skradle_core::launch::plan::LaunchKind;
 
 use super::log::{classify, LogTail};
 use super::{Event, LaunchError, Phase, Running, Sink, Step};
@@ -25,6 +26,8 @@ pub struct Timing {
     pub watch: Duration,
     /// After asking politely to stop, how long to wait before forcing.
     pub grace: Duration,
+    /// A game started directly counts as running once it has lived this long.
+    pub settle: Duration,
 }
 
 impl Default for Timing {
@@ -33,6 +36,7 @@ impl Default for Timing {
             poll: Duration::from_millis(200),
             watch: Duration::from_millis(1000),
             grace: Duration::from_secs(5),
+            settle: Duration::from_secs(3),
         }
     }
 }
@@ -49,15 +53,23 @@ impl Running for Handle {
     }
 }
 
-/// Starts the supervisor thread. Errors (including failing to start the process) come through `sink`.
-pub fn start(spec: CommandSpec, game_root: PathBuf, timing: Timing, sink: Sink) -> Handle {
+/// What the preparation step decided: the command to run and whether it is the updater or the game itself.
+pub type Prepared = (CommandSpec, LaunchKind);
+
+/// The work before a process starts (applying mods, pointing the game at a server). It runs on the supervisor's
+/// thread, so the window never waits for it, and a failure is reported like any other.
+pub type Prepare = Box<dyn FnOnce() -> Result<Prepared, LaunchError> + Send>;
+
+/// Starts the supervisor thread; `prepare` decides what to run (and may do work first). Errors (including failing
+/// to start the process) come through `sink`.
+pub fn start_prepared(prepare: Prepare, game_root: PathBuf, timing: Timing, sink: Sink) -> Handle {
     let stop = Arc::new(AtomicBool::new(false));
     let handle = Handle { stop: stop.clone() };
     let spawned = std::thread::Builder::new()
         .name("skradle-launch".into())
         .spawn({
             let sink = sink.clone();
-            move || run(spec, game_root, timing, &stop, &*sink)
+            move || run(prepare, game_root, timing, &stop, &*sink)
         });
     if let Err(e) = spawned {
         sink(Event::Failed(LaunchError::Spawn(e.to_string())));
@@ -110,12 +122,25 @@ fn tail_text(tail: &Tail) -> String {
 }
 
 fn run(
-    spec: CommandSpec,
+    prepare: Prepare,
     game_root: PathBuf,
     timing: Timing,
     stop: &AtomicBool,
     sink: &dyn Fn(Event),
 ) {
+    // The window shows work from the first moment, also while mods are applied.
+    sink(Event::Phase(Phase::Updating, Step::Checking));
+    let (spec, kind) = match prepare() {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            sink(Event::Failed(error));
+            return;
+        }
+    };
+    if stop.load(Ordering::SeqCst) {
+        sink(Event::Stopped);
+        return;
+    }
     let log_path = game_root.join("launcher.log");
     let mut log = LogTail::at_end(&log_path);
     let mut command = spec.to_command();
@@ -140,7 +165,10 @@ fn run(
         readers.push(capture(err, output.clone()));
     }
     let mut probe = GameProbe::new(&child, &game_root);
-    sink(Event::Phase(Phase::Updating, Step::Checking));
+    if kind == LaunchKind::Direct {
+        follow_game(child, probe, &output, &readers, timing, stop, sink);
+        return;
+    }
 
     let mut phase = (Phase::Updating, Step::Checking);
     let mut log_lines: VecDeque<String> = VecDeque::new();
@@ -248,6 +276,56 @@ fn run(
             sink(Event::Finished);
             return;
         }
+    }
+}
+
+/// A game that was started directly is the process itself: it is "launching" until it has lived a moment, then
+/// "running", and its end is the end of the launch. A non-zero exit shortly after the start is a failed start and
+/// carries the end of the game's output.
+fn follow_game(
+    mut child: Child,
+    mut probe: GameProbe,
+    output: &Tail,
+    readers: &[mpsc::Receiver<()>],
+    timing: Timing,
+    stop: &AtomicBool,
+    sink: &dyn Fn(Event),
+) {
+    const EARLY: Duration = Duration::from_secs(20);
+    sink(Event::Phase(Phase::Launching, Step::Checking));
+    let started = Instant::now();
+    let mut running = false;
+    loop {
+        if stop.load(Ordering::SeqCst) {
+            probe.terminate(&mut child, timing.grace);
+            sink(Event::Stopped);
+            return;
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                if status.success() || started.elapsed() > EARLY {
+                    sink(Event::Finished);
+                } else {
+                    drain(readers);
+                    sink(Event::Failed(LaunchError::GameFailed {
+                        code: status.code(),
+                        detail: tail_text(output),
+                    }));
+                }
+                return;
+            }
+            Ok(None) => {}
+            Err(e) => {
+                probe.terminate(&mut child, timing.grace);
+                sink(Event::Failed(LaunchError::Spawn(e.to_string())));
+                return;
+            }
+        }
+        if !running && started.elapsed() >= timing.settle {
+            running = true;
+            sink(Event::Phase(Phase::Running, Step::Checking));
+        }
+        std::thread::sleep(timing.poll);
     }
 }
 
@@ -424,11 +502,22 @@ mod tests {
         }
     }
 
+    /// Runs `spec` as the game's updater.
+    fn start(spec: CommandSpec, game_root: PathBuf, timing: Timing, sink: Sink) -> Handle {
+        start_prepared(
+            Box::new(move || Ok((spec, LaunchKind::Updater))),
+            game_root,
+            timing,
+            sink,
+        )
+    }
+
     fn fast() -> Timing {
         Timing {
             poll: Duration::from_millis(30),
             watch: Duration::from_millis(100),
             grace: Duration::from_secs(2),
+            settle: Duration::from_millis(150),
         }
     }
 
@@ -538,6 +627,83 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
             seen.last(),
             Some(Event::Failed(LaunchError::Spawn(_)))
         ));
+    }
+
+    fn start_direct(spec: CommandSpec, dir: &Path, events: &Arc<Events>) -> Handle {
+        start_prepared(
+            Box::new(move || Ok((spec, LaunchKind::Direct))),
+            dir.to_path_buf(),
+            fast(),
+            events.sink(),
+        )
+    }
+
+    #[test]
+    fn a_directly_started_game_goes_from_launching_to_running_and_can_be_stopped() {
+        let (dir, spec) = fake("sleep 600");
+        let events = Arc::new(Events::default());
+        let handle = start_direct(spec, dir.path(), &events);
+        let seen = events.wait_for(|e| matches!(e, Event::Phase(Phase::Running, _)));
+        let phases: Vec<_> = seen
+            .iter()
+            .filter_map(|e| match e {
+                Event::Phase(p, _) => Some(*p),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            phases,
+            [Phase::Updating, Phase::Launching, Phase::Running],
+            "{seen:?}"
+        );
+        handle.stop();
+        events.wait_for(|e| matches!(e, Event::Stopped));
+    }
+
+    #[test]
+    fn a_directly_started_game_that_ends_normally_finishes_the_launch() {
+        let (dir, spec) = fake("sleep 0.4");
+        let events = Arc::new(Events::default());
+        let _handle = start_direct(spec, dir.path(), &events);
+        let seen = events.wait_for(|e| matches!(e, Event::Finished));
+        assert!(seen.contains(&Event::Phase(Phase::Running, Step::Checking)));
+    }
+
+    #[test]
+    fn a_directly_started_game_that_fails_at_once_reports_its_output() {
+        let (dir, spec) = fake("echo 'Unrecognized option: -javaagent:x' >&2\nexit 1");
+        let events = Arc::new(Events::default());
+        let _handle = start_direct(spec, dir.path(), &events);
+        let seen = events.wait_for(|e| matches!(e, Event::Failed(_) | Event::Finished));
+        match seen.last() {
+            Some(Event::Failed(LaunchError::GameFailed { code, detail })) => {
+                assert_eq!(*code, Some(1));
+                assert!(detail.contains("Unrecognized option"), "{detail}");
+            }
+            other => panic!("expected a failed start, saw {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_failed_preparation_is_reported_and_nothing_is_started() {
+        let dir = tempfile::tempdir().unwrap();
+        let events = Arc::new(Events::default());
+        let _handle = start_prepared(
+            Box::new(|| Err(LaunchError::Prepare("config.jar is locked".into()))),
+            dir.path().to_path_buf(),
+            fast(),
+            events.sink(),
+        );
+        let seen = events.wait_for(|e| matches!(e, Event::Failed(_)));
+        assert_eq!(
+            seen.last(),
+            Some(&Event::Failed(LaunchError::Prepare(
+                "config.jar is locked".into()
+            )))
+        );
+        assert!(!seen
+            .iter()
+            .any(|e| matches!(e, Event::Phase(Phase::Launching | Phase::Running, _))));
     }
 
     #[test]

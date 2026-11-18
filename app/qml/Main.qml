@@ -131,16 +131,20 @@ ApplicationWindow {
 
     // ---- minimise while the game runs, restore when it ends ------------------------------------------------
     property bool minimizedByUs: false
+    // How the window was before we minimised it, so it comes back the same (`show()` keeps a minimised window minimised).
+    property int visibilityBeforeMinimize: Window.Windowed
     Connections {
         target: LaunchModel
         function onStateChanged() {
             const st = LaunchModel.state
             if (st === "running" && Settings.minimizeWhilePlaying && !AppEnv.selftest && AppEnv.shotDir === "") {
+                win.visibilityBeforeMinimize = win.visibility === Window.Maximized ? Window.Maximized : Window.Windowed
                 win.minimizedByUs = true
                 win.showMinimized()
             } else if (win.minimizedByUs && st !== "running" && st !== "launching") {
                 win.minimizedByUs = false
-                win.show()
+                if (win.visibilityBeforeMinimize === Window.Maximized) win.showMaximized()
+                else win.showNormal()
                 win.raise()
                 win.requestActivate()
             }
@@ -173,6 +177,15 @@ ApplicationWindow {
     }
     Timer { id: shotTimer; interval: 850; onTriggered: win.nextShot() }
     Timer { running: AppEnv.shotDir !== ""; interval: 900; onTriggered: win.nextShot() }
+
+    // The automatic update check: once, a moment after start, never in the self-test or screenshot runs.
+    Timer {
+        id: autoUpdate
+        interval: 2500
+        running: Settings.autoUpdateCheck && !AppEnv.selftest && AppEnv.shotDir === "" && !autoUpdate.done
+        property bool done: false
+        onTriggered: { done = true; UpdateModel.check() }
+    }
 
     function setupShot(name) {
         // Shots never depend on this machine: pretend a game was found and nothing is running.

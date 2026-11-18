@@ -47,7 +47,8 @@ Item {
                     id: loader
                     anchors.fill: parent
                     anchors.margins: 2
-                    active: root.shown && ServerHost.state === "ready" && AppEnv.webViewAvailable
+                    // A failed native view stays on top of everything below it, so it must not stay mounted.
+                    active: root.shown && ServerHost.state === "ready" && AppEnv.webViewAvailable && !root.failed
                     source: "qrc:/qt/qml/com/skradle/app/web/WebPane.qml"
                     onLoaded: { item.address = ServerHost.url; item.loadFailed.connect((why) => { console.warn("web view: " + why); root.failed = true }) }
                 }
@@ -62,7 +63,8 @@ Item {
                 Txt {
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
-                    text: qsTr("This computer has no built-in web view, so the server's interface opens in your browser.")
+                    text: root.failed ? qsTr("The built-in web view could not show the server's interface, so it opens in your browser.")
+                                        : qsTr("This computer has no built-in web view, so the server's interface opens in your browser.")
                     color: Theme.textSecondary
                 }
                 SButton {

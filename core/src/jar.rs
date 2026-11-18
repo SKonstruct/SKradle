@@ -221,7 +221,8 @@ pub fn safe_entry_path(name: &str) -> Result<(String, bool), PathProblem> {
     Ok((body.to_owned(), is_dir))
 }
 
-fn is_windows_device(part: &str) -> bool {
+/// Whether a path component is a name Windows reserves for a device (`CON`, `NUL`, `COM1`, ... with any extension).
+pub(crate) fn is_windows_device(part: &str) -> bool {
     let stem = part.split('.').next().unwrap_or("").to_ascii_lowercase();
     matches!(stem.as_str(), "con" | "prn" | "aux" | "nul")
         || ["com", "lpt"].iter().any(|p| {

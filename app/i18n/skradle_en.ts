@@ -107,6 +107,14 @@
         <source>Error reports contain no names, folders or addresses.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Check for updates automatically</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Looks for a newer SKradle a moment after it starts. You always choose when to install.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>AddServerDialog</name>

@@ -64,7 +64,7 @@ PageScaffold {
                         Behavior on opacity { NumberAnimation { duration: Motion.base } }
                     }
                     Icon {
-                        anchors.centerIn: parent; size: 40; stroke: 2.2; name: "check"; color: Theme.dark ? "#0F0F0F" : "#FFFFFF"
+                        anchors.centerIn: parent; size: 40; stroke: 2.2; name: "check"; color: Theme.ok
                         opacity: page.st === "running" ? 1 : 0
                         scale: page.st === "running" ? 1 : 0.7
                         Behavior on opacity { NumberAnimation { duration: Motion.base } }

@@ -17,7 +17,9 @@ T.ComboBox {
         required property var model
         required property int index
         width: ListView.view ? ListView.view.width : control.width
-        text: model[control.textRole] !== undefined ? model[control.textRole] : modelData
+        // Plain arrays have no role names: `model.modelData` is the entry (the implicit `modelData` is not injected
+        // into a delegate with required properties).
+        text: control.textRole ? model[control.textRole] : model.modelData
         highlighted: control.highlightedIndex === index
         font.weight: control.currentIndex === index ? Font.Medium : Font.Normal
         Icon {

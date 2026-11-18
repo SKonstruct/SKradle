@@ -24,6 +24,7 @@
 //! Nothing is installed before the player has accepted the engine's licence ([`super::terms`]).
 
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
@@ -490,7 +491,10 @@ fn unpack(zip: &Path, staging: &Path, version: &EngineVersion) -> Result<(), Eng
     }
     // Pass 1: look at every name before writing anything.
     let mut plan: Vec<(usize, Wanted, PathBuf)> = Vec::new();
-    let mut seen: Vec<PathBuf> = Vec::new();
+    // Looked up for every entry, so these are sets (a list would make a 50,000-entry archive quadratic). Names are
+    // folded to lower case: two entries that differ only by case would overwrite each other on Windows and macOS.
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut targets: HashSet<PathBuf> = HashSet::new();
     for index in 0..archive.len() {
         let entry = archive
             .by_index(index)
@@ -509,13 +513,14 @@ fn unpack(zip: &Path, staging: &Path, version: &EngineVersion) -> Result<(), Eng
         if entry.is_dir() {
             continue;
         }
-        if seen.contains(&relative) {
-            return Err(EngineError::BadArchive(format!("{name:?} appears twice")));
+        if !seen.insert(relative.to_string_lossy().to_lowercase()) {
+            return Err(EngineError::BadArchive(format!(
+                "{name:?} appears twice (or differs from another entry only by case)"
+            )));
         }
-        seen.push(relative.clone());
         if let Some((kind, target)) = classify(&relative) {
             // A docs/ copy must not shadow a root one.
-            if plan.iter().any(|(_, _, t)| *t == target) {
+            if !targets.insert(target.clone()) {
                 continue;
             }
             plan.push((index, kind, target));
@@ -1198,6 +1203,31 @@ mod tests {
         let zip = release_zip("0.40.16", &[]);
         let err = install_zip(&layout, "0.40.17", &zip).unwrap_err();
         assert!(matches!(err, EngineError::BadArchive(_)), "{err}");
+        assert!(!layout.jar().exists());
+    }
+
+    #[test]
+    fn two_entries_that_differ_only_by_case_are_refused() {
+        let mut files = zip_files("0.40.17");
+        // The standard archive already holds content/maps/haven/map.yml.
+        files.push(("content/maps/haven/MAP.yml".into(), b"x".to_vec()));
+        let dir = tempfile::tempdir().unwrap();
+        let layout = accepted_layout(dir.path());
+        let err = install_zip(&layout, "0.40.17", &zip_of(&files)).unwrap_err();
+        assert!(
+            err.to_string().contains("only by case") || err.to_string().contains("twice"),
+            "{err}"
+        );
+        assert!(!layout.jar().exists());
+    }
+
+    #[test]
+    fn a_windows_device_name_in_an_entry_is_refused() {
+        let mut files = zip_files("0.40.17");
+        files.push(("content/aux.yml".into(), b"x".to_vec()));
+        let dir = tempfile::tempdir().unwrap();
+        let layout = accepted_layout(dir.path());
+        assert!(install_zip(&layout, "0.40.17", &zip_of(&files)).is_err());
         assert!(!layout.jar().exists());
     }
 

@@ -1,16 +1,13 @@
 //! Working out what to run: which Java, which arguments, and what to write in the game folder first.
 
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use skradle_core::game::Os;
-use skradle_core::getdown::{self, CommandSpec};
 use skradle_core::getdown_txt::GetdownConfig;
 use skradle_core::runtime::{self, JavaRelease, Runtime, RuntimeEnv, Source};
 
 use super::LaunchError;
 use crate::discovery::Install;
-use crate::settings::Settings;
 
 /// The machine's Java-related inputs, so tests can fake them.
 pub struct Machine {
@@ -28,16 +25,6 @@ impl Machine {
             managed_dir: dirs::data_dir().map(|d| d.join("SKradle").join("runtimes")),
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Plan {
-    pub spec: CommandSpec,
-    pub game_root: PathBuf,
-    /// The heap limit to write into `extra.txt` first, if the player set one.
-    pub memory_mb: Option<u32>,
-    /// Which Java was chosen, for logging.
-    pub java_home: PathBuf,
 }
 
 /// The minimum Java the install asks for, in the updater's encoding (0 when it does not say).
@@ -121,40 +108,29 @@ fn custom_runtime(path: &Path, os: Os) -> Option<Runtime> {
     runtime.java_executable(os).is_file().then_some(runtime)
 }
 
-/// Builds the launch: checks the install, picks a Java and builds the updater command.
-pub fn plan(
-    machine: &Machine,
-    install: Option<&Install>,
-    settings: &Settings,
-) -> Result<Plan, LaunchError> {
-    let install = install.ok_or(LaunchError::NoGame)?;
-    let minimum = java_minimum(&install.path);
-    let runtime = pick_java(machine, install, &settings.java_path, minimum)?;
-    let jvm_args: Vec<OsString> = settings
-        .extra_jvm_args
-        .split_whitespace()
-        .map(OsString::from)
-        .collect();
-    let spec = getdown::update_and_launch(
-        &install.to_core(),
-        &runtime.java_executable(machine.os),
-        &jvm_args,
-    );
-    Ok(Plan {
-        spec,
-        game_root: install.path.clone(),
-        memory_mb: settings.memory_mb,
-        java_home: runtime.home,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::discovery::Kind;
+    use crate::settings::Settings;
     use std::fs;
 
     /// A fake Java home: a `release` file and a `bin/java` file (never run).
+    /// What a launch does first: check the install, then choose a Java.
+    fn plan(
+        machine: &Machine,
+        install: Option<&Install>,
+        settings: &Settings,
+    ) -> Result<Runtime, LaunchError> {
+        let install = install.ok_or(LaunchError::NoGame)?;
+        pick_java(
+            machine,
+            install,
+            &settings.java_path,
+            java_minimum(&install.path),
+        )
+    }
+
     fn fake_java(home: &Path, version: &str) {
         fs::create_dir_all(home.join("bin")).unwrap();
         fs::write(
@@ -212,10 +188,7 @@ mod tests {
             &Settings::default(),
         )
         .unwrap();
-        assert_eq!(p.java_home, install.path.join("java_vm"));
-        assert_eq!(p.spec.program, install.path.join("java_vm/bin/java"));
-        assert_eq!(p.spec.cwd, install.path);
-        assert_eq!(p.memory_mb, None);
+        assert_eq!(p.home, install.path.join("java_vm"));
     }
 
     #[test]
@@ -229,7 +202,7 @@ mod tests {
             &Settings::default(),
         )
         .unwrap();
-        assert_eq!(p.java_home, dir.path().join("jh"));
+        assert_eq!(p.home, dir.path().join("jh"));
     }
 
     #[test]
@@ -280,13 +253,13 @@ mod tests {
         // The path is resolved (symlinks followed), so compare resolved paths.
         let same =
             |a: &Path, b: &Path| fs::canonicalize(a).unwrap() == fs::canonicalize(b).unwrap();
-        assert!(same(&p.java_home, &dir.path().join("mine")));
+        assert!(same(&p.home, &dir.path().join("mine")));
         // The `bin/java` file works as well as the home.
         settings.java_path = dir.path().join("mine/bin/java").display().to_string();
         assert!(same(
             &plan(&machine(None), Some(&install), &settings)
                 .unwrap()
-                .java_home,
+                .home,
             &dir.path().join("mine")
         ));
 
@@ -322,14 +295,14 @@ mod tests {
         };
         let p = plan(&machine(None), Some(&install), &settings).unwrap();
         assert_eq!(
-            fs::canonicalize(&p.java_home).unwrap(),
+            fs::canonicalize(&p.home).unwrap(),
             fs::canonicalize(dir.path().join("real/jdk")).unwrap()
         );
         // A macOS `.jdk` bundle: the home is inside it.
         fake_java(&dir.path().join("temurin-25.jdk/Contents/Home"), "25.0.2");
         settings.java_path = dir.path().join("temurin-25.jdk").display().to_string();
         let p = plan(&machine(None), Some(&install), &settings).unwrap();
-        assert!(p.java_home.ends_with("temurin-25.jdk/Contents/Home"));
+        assert!(p.home.ends_with("temurin-25.jdk/Contents/Home"));
     }
 
     #[test]
@@ -338,28 +311,5 @@ mod tests {
             plan(&machine(None), None, &Settings::default()).unwrap_err(),
             LaunchError::NoGame
         );
-    }
-
-    #[test]
-    fn memory_and_extra_arguments_are_carried() {
-        let dir = tempfile::tempdir().unwrap();
-        let install = game(&dir.path().join("g"), Some("25000000"));
-        fake_java(&install.path.join("java_vm"), "25.0.5");
-        let settings = Settings {
-            memory_mb: Some(3072),
-            extra_jvm_args: "-Dhttps.proxyHost=p  -Dx=1".into(),
-            ..Settings::default()
-        };
-        let p = plan(&machine(None), Some(&install), &settings).unwrap();
-        assert_eq!(p.memory_mb, Some(3072));
-        let args: Vec<_> = p
-            .spec
-            .args
-            .iter()
-            .map(|a| a.to_str().unwrap().to_owned())
-            .collect();
-        let jar = args.iter().position(|a| a == "-jar").unwrap();
-        assert!(args[..jar].contains(&"-Dhttps.proxyHost=p".to_owned()));
-        assert!(args[..jar].contains(&"-Dx=1".to_owned()));
     }
 }

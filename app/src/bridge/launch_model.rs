@@ -56,14 +56,14 @@ use cxx_qt::{CxxQtThread, CxxQtType, Threading};
 use cxx_qt_lib::QString;
 
 use crate::discovery::{Install, Kind};
-use crate::launch::updater::UpdaterLauncher;
+use crate::launch::planned::PlannedLauncher;
 use crate::launch::{Event, LaunchError, Launcher, Phase, Request, Running, Sink, Status, Step};
 use crate::settings;
 
 /// The launcher in use. One place to swap in the core's launch planner once it exists.
 fn launcher() -> &'static Arc<dyn Launcher> {
     static LAUNCHER: OnceLock<Arc<dyn Launcher>> = OnceLock::new();
-    LAUNCHER.get_or_init(|| Arc::new(UpdaterLauncher::new()))
+    LAUNCHER.get_or_init(|| Arc::new(PlannedLauncher::new()))
 }
 
 pub struct LaunchModelRust {

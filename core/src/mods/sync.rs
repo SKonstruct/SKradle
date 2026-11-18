@@ -344,12 +344,9 @@ fn classify(path: &Path) -> io::Result<Local> {
 /// The names a sync recorded earlier. Anything that is not a safe mod name is dropped, so a hand-edited or hostile
 /// manifest cannot point a deletion anywhere else.
 fn read_manifest(dir: &Path) -> BTreeSet<String> {
-    let Ok(bytes) = fs::read(dir.join(MANIFEST)) else {
+    let Ok(bytes) = crate::bounded::read_regular(&dir.join(MANIFEST), 1024 * 1024) else {
         return BTreeSet::new();
     };
-    if bytes.len() > 1024 * 1024 {
-        return BTreeSet::new();
-    }
     String::from_utf8_lossy(&bytes)
         .lines()
         .map(str::trim)

@@ -42,17 +42,17 @@ struct State {
 }
 
 fn read_state(dir: &Path) -> io::Result<State> {
-    let bytes = match fs::read(dir.join(STATE_FILE)) {
+    let bytes = match crate::bounded::read_regular(&dir.join(STATE_FILE), 1024 * 1024) {
         Ok(b) => b,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(State::default()),
+        Err(e) if e.kind() == io::ErrorKind::InvalidData => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("the mods state file cannot be used: {e}"),
+            ))
+        }
         Err(e) => return Err(e),
     };
-    if bytes.len() > 1024 * 1024 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "the mods state file is too large",
-        ));
-    }
     serde_json::from_slice(&bytes).map_err(|e| {
         io::Error::new(
             io::ErrorKind::InvalidData,

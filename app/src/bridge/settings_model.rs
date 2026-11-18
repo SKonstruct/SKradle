@@ -24,6 +24,7 @@ pub mod qobject {
         #[qproperty(QString, extra_jvm_args, cxx_name = "extraJvmArgs")]
         #[qproperty(bool, minimize_while_playing, cxx_name = "minimizeWhilePlaying")]
         #[qproperty(bool, crash_reports, cxx_name = "crashReports")]
+        #[qproperty(bool, auto_update_check, cxx_name = "autoUpdateCheck")]
         #[qproperty(i32, render_scale, cxx_name = "renderScale")]
         #[qproperty(i32, sharpening)]
         #[qproperty(i32, anti_aliasing, cxx_name = "antiAliasing")]
@@ -55,6 +56,7 @@ pub struct SettingsRust {
     extra_jvm_args: QString,
     minimize_while_playing: bool,
     crash_reports: bool,
+    auto_update_check: bool,
     render_scale: i32,
     sharpening: i32,
     anti_aliasing: i32,
@@ -81,6 +83,7 @@ impl Default for SettingsRust {
             extra_jvm_args: QString::default(),
             minimize_while_playing: d.minimize_while_playing,
             crash_reports: d.crash_reports,
+            auto_update_check: d.auto_update_check,
             render_scale: d.render_scale as i32,
             sharpening: d.sharpening as i32,
             anti_aliasing: d.anti_aliasing as i32,
@@ -125,6 +128,7 @@ impl qobject::Settings {
         self.as_mut()
             .set_minimize_while_playing(s.minimize_while_playing);
         self.as_mut().set_crash_reports(s.crash_reports);
+        self.as_mut().set_auto_update_check(s.auto_update_check);
         self.as_mut().set_render_scale(s.render_scale as i32);
         self.as_mut().set_sharpening(s.sharpening as i32);
         self.as_mut().set_anti_aliasing(s.anti_aliasing as i32);
@@ -148,6 +152,7 @@ impl qobject::Settings {
         let extra_jvm_args = self.extra_jvm_args().to_string();
         let minimize_while_playing = *self.minimize_while_playing();
         let crash_reports = *self.crash_reports();
+        let auto_update_check = *self.auto_update_check();
         let render_scale = unsigned(*self.render_scale());
         let sharpening = unsigned(*self.sharpening());
         let anti_aliasing = unsigned(*self.anti_aliasing());
@@ -168,6 +173,7 @@ impl qobject::Settings {
             s.extra_jvm_args = extra_jvm_args;
             s.minimize_while_playing = minimize_while_playing;
             s.crash_reports = crash_reports;
+            s.auto_update_check = auto_update_check;
             s.render_scale = render_scale;
             s.sharpening = sharpening;
             s.anti_aliasing = anti_aliasing;
@@ -217,6 +223,9 @@ impl Initialize for qobject::Settings {
             .release();
         self.as_mut()
             .on_crash_reports_changed(|q| q.push())
+            .release();
+        self.as_mut()
+            .on_auto_update_check_changed(|q| q.push())
             .release();
         self.as_mut()
             .on_render_scale_changed(|q| q.push())
