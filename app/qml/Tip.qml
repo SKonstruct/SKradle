@@ -8,6 +8,8 @@ Popup {
     id: tip
     property string text
     property bool wanted: false
+    // The 4 px slide-in is a transform, so the popup's own `y` keeps its binding.
+    property real slide: 0
     property string placement: "bottom"   // bottom | right
     property int delay: 450
     padding: 0
@@ -23,18 +25,20 @@ Popup {
     enter: Transition {
         ParallelAnimation {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Motion.fast; easing.type: Easing.OutCubic }
-            NumberAnimation { property: "y"; from: tip.y + 4; to: tip.y; duration: Motion.base; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel }
+            NumberAnimation { target: tip; property: "slide"; from: 4; to: 0; duration: Motion.base; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel }
         }
     }
     exit: Transition { NumberAnimation { property: "opacity"; to: 0; duration: Motion.instant } }
 
     background: Rectangle {
+        transform: Translate { y: tip.slide }
         radius: Theme.rSm + 2
         color: Theme.dark ? "#2E2E2E" : "#262626"
         border.width: 1
         border.color: Theme.dark ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.25)
     }
     contentItem: Item {
+        transform: Translate { y: tip.slide }
         implicitWidth: label.implicitWidth + 24
         implicitHeight: label.implicitHeight + 14
         Txt {

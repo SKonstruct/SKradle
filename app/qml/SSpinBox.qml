@@ -17,6 +17,8 @@ T.SpinBox {
 
     contentItem: TextInput {
         z: 2
+        clip: true
+        selectByMouse: true
         text: control.textFromValue(control.value, control.locale)
         font.pixelSize: Theme.fsBody
         font.features: { "tnum": 1 }

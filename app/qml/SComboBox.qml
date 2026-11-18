@@ -53,6 +53,9 @@ T.ComboBox {
         Behavior on border.color { ColorAnimation { duration: Motion.fast } }
     }
     popup: T.Popup {
+        id: dropdown
+        // The slide-in is a transform, so `y` keeps its binding.
+        property real slide: 0
         y: control.height + 6
         width: control.width
         implicitHeight: Math.min(contentItem.implicitHeight + 8, 320)
@@ -61,17 +64,21 @@ T.ComboBox {
         enter: Transition {
             ParallelAnimation {
                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Motion.fast; easing.type: Easing.OutCubic }
-                NumberAnimation { property: "y"; from: control.height; to: control.height + 6; duration: Motion.base; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel }
+                NumberAnimation { target: dropdown; property: "slide"; from: -6; to: 0; duration: Motion.base; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel }
             }
         }
         exit: Transition { NumberAnimation { property: "opacity"; to: 0; duration: Motion.instant } }
         contentItem: ListView {
+            transform: Translate { y: dropdown.slide }
             clip: true
             implicitHeight: contentHeight
             model: control.delegateModel
             currentIndex: control.highlightedIndex
             boundsBehavior: Flickable.StopAtBounds
         }
-        background: Card { radius: 12; fill: Theme.card }
+        background: Card {
+            radius: 12; fill: Theme.card
+            transform: Translate { y: dropdown.slide }
+        }
     }
 }

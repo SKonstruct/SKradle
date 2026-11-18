@@ -20,6 +20,9 @@ Item {
     // The loaded page's title (the self-test checks that the page really loaded and ran its script).
     readonly property string pageTitle: loader.item ? loader.item.pageTitle : ""
     readonly property bool shown: visible && Window.window && Window.window.visible
+    // A failure is not forever: a new address, or coming back to the panel, tries again.
+    onShownChanged: if (shown) failed = false
+    Connections { target: ServerHost; function onUrlChanged() { root.failed = false } }
 
     ColumnLayout {
         anchors.fill: parent
@@ -50,7 +53,9 @@ Item {
                     // A failed native view stays on top of everything below it, so it must not stay mounted.
                     active: root.shown && ServerHost.state === "ready" && AppEnv.webViewAvailable && !root.failed
                     source: "qrc:/qt/qml/com/skradle/app/web/WebPane.qml"
-                    onLoaded: { item.address = ServerHost.url; item.loadFailed.connect((why) => { console.warn("web view: " + why); root.failed = true }) }
+                    onLoaded: item.loadFailed.connect((why) => { console.warn("web view: " + why); root.failed = true })
+                    // A Binding, not a one-off assignment: the view follows the server to another address.
+                    Binding { target: loader.item; property: "address"; value: ServerHost.url; when: loader.status === Loader.Ready }
                 }
             }
 
@@ -71,6 +76,8 @@ Item {
                     Layout.alignment: Qt.AlignHCenter
                     highlighted: true
                     text: qsTr("Open in browser")
+                    // Only a web address can be handed to the browser (the preview host serves a data: page).
+                    enabled: /^https?:\/\//.test(String(ServerHost.url))
                     onClicked: Qt.openUrlExternally(ServerHost.url)
                     Accessible.name: text
                 }

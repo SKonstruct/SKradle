@@ -5,6 +5,8 @@ import com.skradle.app
 Item {
     id: root
     property string message
+    // The pill never grows past the window: long messages wrap.
+    readonly property real maxWidth: parent ? Math.max(160, parent.width - 48) : 520
     width: pill.width
     height: pill.height
     opacity: 0
@@ -20,7 +22,7 @@ Item {
 
     Rectangle {
         id: pill
-        width: label.implicitWidth + 32
+        width: label.width + 32
         height: label.implicitHeight + 20
         radius: height / 2
         color: Theme.dark ? "#2F2F2F" : "#222222"
@@ -29,10 +31,12 @@ Item {
         Txt {
             id: label
             anchors.centerIn: parent
+            width: Math.min(implicitWidth, root.maxWidth - 32)
             text: root.message
             kind: "caption"
             color: "#F2F2F2"
-            wrapMode: Text.NoWrap
+            wrapMode: Text.Wrap
+            horizontalAlignment: Text.AlignHCenter
         }
     }
     transform: Translate { id: tr; y: 0 }

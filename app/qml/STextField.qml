@@ -19,6 +19,7 @@ T.TextField {
     verticalAlignment: TextInput.AlignVCenter
     hoverEnabled: true
     selectByMouse: true
+    clip: true
     focusPolicy: Qt.StrongFocus
     Accessible.name: placeholderText
 

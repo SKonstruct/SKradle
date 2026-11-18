@@ -13,7 +13,8 @@ AbstractButton {
     activeFocusOnTab: true
     focusPolicy: Qt.StrongFocus
     property int radius: 16
-    enabled: phase !== "launching"
+    // Not while the first look for the game is still going: there is no install to start yet.
+    enabled: phase !== "launching" && !(phase === "ready" && GameModel.state !== "ready")
     Accessible.role: Accessible.Button
     Accessible.name: phase === "ready" ? qsTr("Launch") : phase === "updating" ? qsTr("Cancel update")
                    : phase === "launching" ? qsTr("Launching") : qsTr("Stop game")
