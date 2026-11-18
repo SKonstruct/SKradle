@@ -8,6 +8,7 @@ pub mod getdown_txt;
 pub mod index;
 pub mod install;
 pub mod jar;
+pub mod mods;
 pub mod net;
 pub mod runtime;
 pub mod telemetry;
