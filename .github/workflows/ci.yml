@@ -38,11 +38,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo fmt --all --check
       - run: cargo clippy -p skradle-core --all-targets -- -D warnings
       - run: cargo test -p skradle-core
@@ -67,10 +67,10 @@ jobs:
           - { name: windows-x64, os: windows-latest, qt_arch: win64_msvc2022_64, cmake_args: "-A x64", experimental: false }
           - { name: windows-arm64, os: windows-11-arm, qt_arch: win64_msvc2022_arm64, qt_host: windows_arm64, cmake_args: "-A ARM64", experimental: true }
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4.5.0
+        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
         with:
           version: ${{ env.QT_VERSION }}
           host: ${{ matrix.qt_host }}
@@ -78,9 +78,9 @@ jobs:
           aqtsource: ${{ env.AQT_SOURCE }}
           cache: true
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
 
-      - uses: Swatinem/rust-cache@v2.9.3
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
             spikes/native-look/ffi/rust
@@ -145,7 +145,7 @@ jobs:
 
       - name: Upload screenshots
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: native-look-${{ matrix.name }}
           path: spikes/native-look/shots
@@ -171,7 +171,7 @@ jobs:
 
       - name: Upload UI shell screenshots
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ui-shell-${{ matrix.name }}
           path: spikes/ui-shell/shots
@@ -203,10 +203,96 @@ jobs:
 
       - name: Upload packages
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: package-${{ matrix.name }}
           path: |
             spikes/native-look/ffi/build/nl_ffi.dmg
             spikes/native-look/nl_ffi-windows.zip
+          if-no-files-found: ignore
+
+  # The launcher itself (crate skradle-app: Qt Quick UI bridged to skradle-core with cxx-qt). Built from the workspace
+  # root, tested, linted, then started headless for its self-test and its screenshots.
+  app:
+    name: app ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    # Experimental legs may fail without failing the workflow (same legs as the spikes job).
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # qt_modules: the QtWebView add-on exists in the Qt repository on macOS and Windows; the Linux one only ships
+          # the webengine plugin, so Linux builds without it and the app falls back to the browser there.
+          - { name: linux-x64, os: ubuntu-latest, qt_arch: "", qt_modules: "", experimental: false }
+          - { name: macos-arm64, os: macos-latest, qt_arch: "", qt_modules: qtwebview, experimental: false }
+          - { name: macos-x64, os: macos-15-intel, qt_arch: "", qt_modules: qtwebview, experimental: true }
+          - { name: windows-x64, os: windows-latest, qt_arch: win64_msvc2022_64, qt_modules: qtwebview, experimental: false }
+          - { name: windows-arm64, os: windows-11-arm, qt_arch: win64_msvc2022_arm64, qt_host: windows_arm64, qt_modules: qtwebview, experimental: true }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: ${{ matrix.qt_host }}
+          arch: ${{ matrix.qt_arch }}
+          modules: ${{ matrix.qt_modules }}
+          aqtsource: ${{ env.AQT_SOURCE }}
+          cache: true
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Install Linux system libraries for Qt
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-x11-0 libegl1 libfontconfig1 libdbus-1-3 libxcb-cursor0
+
+      # The build script asks Qt for its paths with qmake: point it at the one install-qt-action installed.
+      - name: Point the build at Qt's qmake
+        run: echo "QMAKE=$QT_ROOT_DIR/bin/qmake" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: cargo build -p skradle-app --release
+
+      - name: Unit tests
+        run: cargo test -p skradle-app
+
+      - name: Clippy
+        run: cargo clippy -p skradle-app --all-targets -- -D warnings
+
+      - name: Self-test
+        timeout-minutes: 5
+        env:
+          # On Windows Qt logs to the debugger unless told otherwise.
+          QT_FORCE_STDERR_LOGGING: "1"
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then export QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software; fi
+          exe=target/release/skradle; if [ -f "$exe.exe" ]; then exe="$exe.exe"; fi
+          "$exe" --selftest
+
+      - name: Screenshots
+        timeout-minutes: 10
+        env:
+          QT_FORCE_STDERR_LOGGING: "1"
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then export QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software; fi
+          exe=target/release/skradle; if [ -f "$exe.exe" ]; then exe="$exe.exe"; fi
+          mkdir -p shots
+          "$exe" --shots shots --prefix "${{ matrix.name }}"
+          ls -l shots
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: app-${{ matrix.name }}
+          path: shots
           if-no-files-found: ignore

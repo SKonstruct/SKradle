@@ -66,7 +66,6 @@ fn launcher() -> &'static Arc<dyn Launcher> {
     LAUNCHER.get_or_init(|| Arc::new(UpdaterLauncher::new()))
 }
 
-#[derive(Default)]
 pub struct LaunchModelRust {
     state: QString,
     step: QString,
@@ -77,6 +76,24 @@ pub struct LaunchModelRust {
     /// Identifies the current launch; events from an older one are ignored.
     launch_id: u64,
     running: Option<Box<dyn Running>>,
+}
+
+impl Default for LaunchModelRust {
+    /// Starts in the `Ready` state: the properties must agree with `status` from the first frame, or the Home
+    /// page shows "Game is running" and a blank button until something calls `show`.
+    fn default() -> Self {
+        let status = Status::default();
+        Self {
+            state: QString::from(status.phase.as_str()),
+            step: QString::from(status.step.as_str()),
+            message: QString::from(status.message.as_str()),
+            progress: 0.0,
+            determinate: false,
+            status,
+            launch_id: 0,
+            running: None,
+        }
+    }
 }
 
 impl qobject::LaunchModel {
@@ -222,5 +239,20 @@ impl qobject::LaunchModel {
             message,
         };
         self.show();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn starts_ready_never_with_an_empty_state() {
+        let m = LaunchModelRust::default();
+        assert_eq!(m.state.to_string(), "ready");
+        assert_eq!(m.step.to_string(), "checking");
+        assert_eq!(m.message.to_string(), "");
+        assert!(!m.determinate && m.progress == 0.0);
+        assert!(m.status.can_start() && !m.status.can_stop());
     }
 }

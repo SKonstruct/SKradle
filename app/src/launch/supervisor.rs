@@ -8,7 +8,7 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use skradle_core::getdown::CommandSpec;
@@ -69,7 +69,10 @@ const TAIL_LINES: usize = 12;
 
 type Tail = Arc<Mutex<VecDeque<String>>>;
 
-fn capture(stream: impl std::io::Read + Send + 'static, tail: Tail) {
+/// Reads a stream into `tail` on its own thread. The receiver gets a message when the stream ends, so the caller can
+/// wait for the last lines of an updater that failed (but not forever: a game the updater started keeps the pipe).
+fn capture(stream: impl std::io::Read + Send + 'static, tail: Tail) -> mpsc::Receiver<()> {
+    let (done, finished) = mpsc::channel();
     let _ = std::thread::Builder::new()
         .name("skradle-output".into())
         .spawn(move || {
@@ -80,7 +83,18 @@ fn capture(stream: impl std::io::Read + Send + 'static, tail: Tail) {
                 }
                 tail.push_back(line);
             }
+            let _ = done.send(());
         });
+    finished
+}
+
+/// Waits (briefly) until the captured streams have ended, so the failure message is complete.
+fn drain(finished: &[mpsc::Receiver<()>]) {
+    let deadline = Instant::now() + Duration::from_millis(750);
+    for rx in finished {
+        let left = deadline.saturating_duration_since(Instant::now());
+        let _ = rx.recv_timeout(left);
+    }
 }
 
 fn tail_text(tail: &Tail) -> String {
@@ -118,11 +132,12 @@ fn run(
         }
     };
     let output: Tail = Arc::default();
+    let mut readers = Vec::new();
     if let Some(out) = child.stdout.take() {
-        capture(out, output.clone());
+        readers.push(capture(out, output.clone()));
     }
     if let Some(err) = child.stderr.take() {
-        capture(err, output.clone());
+        readers.push(capture(err, output.clone()));
     }
     let mut probe = GameProbe::new(&child, &game_root);
     sink(Event::Phase(Phase::Updating, Step::Checking));
@@ -152,6 +167,8 @@ fn run(
             Ok(Some(status)) => break status,
             Ok(None) => std::thread::sleep(timing.poll),
             Err(e) => {
+                // Cannot tell what the updater is doing: end it rather than leave it running.
+                probe.terminate(&mut child, timing.grace);
                 sink(Event::Failed(LaunchError::Spawn(e.to_string())));
                 return;
             }
@@ -171,6 +188,7 @@ fn run(
     }
 
     if !status.success() {
+        drain(&readers);
         let mut detail = tail_text(&output);
         if detail.is_empty() {
             detail = log_lines
@@ -201,10 +219,15 @@ fn run(
         std::thread::sleep(timing.poll);
         alive = probe.game_alive();
     }
+    if stop.load(Ordering::SeqCst) {
+        // Stop was asked for while the updater handed over: the game may be just starting, so end the group
+        // whether or not it has shown up yet.
+        probe.terminate(&mut child, timing.grace);
+        sink(Event::Stopped);
+        return;
+    }
     if !alive {
-        if stop.load(Ordering::SeqCst) {
-            sink(Event::Stopped);
-        } else if phase.0 == Phase::Launching {
+        if phase.0 == Phase::Launching {
             // The game started and ended again within moments: it crashed or was closed at once.
             sink(Event::Finished);
         } else {
@@ -311,7 +334,18 @@ fn signal_group(group: u32, signal: &str) -> bool {
 }
 
 // Windows: the game is found by its command line (it holds the game folder's path) with PowerShell, since no
-// group is available without unsafe code. NOT TESTED on Windows.
+// group is available without unsafe code. The commands are built in `winprobe` (tested on every platform); this
+// part only runs them, hidden. NOT TESTED on Windows.
+#[cfg(not(unix))]
+fn hidden(command: &mut Command) -> &mut Command {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(super::winprobe::CREATE_NO_WINDOW);
+    }
+    command
+}
+
 #[cfg(not(unix))]
 impl GameProbe {
     fn new(_child: &Child, game_root: &Path) -> Self {
@@ -322,22 +356,19 @@ impl GameProbe {
     }
 
     fn pids(&self) -> Vec<u32> {
-        let root = self.root.display().to_string().replace('\'', "''");
-        let script = format!(
-            "Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like '*{root}*' -and $_.ProcessId -ne $PID -and $_.Name -match '^javaw?\\.exe$' }} | ForEach-Object {{ $_.ProcessId }}"
-        );
-        Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-            .stdin(Stdio::null())
-            .stderr(Stdio::null())
-            .output()
-            .map(|o| {
-                String::from_utf8_lossy(&o.stdout)
-                    .lines()
-                    .filter_map(|l| l.trim().parse().ok())
-                    .collect()
-            })
-            .unwrap_or_default()
+        hidden(
+            Command::new("powershell")
+                .args(super::winprobe::probe_args())
+                .env(
+                    super::winprobe::ROOT_VARIABLE,
+                    super::winprobe::root_text(&self.root),
+                ),
+        )
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .map(|o| super::winprobe::parse_pids(&String::from_utf8_lossy(&o.stdout)))
+        .unwrap_or_default()
     }
 
     fn game_alive(&mut self) -> bool {
@@ -347,8 +378,7 @@ impl GameProbe {
     fn terminate(&mut self, child: &mut Child, _grace: Duration) {
         let _ = child.kill();
         for pid in self.pids() {
-            let _ = Command::new("taskkill")
-                .args(["/PID", &pid.to_string(), "/T", "/F"])
+            let _ = hidden(Command::new("taskkill").args(super::winprobe::taskkill_args(pid)))
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())

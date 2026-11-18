@@ -18,6 +18,9 @@ void init_app();
 // The engine to retranslate when the language changes.
 void register_engine(QQmlApplicationEngine &engine);
 
+// Whether the engine loaded a root object (a window). False after a QML load error.
+bool has_window();
+
 // Saves a screenshot of the first window to `path` (PNG). Returns false when there is no window or saving failed.
 bool grab_window(const QString &path);
 

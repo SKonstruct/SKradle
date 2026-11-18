@@ -65,6 +65,8 @@ pub struct SettingsRust {
     load_warning: QString,
     /// The translation catalogue last installed.
     applied_language: String,
+    /// True while `pull` writes the properties: their change signals must not start another `push`.
+    pulling: bool,
 }
 
 impl Default for SettingsRust {
@@ -88,6 +90,7 @@ impl Default for SettingsRust {
             target_fps: d.target_fps as i32,
             load_warning: QString::default(),
             applied_language: String::new(),
+            pulling: false,
         }
     }
 }
@@ -108,6 +111,7 @@ fn unsigned(value: i32) -> u32 {
 impl qobject::Settings {
     /// Copies the stored settings into the properties.
     fn pull(mut self: Pin<&mut Self>, s: &Stored) {
+        self.as_mut().rust_mut().pulling = true;
         self.as_mut().set_theme(QString::from(s.theme.as_str()));
         self.as_mut().set_reduce_motion(s.reduce_motion);
         self.as_mut()
@@ -128,10 +132,14 @@ impl qobject::Settings {
         self.as_mut().set_show_fps(s.show_fps);
         self.as_mut().set_frame_gen_mode(s.frame_gen_mode as i32);
         self.as_mut().set_target_fps(s.target_fps as i32);
+        self.as_mut().rust_mut().pulling = false;
     }
 
     /// A property changed: validate, store, save, and write back any value that had to be corrected.
     fn push(mut self: Pin<&mut Self>) {
+        if self.pulling {
+            return;
+        }
         let theme = Theme::parse(&self.theme().to_string());
         let reduce_motion = *self.reduce_motion();
         let language = self.language().to_string();
@@ -185,10 +193,14 @@ impl Initialize for qobject::Settings {
         let loaded = store.get();
         self.as_mut().rust_mut().applied_language = language_for(&loaded.language);
         self.as_mut().pull(&loaded);
-        if let LoadOutcome::Corrupt(_) = store.load_outcome() {
-            self.as_mut().set_load_warning(QString::from(
+        match store.load_outcome() {
+            LoadOutcome::Corrupt(_) => self.as_mut().set_load_warning(QString::from(
                 "The settings file could not be read, so defaults are in use. The old file was kept next to it.",
-            ));
+            )),
+            LoadOutcome::Unreadable => self.as_mut().set_load_warning(QString::from(
+                "The settings file could not be opened just now, so defaults are in use. The file was left as it is.",
+            )),
+            _ => {}
         }
         self.as_mut().on_theme_changed(|q| q.push()).release();
         self.as_mut()

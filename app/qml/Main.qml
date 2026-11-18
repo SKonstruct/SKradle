@@ -156,14 +156,15 @@ ApplicationWindow {
         "home-collapsed", "home-scrolled", "servers", "servers-dialog", "mods", "mods-search", "mods-drop", "graphics", "graphics-running",
         "about", "focus", "focus-controls", "servers-menu", "graphics-combo", "mods-toggle", "servers-myserver"]
     property int shotIndex: 0
+    property int shotsFailed: 0
     function nextShot() {
         if (shotIndex > 0) {
             const path = AppEnv.shotDir + "/" + AppEnv.shotPrefix + "-" + shotNames[shotIndex - 1] + ".png"
-            if (!AppEnv.grab(path)) AppEnv.report("failed to save " + path)
+            if (!AppEnv.grab(path)) { shotsFailed++; AppEnv.report("failed to save " + path) }
         }
         if (shotIndex >= shotNames.length) {
-            AppEnv.report("shots: " + shotNames.length + " saved to " + AppEnv.shotDir)
-            Qt.quit()
+            AppEnv.report("shots: " + (shotNames.length - shotsFailed) + " of " + shotNames.length + " saved to " + AppEnv.shotDir)
+            Qt.exit(shotsFailed > 0 ? 1 : 0)
             return
         }
         setupShot(shotNames[shotIndex])
@@ -217,6 +218,14 @@ ApplicationWindow {
         running: AppEnv.selftest
         onTriggered: {
             const i = win.selftestStep
+            if (i === 0 && LaunchModel.state !== "ready") {
+                AppEnv.finishSelftest(false, "LaunchModel starts in state '" + LaunchModel.state + "', not 'ready'")
+                return
+            }
+            if (i === 0 && ["searching", "ready", "notfound"].indexOf(GameModel.state) < 0) {
+                AppEnv.finishSelftest(false, "GameModel starts in state '" + GameModel.state + "'")
+                return
+            }
             if (i > 0 && !win.pageItem(i - 1)) {
                 AppEnv.finishSelftest(false, "page " + (i - 1) + " did not load")
                 return

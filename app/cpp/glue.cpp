@@ -9,7 +9,10 @@
 #include <QtQuick/QQuickWindow>
 #include <QtCore/QDir>
 #include <QtCore/QPluginLoader>
+#include <QtCore/QFileInfo>
+#include <QtCore/QPointer>
 #include <atomic>
+#include <mutex>
 #ifdef SKRADLE_WEBVIEW
 #include <QtWebView/QtWebView>
 #endif
@@ -18,9 +21,10 @@
 
 namespace {
 
-QQmlApplicationEngine *g_engine = nullptr;
+// A QPointer: it becomes null when the engine is destroyed, so a late call never reaches a dead engine.
+QPointer<QQmlApplicationEngine> g_engine;
 std::atomic<int> g_qml_warnings{0};
-QtMessageHandler g_previous_handler = nullptr;
+std::atomic<QtMessageHandler> g_previous_handler{nullptr};
 
 // Counts warnings that point into our own QML files (binding errors, undefined values, missing types), so the
 // self-test can fail on them. Everything is still passed on to Qt's normal output.
@@ -28,7 +32,7 @@ void message_handler(QtMsgType type, const QMessageLogContext &context, const QS
     if ((type == QtWarningMsg || type == QtCriticalMsg) && message.startsWith(QLatin1String("qrc:/qt/qml/com/skradle/app/qml/"))) {
         ++g_qml_warnings;
     }
-    if (g_previous_handler) g_previous_handler(type, context, message);
+    if (const QtMessageHandler previous = g_previous_handler.load()) previous(type, context, message);
     else std::fprintf(stderr, "%s\n", qPrintable(message));
 }
 std::unique_ptr<QTranslator> g_translator;
@@ -93,7 +97,16 @@ bool webview_backend_available() {
 }
 
 void init_app() {
-    g_previous_handler = qInstallMessageHandler(message_handler);
+    // Once only: a second call would make the handler its own predecessor and recurse forever.
+    static std::once_flag once;
+    std::call_once(once, [] { g_previous_handler.store(qInstallMessageHandler(message_handler)); });
+    // The translator is a QObject and must not outlive the application object (static destruction runs after it).
+    QObject::connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, [] {
+        if (g_translator) {
+            QCoreApplication::removeTranslator(g_translator.get());
+            g_translator.reset();
+        }
+    });
     QCoreApplication::setApplicationName(QStringLiteral("SKradle"));
     QCoreApplication::setOrganizationName(QStringLiteral("SKradle"));
     QCoreApplication::setOrganizationDomain(QStringLiteral("skradle.invalid"));
@@ -105,10 +118,15 @@ void init_app() {
 
 void register_engine(QQmlApplicationEngine &engine) { g_engine = &engine; }
 
+bool has_window() { return g_engine && !g_engine->rootObjects().isEmpty(); }
+
 bool grab_window(const QString &path) {
     if (!g_engine) return false;
     auto *window = qobject_cast<QQuickWindow *>(g_engine->rootObjects().value(0));
-    return window && window->grabWindow().save(path);
+    if (!window) return false;
+    // The screenshot folder may not exist yet.
+    QFileInfo(path).dir().mkpath(QStringLiteral("."));
+    return window->grabWindow().save(path);
 }
 
 int qml_warning_count() { return g_qml_warnings.load(); }

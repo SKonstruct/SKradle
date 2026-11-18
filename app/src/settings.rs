@@ -182,6 +182,9 @@ impl Settings {
         self.anti_aliasing = self.anti_aliasing.min(2);
         self.frame_gen_mode = self.frame_gen_mode.min(1);
         self.target_fps = self.target_fps.clamp(FPS_MIN, FPS_MAX);
+        if self.language.is_empty() || self.language.len() > 16 {
+            self.language = "system".to_owned();
+        }
     }
 
     pub fn to_map(&self) -> Map<String, Value> {
@@ -221,6 +224,8 @@ pub enum LoadOutcome {
     Loaded,
     /// No file yet.
     Missing,
+    /// The file exists but could not be read just now; it was left where it is and defaults are in use.
+    Unreadable,
     /// The file was unusable; it was moved to the given path (or removal failed: `None`).
     Corrupt(Option<PathBuf>),
 }
@@ -232,7 +237,12 @@ pub fn load(path: &Path) -> (Settings, LoadOutcome) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             return (Settings::default(), LoadOutcome::Missing)
         }
-        Err(_) => return (Settings::default(), set_aside(path)),
+        // Only unreadable *content* counts as corrupt. A transient failure (a virus scanner holding the file, a
+        // permission glitch) must not move a good file away.
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
+            return (Settings::default(), set_aside(path))
+        }
+        Err(_) => return (Settings::default(), LoadOutcome::Unreadable),
     };
     match serde_json::from_str::<Value>(&text) {
         Ok(Value::Object(map)) => (Settings::from_map(&map), LoadOutcome::Loaded),
@@ -252,8 +262,10 @@ fn set_aside(path: &Path) -> LoadOutcome {
 
 /// Writes `settings` to `path` atomically.
 pub fn save(path: &Path, settings: &Settings) -> std::io::Result<()> {
-    let dir = path.parent().unwrap_or_else(|| Path::new("."));
-    std::fs::create_dir_all(dir)?;
+    // `parent()` of a bare file name is the empty path, which `create_dir_all` refuses.
+    if let Some(dir) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir)?;
+    }
     let mut text = serde_json::to_string_pretty(&Value::Object(settings.to_map()))
         .map_err(std::io::Error::other)?;
     text.push('\n');
@@ -272,7 +284,13 @@ pub fn save(path: &Path, settings: &Settings) -> std::io::Result<()> {
 
 /// The folder for the launcher's own files: `SKRADLE_CONFIG_DIR` if set, else the OS config folder.
 pub fn config_dir() -> PathBuf {
-    std::env::var_os("SKRADLE_CONFIG_DIR")
+    config_dir_from(std::env::var_os("SKRADLE_CONFIG_DIR"))
+}
+
+/// An empty value counts as unset (an empty path would make every save fail).
+fn config_dir_from(variable: Option<std::ffi::OsString>) -> PathBuf {
+    variable
+        .filter(|v| !v.is_empty())
         .map(PathBuf::from)
         .or_else(|| dirs::config_dir().map(|d| d.join("SKradle")))
         .unwrap_or_else(|| std::env::temp_dir().join("SKradle"))
@@ -287,6 +305,9 @@ struct Inner {
 pub struct Store {
     path: PathBuf,
     inner: Mutex<Inner>,
+    /// Held while a snapshot is written, so two writers never share the temporary file and an older snapshot can
+    /// never land after a newer one.
+    write_lock: Mutex<()>,
     wake: Mutex<Option<mpsc::Sender<()>>>,
     outcome: LoadOutcome,
 }
@@ -302,6 +323,7 @@ impl Store {
                 settings,
                 dirty: false,
             }),
+            write_lock: Mutex::new(()),
             wake: Mutex::new(Some(tx)),
             outcome,
         });
@@ -352,6 +374,8 @@ impl Store {
 
     /// Writes pending changes now. Errors are dropped: losing a setting must not stop the launcher.
     pub fn flush(&self) {
+        // The snapshot is taken after the write lock, so the last writer always writes the newest settings.
+        let _writing = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let snapshot = {
             let mut inner = self.lock();
             if !inner.dirty {
@@ -516,5 +540,77 @@ mod tests {
             std::thread::sleep(Duration::from_millis(100));
         }
         panic!("the background save never happened");
+    }
+
+    #[test]
+    fn an_empty_config_dir_variable_counts_as_unset() {
+        let empty = config_dir_from(Some(std::ffi::OsString::new()));
+        assert!(!empty.as_os_str().is_empty());
+        assert_eq!(config_dir_from(Some("/x/y".into())), PathBuf::from("/x/y"));
+    }
+
+    #[test]
+    fn an_unreadable_file_is_not_moved_away() {
+        let dir = temp();
+        let path = dir.path().join("settings.json");
+        // A folder where the file should be: reading fails, but not because the content is bad.
+        std::fs::create_dir(&path).unwrap();
+        let (s, outcome) = load(&path);
+        assert_eq!(s, Settings::default());
+        assert_eq!(outcome, LoadOutcome::Unreadable);
+        assert!(path.is_dir());
+        assert!(!dir.path().join("settings.json.corrupt").exists());
+        // Invalid UTF-8 is bad content: set aside.
+        let bad = dir.path().join("other.json");
+        std::fs::write(&bad, [0xff, 0xfe, 0x00]).unwrap();
+        assert!(matches!(load(&bad).1, LoadOutcome::Corrupt(_)));
+    }
+
+    #[test]
+    fn a_long_or_empty_language_is_reset() {
+        let mut s = Settings {
+            language: "x".repeat(40),
+            ..Settings::default()
+        };
+        s.sanitize();
+        assert_eq!(s.language, "system");
+        s.language.clear();
+        s.sanitize();
+        assert_eq!(s.language, "system");
+    }
+
+    #[test]
+    fn saving_to_a_bare_file_name_needs_no_folder() {
+        // `Path::new("settings.json").parent()` is `Some("")`; creating that folder must not be attempted.
+        let dir = temp();
+        let previous = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        let result = save(Path::new("settings.json"), &Settings::default());
+        std::env::set_current_dir(previous).unwrap();
+        result.unwrap();
+        assert!(dir.path().join("settings.json").is_file());
+    }
+
+    #[test]
+    fn concurrent_flushes_never_corrupt_the_file() {
+        let dir = temp();
+        let store = Store::open(dir.path().join("settings.json"));
+        let mut handles = Vec::new();
+        for n in 0..8u32 {
+            let store = store.clone();
+            handles.push(std::thread::spawn(move || {
+                for i in 0..25u32 {
+                    store.update(|s| s.memory_mb = Some(512 + n * 100 + i));
+                    store.flush();
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        store.flush();
+        let (back, outcome) = load(&dir.path().join("settings.json"));
+        assert_eq!(outcome, LoadOutcome::Loaded);
+        assert_eq!(back.memory_mb, store.get().memory_mb);
     }
 }
