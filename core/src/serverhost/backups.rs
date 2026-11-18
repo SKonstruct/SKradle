@@ -219,6 +219,9 @@ pub fn delete(layout: &ServerLayout, name: &str) -> io::Result<()> {
 /// Replaces `target` by a copy of `source`: the copy is made beside it, the old one is kept until the new one is
 /// in place, and put back if the last step fails. A failed copy leaves `target` untouched.
 fn replace_dir(source: &Path, target: &Path) -> io::Result<()> {
+    if !source.is_dir() {
+        return Err(invalid("the folder to put in place is missing"));
+    }
     let staging = sibling(target, "restoring");
     let old = sibling(target, "replaced");
     remove_all(&staging)?;
@@ -263,21 +266,26 @@ pub fn restore(
         (source.join("data"), layout.data_dir()),
         (source.join("config"), layout.config_dir()),
     ];
-    let mut replaced = 0;
+    let mut replaced = Vec::new();
     let result = (|| {
         for (from, to) in &pairs {
             if from.is_dir() {
                 replace_dir(from, to)?;
+                replaced.push(to);
             }
-            replaced += 1;
         }
         Ok(())
     })();
     if let Err(e) = result {
-        // Put the earlier pairs back from the safety backup.
-        for (_, to) in pairs.iter().take(replaced) {
+        // Put the replaced folders back from the safety backup; one that did not exist then does not now.
+        for to in replaced {
             let name = to.file_name().unwrap_or_default();
-            let _ = replace_dir(&safety_dir.join(name), to);
+            let earlier = safety_dir.join(name);
+            let _ = if earlier.is_dir() {
+                replace_dir(&earlier, to)
+            } else {
+                remove_all(to)
+            };
         }
         return Err(e);
     }
@@ -498,6 +506,24 @@ mod tests {
             fs::read(layout.database()).unwrap(),
             b"db v2",
             "data put back"
+        );
+        assert_eq!(fs::read(layout.server_yml()).unwrap(), b"server-port: 2\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_restore_does_not_leave_data_behind_that_did_not_exist_before() {
+        let (_d, layout) = server();
+        let good = create(&layout, &stopped(), None, 100).unwrap();
+        let cfg = layout.backups_dir().join(&good.name).join("config");
+        std::os::unix::fs::symlink("/etc/hosts", cfg.join("evil")).unwrap();
+        // A fresh server: no data/ yet, but a config that differs from the backup's.
+        fs::remove_dir_all(layout.data_dir()).unwrap();
+        fs::write(layout.server_yml(), b"server-port: 2\n").unwrap();
+        assert!(restore(&layout, &stopped(), &good.name, 200).is_err());
+        assert!(
+            !layout.data_dir().exists(),
+            "data/ was restored then not undone"
         );
         assert_eq!(fs::read(layout.server_yml()).unwrap(), b"server-port: 2\n");
     }
