@@ -10,7 +10,10 @@
 //!
 //! Nothing here depends on the engine being present except [`process`]; everything else is testable on its own.
 
+pub mod admin;
+pub mod config;
 pub mod engine;
 mod fsx;
 pub mod layout;
+pub mod prompts;
 pub mod terms;
