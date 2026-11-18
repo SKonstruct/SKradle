@@ -7,9 +7,11 @@
 //! `THIRD-PARTY.md`. Every release so far is a GitHub *pre-release*, so pre-releases are accepted (drafts never).
 //! GitHub publishes a `digest` (`sha256:<hex>`) for each asset; a release without one is not offered.
 //!
-//! **What the launcher installs from it**: the jar, `content/` (replaced as a whole), the default `config/` files
-//! (added only where missing, an existing configuration is never touched) and the licence texts, which stay next to
-//! the jar. The WebUI pages and the docs are skipped: the launcher runs the engine with the WebUI off.
+//! **What the launcher installs from it**: the jar, `content/` and `webui/` (each replaced as a whole, the old
+//! copy kept as `.previous`), the default `config/` files (added only where missing, an existing configuration is
+//! never touched) and the licence texts, which stay next to the jar. The docs, README and the like are skipped.
+//! The engine serves its administration pages from `webui/`, so a release without `webui/index.html` is refused.
+//! Replacing `webui/` is safe: the engine restores its locally prepared artwork from `data/` on the next start.
 //!
 //! **Safety**: HTTPS only, the download URL must be the release's own `github.com/N0rule/Tortodrone` asset URL, the
 //! archive is hashed against GitHub's digest while it downloads, every entry name is checked (an archive with one
@@ -281,10 +283,11 @@ pub fn installed(layout: &ServerLayout) -> EngineState {
     }
 }
 
-/// Whether the engine's files (jar, content, a configuration) are in place and ready to start.
+/// Whether the engine's files (jar, content, WebUI pages, a configuration) are in place and ready to start.
 pub fn is_ready(layout: &ServerLayout) -> bool {
     matches!(installed(layout), EngineState::Installed(_))
         && layout.content_dir().is_dir()
+        && layout.webui_dir().join("index.html").is_file()
         && layout.server_yml().is_file()
 }
 
@@ -422,6 +425,7 @@ enum Wanted {
     Jar,
     Version,
     Content,
+    Webui,
     Config,
     Terms,
 }
@@ -434,6 +438,7 @@ fn classify(path: &Path) -> Option<(Wanted, PathBuf)> {
         ["tortodrone.jar"] => Some((Wanted::Jar, PathBuf::from("tortodrone.jar"))),
         ["VERSION"] => Some((Wanted::Version, PathBuf::from("VERSION"))),
         ["content", rest @ ..] if !rest.is_empty() => Some((Wanted::Content, path.to_path_buf())),
+        ["webui", rest @ ..] if !rest.is_empty() => Some((Wanted::Webui, path.to_path_buf())),
         ["config", _] => Some((Wanted::Config, path.to_path_buf())),
         ["licenses", rest @ ..] if !rest.is_empty() => Some((Wanted::Terms, path.to_path_buf())),
         [name] if TERM_FILES.contains(name) => Some((Wanted::Terms, path.to_path_buf())),
@@ -489,14 +494,14 @@ fn unpack(zip: &Path, staging: &Path, version: &EngineVersion) -> Result<(), Eng
             plan.push((index, kind, target));
         }
     }
-    for needed in [Wanted::Jar, Wanted::Version, Wanted::Content] {
+    for needed in [Wanted::Jar, Wanted::Version, Wanted::Content, Wanted::Webui] {
         if !plan.iter().any(|(_, kind, _)| *kind == needed) {
             return Err(EngineError::BadArchive(format!(
                 "no {needed:?} in the archive"
             )));
         }
     }
-    for needed in ["config/server.yml", "LICENSE", "NOTICE"] {
+    for needed in ["config/server.yml", "webui/index.html", "LICENSE", "NOTICE"] {
         if !plan.iter().any(|(_, _, t)| t == Path::new(needed)) {
             return Err(EngineError::BadArchive(format!(
                 "no {needed} in the archive"
@@ -584,21 +589,26 @@ fn rollback(steps: Vec<Undo>) {
     }
 }
 
-/// Puts the staged files in place. The current jar and content become `.previous` (an older `.previous` is
-/// dropped), default configuration files are added only where missing, licence texts are replaced. If any step
-/// fails the earlier ones are undone and the old engine is as it was.
+/// The folders that are replaced as a whole on update, with the name each has in staging, in the server folder
+/// and as the previous generation.
+fn replaced_dirs(layout: &ServerLayout) -> [(&'static str, PathBuf, PathBuf); 2] {
+    [
+        ("content", layout.content_dir(), layout.previous_content()),
+        ("webui", layout.webui_dir(), layout.previous_webui()),
+    ]
+}
+
+/// Puts the staged files in place. The current jar, `content/` and `webui/` become `.previous` (an older
+/// `.previous` is dropped), default configuration files are added only where missing, licence texts are
+/// replaced. If any step fails the earlier ones are undone and the old engine is as it was.
 fn swap_in(layout: &ServerLayout, staging: &Path) -> Result<(), EngineError> {
     let mut undo: Vec<Undo> = Vec::new();
     let result = (|| -> io::Result<()> {
         let jar = layout.jar();
         let previous_jar = layout.previous_jar();
-        let content = layout.content_dir();
-        let previous_content = layout.previous_content();
 
         // Retire the current engine; an older previous generation makes room.
-        let had_jar = jar.is_file();
-        let had_content = content.is_dir();
-        if had_jar {
+        if jar.is_file() {
             remove_all(&previous_jar)?;
             fs::rename(&jar, &previous_jar)?;
             undo.push(Undo::Moved {
@@ -606,18 +616,20 @@ fn swap_in(layout: &ServerLayout, staging: &Path) -> Result<(), EngineError> {
                 to: previous_jar.clone(),
             });
         }
-        if had_content {
-            remove_all(&previous_content)?;
-            fs::rename(&content, &previous_content)?;
-            undo.push(Undo::Moved {
-                from: content.clone(),
-                to: previous_content.clone(),
-            });
+        for (name, live, previous) in replaced_dirs(layout) {
+            if live.is_dir() {
+                remove_all(&previous)?;
+                fs::rename(&live, &previous)?;
+                undo.push(Undo::Moved {
+                    from: live.clone(),
+                    to: previous,
+                });
+            }
+            fs::rename(staging.join(name), &live)?;
+            undo.push(Undo::Created(live));
         }
         fs::rename(staging.join("tortodrone.jar"), &jar)?;
         undo.push(Undo::Created(jar));
-        fs::rename(staging.join("content"), &content)?;
-        undo.push(Undo::Created(content));
 
         // Default configuration: only what is missing.
         if let Ok(entries) = fs::read_dir(staging.join("config")) {
@@ -655,52 +667,48 @@ fn swap_in(layout: &ServerLayout, staging: &Path) -> Result<(), EngineError> {
     }
 }
 
-/// Puts the previous engine (jar and content) back; the engine being replaced becomes the new previous one. Run
-/// with the server stopped. The database may have been changed by the newer engine; restore a backup too if the
-/// older engine refuses to start (it refuses a schema it does not know).
+/// Swaps `live` and `previous` through a temporary name; undone if a rename fails.
+fn exchange(live: &Path, previous: &Path, undo: &mut Vec<Undo>) -> io::Result<()> {
+    let temp = sibling(live, "swap");
+    remove_all(&temp)?;
+    let had_live = live.exists();
+    if had_live {
+        fs::rename(live, &temp)?;
+        undo.push(Undo::Moved {
+            from: live.to_path_buf(),
+            to: temp.clone(),
+        });
+    }
+    fs::rename(previous, live)?;
+    undo.push(Undo::Moved {
+        from: previous.to_path_buf(),
+        to: live.to_path_buf(),
+    });
+    if had_live {
+        fs::rename(&temp, previous)?;
+    }
+    Ok(())
+}
+
+/// Puts the previous engine (jar, content and WebUI) back; the engine being replaced becomes the new previous
+/// one. Run with the server stopped. The database may have been changed by the newer engine; restore a backup
+/// too if the older engine refuses to start (it refuses a schema it does not know).
 pub fn rollback_to_previous(layout: &ServerLayout) -> Result<InstalledEngine, EngineError> {
-    let (jar, previous_jar) = (layout.jar(), layout.previous_jar());
-    let (content, previous_content) = (layout.content_dir(), layout.previous_content());
-    if !previous_jar.is_file() || !previous_content.is_dir() {
+    let jar = layout.jar();
+    let previous_jar = layout.previous_jar();
+    let dirs = replaced_dirs(layout);
+    if !previous_jar.is_file() || dirs.iter().any(|(_, _, previous)| !previous.is_dir()) {
         return Err(EngineError::NoPrevious);
     }
     let old_record = match installed(layout) {
         EngineState::Installed(r) => Some(r),
         _ => None,
     };
-    let swap_jar = sibling(&jar, "swap");
-    let swap_content = sibling(&content, "swap");
-    remove_all(&swap_jar)?;
-    remove_all(&swap_content)?;
-    // Three-way swaps through a temporary name; each pair is undone if a later rename fails.
     let mut undo: Vec<Undo> = Vec::new();
     let result = (|| -> io::Result<()> {
-        if jar.is_file() {
-            fs::rename(&jar, &swap_jar)?;
-            undo.push(Undo::Moved {
-                from: jar.clone(),
-                to: swap_jar.clone(),
-            });
-        }
-        fs::rename(&previous_jar, &jar)?;
-        undo.push(Undo::Moved {
-            from: previous_jar.clone(),
-            to: jar.clone(),
-        });
-        if swap_jar.is_file() {
-            fs::rename(&swap_jar, &previous_jar)?;
-        }
-        undo.clear();
-        if content.is_dir() {
-            fs::rename(&content, &swap_content)?;
-            undo.push(Undo::Moved {
-                from: content.clone(),
-                to: swap_content.clone(),
-            });
-        }
-        fs::rename(&previous_content, &content)?;
-        if swap_content.is_dir() {
-            fs::rename(&swap_content, &previous_content)?;
+        exchange(&jar, &previous_jar, &mut undo)?;
+        for (_, live, previous) in &dirs {
+            exchange(live, previous, &mut undo)?;
         }
         Ok(())
     })();
@@ -927,6 +935,7 @@ mod tests {
         assert_eq!(record.previous_version, None);
         assert_eq!(fs::read(layout.jar()).unwrap(), jar_bytes("0.40.17"));
         assert!(layout.content_dir().join("maps/haven/map.yml").is_file());
+        assert!(layout.webui_dir().join("index.html").is_file());
         assert!(layout.server_yml().is_file());
         assert!(layout.combat_yml().is_file());
         for kept in [
@@ -937,7 +946,7 @@ mod tests {
         ] {
             assert!(layout.root().join(kept).is_file(), "{kept}");
         }
-        for skipped in ["webui", "README.md", "VERSION"] {
+        for skipped in ["README.md", "VERSION"] {
             assert!(!layout.root().join(skipped).exists(), "{skipped}");
         }
         assert!(layout.plugins_dir().is_dir());
@@ -1050,6 +1059,7 @@ mod tests {
         for missing in [
             "tortodrone.jar",
             "VERSION",
+            "webui/index.html",
             "config/server.yml",
             "LICENSE",
             "NOTICE",

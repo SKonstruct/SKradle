@@ -5,7 +5,8 @@
 //! <root>/
 //!   tortodrone.jar            the engine (its `data/` is found beside the jar, not in the working directory)
 //!   tortodrone.jar.previous   the engine before the last update, for rollback
-//!   content/  content.previous/
+//!   content/  content.previous/   the content pack (maps, items), replaced as a whole on update
+//!   webui/  webui.previous/       the WebUI pages the engine serves under /admin/
 //!   config/server.yml         the engine's settings; config/combat.yml
 //!   plugins/                  empty; the engine creates and reads it
 //!   data/                     the engine's runtime state: tortodrone.db, keys/, logs/ (the engine is its only writer)
@@ -138,6 +139,15 @@ impl ServerLayout {
 
     pub fn previous_content(&self) -> PathBuf {
         self.root.join("content.previous")
+    }
+
+    /// The WebUI pages the engine serves under `/admin/` from `<root>/webui`.
+    pub fn webui_dir(&self) -> PathBuf {
+        self.root.join("webui")
+    }
+
+    pub fn previous_webui(&self) -> PathBuf {
+        self.root.join("webui.previous")
     }
 
     pub fn config_dir(&self) -> PathBuf {
