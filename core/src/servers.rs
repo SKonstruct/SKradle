@@ -180,7 +180,8 @@ pub fn apply_properties(text: &str, wanted: &BTreeMap<&'static str, String>) -> 
     for raw in text.split_inclusive('\n') {
         let line = raw.trim_end_matches(['\r', '\n']);
         let ending = &raw[line.len()..];
-        match property_key(line).filter(|k| KEYS.contains(k)) {
+        // A key the caller gave no value for is not managed: its lines stay as they are.
+        match property_key(line).filter(|k| KEYS.contains(k) && wanted.contains_key(k)) {
             Some(key) => {
                 let key = *KEYS
                     .iter()
@@ -191,7 +192,7 @@ pub fn apply_properties(text: &str, wanted: &BTreeMap<&'static str, String>) -> 
                     continue;
                 }
                 seen.push(key);
-                let value = &wanted[key];
+                let value = &wanted[key]; // present: filtered above
                 let replacement = format!("{key}={}", escape_value(value));
                 if line != replacement {
                     changed = true;
@@ -203,11 +204,11 @@ pub fn apply_properties(text: &str, wanted: &BTreeMap<&'static str, String>) -> 
         }
     }
     for key in KEYS {
-        if !seen.contains(&key) {
+        if let (false, Some(value)) = (seen.contains(&key), wanted.get(key)) {
             if !out.is_empty() && !out.ends_with('\n') {
                 out.push_str(newline);
             }
-            out.push_str(&format!("{key}={}{newline}", escape_value(&wanted[key])));
+            out.push_str(&format!("{key}={}{newline}", escape_value(value)));
             changed = true;
         }
     }
@@ -719,6 +720,20 @@ mod tests {
         assert_eq!(ServerList::parse(&list.to_json()), list);
         assert_eq!(ServerList::parse("not json"), ServerList::default());
         assert_eq!(ServerList::parse(""), ServerList::default());
+    }
+
+    #[test]
+    fn apply_properties_with_fewer_keys_leaves_the_others_alone_instead_of_panicking() {
+        let mut wanted = BTreeMap::new();
+        wanted.insert("server_host", "h.example".to_owned());
+        let out = apply_properties("server_host=old\nport=1\nkey.public=abc\n", &wanted).unwrap();
+        assert_eq!(out, "server_host=h.example\nport=1\nkey.public=abc\n");
+        assert_eq!(apply_properties("server_host=h.example\n", &wanted), None);
+        assert_eq!(
+            apply_properties("", &BTreeMap::new()),
+            None,
+            "nothing wanted, nothing to change"
+        );
     }
 
     #[test]
