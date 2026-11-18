@@ -29,6 +29,58 @@ fn qt_has_webview() -> bool {
     libs.join("QtWebView.framework").is_dir() || headers.join("QtWebView").is_dir()
 }
 
+/// Compiles the translation catalogues (`i18n/*.ts`) with Qt's `lrelease` and returns a resource file that embeds
+/// the results under `:/i18n/`. Without `lrelease` the build still works and the UI stays in English.
+fn compile_translations(out_dir: &Path) -> Option<std::path::PathBuf> {
+    println!("cargo:rerun-if-changed=i18n");
+    let qmake = std::env::var("QMAKE").unwrap_or_else(|_| "qmake6".to_owned());
+    let bins = Command::new(&qmake)
+        .args(["-query", "QT_HOST_BINS"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())?;
+    let lrelease = Path::new(&bins).join(if cfg!(windows) {
+        "lrelease.exe"
+    } else {
+        "lrelease"
+    });
+    if !lrelease.is_file() {
+        println!("cargo:warning=lrelease not found in {bins}: translations are not embedded");
+        return None;
+    }
+    let mut files = String::new();
+    let mut sources: Vec<_> = fs::read_dir("i18n")
+        .ok()?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x == "ts"))
+        .collect();
+    sources.sort();
+    for source in sources {
+        let qm = out_dir.join(source.file_stem()?).with_extension("qm");
+        let status = Command::new(&lrelease)
+            .arg("-silent")
+            .arg(&source)
+            .arg("-qm")
+            .arg(&qm)
+            .status()
+            .ok()?;
+        assert!(status.success(), "lrelease failed for {}", source.display());
+        files.push_str(&format!(
+            "    <file alias=\"{}\">{}</file>\n",
+            qm.file_name()?.to_string_lossy(),
+            qm.display()
+        ));
+    }
+    let qrc = out_dir.join("i18n.qrc");
+    fs::write(
+        &qrc,
+        format!("<RCC>\n  <qresource prefix=\"/i18n\">\n{files}  </qresource>\n</RCC>\n"),
+    )
+    .ok()?;
+    Some(qrc)
+}
+
 fn main() {
     println!("cargo:rerun-if-env-changed=QMAKE");
     println!("cargo:rerun-if-changed=qml");
@@ -84,6 +136,10 @@ fn main() {
                 cc.define("SKRADLE_WEBVIEW", None);
             })
         };
+    }
+    if let Some(qrc) = compile_translations(Path::new(&std::env::var("OUT_DIR").expect("OUT_DIR")))
+    {
+        builder = builder.qrc(qrc);
     }
     builder.build();
 }
