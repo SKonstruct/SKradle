@@ -5,7 +5,7 @@
 # quarantine flag: run `xattr -cr SKradle.app` once, or right-click > Open.
 set -euo pipefail
 
-binary=$1
+binary=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")   # absolute: the steps below change directory
 version=$2
 out=$3
 arch=${4:-macos}

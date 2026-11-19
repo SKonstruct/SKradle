@@ -6,7 +6,7 @@
 # page opens Tortodrone's web UI in the browser instead of inside the window.
 set -euo pipefail
 
-binary=$1
+binary=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")   # absolute: the steps below change directory
 version=$2
 out=$3
 arch=${4:-linux-x64}
