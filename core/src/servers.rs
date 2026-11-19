@@ -135,7 +135,11 @@ pub fn to_client_root(url: &str) -> String {
         _ => ("http".to_owned(), url),
     };
     let scheme = if scheme == "https" { "https" } else { "http" };
-    format!("{scheme}://{}", rest.split('/').next().unwrap_or(""))
+    // Up to the first `/`, `?` or `#`: a pasted `host?x=1` is still just the host.
+    format!(
+        "{scheme}://{}",
+        rest.split(['/', '?', '#']).next().unwrap_or("")
+    )
 }
 
 /// The connection settings to write for `server`, or for Official when `None`. Blank fields fall back to Official's.
@@ -497,6 +501,19 @@ fn latin1_encode(text: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_client_root_drops_a_query_or_fragment_that_follows_the_host() {
+        assert_eq!(
+            to_client_root("https://play.example:7777?x=1"),
+            "https://play.example:7777"
+        );
+        assert_eq!(to_client_root("play.example#top"), "http://play.example");
+        assert_eq!(
+            to_client_root("http://a.example/client/x?y"),
+            "http://a.example"
+        );
+    }
 
     fn server(id: &str, name: &str) -> Server {
         Server {

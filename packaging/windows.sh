@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Builds a portable Windows folder and zip from the release binary (run in Git Bash on a Windows runner). Needs Qt's
+# bin folder on PATH (windeployqt) and 7z.
+#   packaging/windows.sh <binary> <version> <output-dir> [arch-name]
+# Unzip anywhere and run skradle.exe. Not signed, so SmartScreen may ask once ("More info" > "Run anyway").
+set -euo pipefail
+
+binary=$1
+version=$2
+out=$3
+arch=${4:-windows}
+root=$(cd "$(dirname "$0")/.." && pwd)
+
+work=$(mktemp -d)
+dir="$work/SKradle"
+mkdir -p "$dir"
+cp "$binary" "$dir/skradle.exe"
+cp "$root/assets/icons/skradle.ico" "$dir/skradle.ico"
+
+# The QML is compiled into the exe, but the Qt modules it imports are found at run time: windeployqt reads the sources
+# to know which ones (and the QtWebView plugin) to copy.
+windeployqt --release --no-translations --compiler-runtime \
+  --qmldir "$root/app/qml" --qmldir "$root/app/qml-web" "$dir/skradle.exe"
+
+mkdir -p "$out"
+zip="$out/SKradle-${version}-${arch}.zip"
+rm -f "$zip"
+(cd "$work" && 7z a -tzip -mx=6 "$zip" SKradle >/dev/null)
+echo "$zip"

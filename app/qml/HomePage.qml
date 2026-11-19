@@ -244,7 +244,7 @@ PageScaffold {
                             Txt { Layout.fillWidth: true; text: name; font.weight: Font.Medium }
                             Txt { Layout.fillWidth: true; text: qsTr("%1 players").arg(players.toLocaleString(Qt.locale(), "f", 0)) + "  \u00b7  " + ping + " ms"; kind: "caption"; font.features: { "tnum": 1 } }
                         }
-                        SButton { variant: "secondary"; text: qsTr("Join"); enabled: status !== "offline"; onClicked: Data.toast(qsTr("Joining %1\u2026").arg(name)) }
+                        SButton { variant: "secondary"; text: qsTr("Join"); Accessible.name: qsTr("Join %1").arg(name); enabled: status !== "offline"; onClicked: Data.toast(qsTr("Joining %1\u2026").arg(name)) }
                     }
                 }
             }
@@ -291,6 +291,7 @@ PageScaffold {
                         SButton {
                             variant: "primary"
                             text: qsTr("Update")
+                            Accessible.name: qsTr("Update %1").arg(modelData.name)
                             onClicked: {
                                 const list = Data.modUpdates.slice()
                                 list.splice(index, 1)

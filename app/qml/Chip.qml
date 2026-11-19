@@ -14,7 +14,7 @@ AbstractButton {
     implicitHeight: 30
     implicitWidth: row.implicitWidth + 24
     property int radius: 15
-    Accessible.name: text
+    Accessible.name: badge.length > 0 ? text + ", " + badge : text
     Accessible.role: Accessible.RadioButton
     Accessible.checked: selected
     scale: down ? 0.96 : 1

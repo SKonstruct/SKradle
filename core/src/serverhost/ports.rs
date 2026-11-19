@@ -128,7 +128,8 @@ pub fn probe_web(port: u16, timeout: Duration) -> WebProbe {
 }
 
 fn parse_status(head: &[u8]) -> Option<u16> {
-    let text = std::str::from_utf8(head).ok()?;
+    // `HTTP/1.x ddd` is all of the first 12 bytes; the rest of the read may end inside a multi-byte character.
+    let text = std::str::from_utf8(&head[..head.len().min(12)]).ok()?;
     let rest = text.strip_prefix("HTTP/1.")?;
     let status = rest.get(2..5)?;
     status.parse().ok()
@@ -137,6 +138,13 @@ fn parse_status(head: &[u8]) -> Option<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_status_is_read_even_when_the_read_ends_inside_a_character() {
+        assert_eq!(parse_status(b"HTTP/1.1 200 OK\r\n"), Some(200));
+        assert_eq!(parse_status(b"HTTP/1.1 404 \xc3"), Some(404));
+        assert_eq!(parse_status(b"nonsense"), None);
+    }
     use std::net::TcpListener;
     use std::thread;
 

@@ -52,7 +52,8 @@ Item {
         id: addT
             ParallelAnimation {
                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Motion.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel }
-                NumberAnimation { property: "y"; from: 14; duration: Motion.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel }
+                // Not "y": `from` is an absolute position in the list, which sent new rows flying down from the header.
+                NumberAnimation { property: "scale"; from: 0.97; to: 1; duration: Motion.slow; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel }
             }
     }
 

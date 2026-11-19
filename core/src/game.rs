@@ -170,9 +170,10 @@ pub fn steam_game_dir(library: &Path) -> PathBuf {
     steamapps.join("common").join(install_dir)
 }
 
-/// A folder name from a manifest must not be able to point outside `steamapps/common`.
+/// A folder name from a manifest must not be able to point outside `steamapps/common`. A `:` is refused too: on
+/// Windows `D:` or `C:foo` joins as a drive-relative path and leaves the folder.
 fn is_plain_folder_name(name: &str) -> bool {
-    !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', '\0'])
+    !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', '\0', ':'])
 }
 
 /// Places the standalone installer may have used. Unverified; a folder only counts if it holds a game.
@@ -215,6 +216,13 @@ pub fn standalone_candidates(env: &Env) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_manifest_folder_name_with_a_drive_colon_is_refused() {
+        assert!(is_plain_folder_name("Spiral Knights"));
+        assert!(!is_plain_folder_name("D:"));
+        assert!(!is_plain_folder_name("C:evil"));
+    }
     use std::fs;
 
     fn make_game(dir: &Path) {

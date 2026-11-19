@@ -132,6 +132,15 @@ pub fn path_from_url_text(text: &str) -> PathBuf {
     path_from_url_text_for(text, cfg!(windows))
 }
 
+/// The local path a URL from a file dialog names: a `file://` URL or a plain path. Any other scheme (`https://`,
+/// `content://`) names nothing on this machine, so the answer is empty.
+pub fn local_path_from_url_text(text: &str) -> PathBuf {
+    if text.contains("://") && !text.starts_with("file://") {
+        return PathBuf::new();
+    }
+    path_from_url_text(text)
+}
+
 fn path_from_url_text_for(text: &str, windows: bool) -> PathBuf {
     let Some(rest) = text.strip_prefix("file://") else {
         return PathBuf::from(text);
@@ -186,6 +195,24 @@ fn percent_decode(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_file_url_or_a_plain_path_names_a_local_file() {
+        assert_eq!(
+            local_path_from_url_text("file:///usr/bin/java"),
+            Path::new("/usr/bin/java")
+        );
+        assert_eq!(
+            local_path_from_url_text("/usr/bin/java"),
+            Path::new("/usr/bin/java")
+        );
+        assert!(local_path_from_url_text("https://example.invalid/java")
+            .as_os_str()
+            .is_empty());
+        assert!(local_path_from_url_text("content://media/x")
+            .as_os_str()
+            .is_empty());
+    }
     use std::fs;
 
     fn make_game(dir: &Path) {

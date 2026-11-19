@@ -24,7 +24,7 @@
 //! Nothing is installed before the player has accepted the engine's licence ([`super::terms`]).
 
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
@@ -494,7 +494,9 @@ fn unpack(zip: &Path, staging: &Path, version: &EngineVersion) -> Result<(), Eng
     // Looked up for every entry, so these are sets (a list would make a 50,000-entry archive quadratic). Names are
     // folded to lower case: two entries that differ only by case would overwrite each other on Windows and macOS.
     let mut seen: HashSet<String> = HashSet::new();
-    let mut targets: HashSet<PathBuf> = HashSet::new();
+    // Each planned target and whether it came from a `docs/` copy (which a root-level copy replaces, whatever the
+    // order of the archive).
+    let mut targets: HashMap<PathBuf, (usize, bool)> = HashMap::new();
     for index in 0..archive.len() {
         let entry = archive
             .by_index(index)
@@ -519,11 +521,19 @@ fn unpack(zip: &Path, staging: &Path, version: &EngineVersion) -> Result<(), Eng
             )));
         }
         if let Some((kind, target)) = classify(&relative) {
-            // A docs/ copy must not shadow a root one.
-            if !targets.insert(target.clone()) {
-                continue;
+            let from_docs = relative.starts_with("docs");
+            match targets.get(&target).copied() {
+                // A docs/ copy must not shadow a root one: the root copy takes its place, wherever it comes.
+                Some((at, true)) if !from_docs => {
+                    plan[at] = (index, kind, target.clone());
+                    targets.insert(target, (at, false));
+                }
+                Some(_) => {}
+                None => {
+                    targets.insert(target.clone(), (plan.len(), from_docs));
+                    plan.push((index, kind, target));
+                }
             }
-            plan.push((index, kind, target));
         }
     }
     for needed in [Wanted::Jar, Wanted::Version, Wanted::Content, Wanted::Webui] {
@@ -552,11 +562,15 @@ fn unpack(zip: &Path, staging: &Path, version: &EngineVersion) -> Result<(), Eng
             fs::create_dir_all(dir)?;
         }
         let mut out = File::create(&dest)?;
-        let copied = copy_capped(&mut entry, &mut out, MAX_ENTRY_BYTES)?;
+        // The cap is what is left of the whole budget, so the sum cannot overshoot it by a whole entry.
+        let remaining = MAX_UNPACKED_BYTES.saturating_sub(total);
+        let copied = match copy_capped(&mut entry, &mut out, MAX_ENTRY_BYTES.min(remaining)) {
+            Err(EngineError::BadArchive(_)) if remaining < MAX_ENTRY_BYTES => {
+                return Err(EngineError::BadArchive("unpacks to too much data".into()));
+            }
+            other => other?,
+        };
         total += copied;
-        if total > MAX_UNPACKED_BYTES {
-            return Err(EngineError::BadArchive("unpacks to too much data".into()));
-        }
         out.sync_all()?;
     }
 
@@ -1204,6 +1218,22 @@ mod tests {
         let err = install_zip(&layout, "0.40.17", &zip).unwrap_err();
         assert!(matches!(err, EngineError::BadArchive(_)), "{err}");
         assert!(!layout.jar().exists());
+    }
+
+    #[test]
+    fn a_root_licence_beats_a_docs_copy_whatever_the_archive_order() {
+        let mut files = zip_files("0.40.17");
+        files.retain(|(n, _)| n != "LICENSE");
+        // The docs/ copy comes first, the root one (the real one) after it.
+        files.insert(0, ("docs/LICENSE".into(), b"old docs copy".to_vec()));
+        files.push(("LICENSE".into(), b"the root licence".to_vec()));
+        let dir = tempfile::tempdir().unwrap();
+        let layout = accepted_layout(dir.path());
+        install_zip(&layout, "0.40.17", &zip_of(&files)).unwrap();
+        assert_eq!(
+            fs::read(layout.root().join("LICENSE")).unwrap(),
+            b"the root licence"
+        );
     }
 
     #[test]

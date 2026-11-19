@@ -54,6 +54,8 @@ impl Value {
 
 /// Parses a document into a map of its top-level entries.
 pub fn parse(input: &str) -> Result<Value, ParseError> {
+    // Some Windows tools save a UTF-8 byte order mark; it is not part of the first key.
+    let input = input.strip_prefix('\u{feff}').unwrap_or(input);
     let mut parser = Parser {
         src: input.as_bytes(),
         pos: 0,
@@ -176,6 +178,12 @@ impl Parser<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_leading_byte_order_mark_is_ignored() {
+        let with_bom = format!("\u{feff}{LIBRARIES}");
+        assert_eq!(parse(&with_bom).unwrap(), parse(LIBRARIES).unwrap());
+    }
 
     const LIBRARIES: &str = r#"
 "libraryfolders"

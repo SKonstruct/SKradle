@@ -149,6 +149,7 @@ impl HostConfig {
         self.validate()?;
         let lines = scan(text)?;
         let managed = self.managed_values();
+        let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
         let mut out = String::with_capacity(text.len() + 160);
         let mut seen = [false; 6];
         for (raw, line) in text.split_inclusive('\n').zip(&lines) {
@@ -164,14 +165,13 @@ impl HostConfig {
                             let ending = &raw[raw.trim_end_matches(['\r', '\n']).len()..];
                             out.push_str(&format!("{}: {}", managed[i].0, quote(&managed[i].1)));
                             out.push_str(comment);
-                            out.push_str(if ending.is_empty() { "\n" } else { ending });
+                            out.push_str(if ending.is_empty() { newline } else { ending });
                         }
                         None => out.push_str(raw),
                     }
                 }
             }
         }
-        let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
         for (i, (key, value)) in managed.iter().enumerate() {
             if !seen[i] {
                 if !out.is_empty() && !out.ends_with('\n') {
@@ -240,6 +240,7 @@ impl Current {
 pub fn read(text: &str) -> Result<Current, ConfigError> {
     let lines = scan(text)?;
     let mut current = Current::default();
+    let mut has_current_port_key = false;
     for (raw, line) in text.split_inclusive('\n').zip(&lines) {
         let Line::Key { name, .. } = line else {
             continue;
@@ -248,9 +249,16 @@ pub fn read(text: &str) -> Result<Current, ConfigError> {
         match *name {
             "server-ip" => current.bind = Some(value),
             "server-port" => current.game_port = value.parse().ok(),
-            "webui/content_url-port" | "news-port" => {
-                current.has_news_port |= *name == "news-port";
+            // The current key wins over the legacy `news-port`, whichever comes first in the file.
+            "webui/content_url-port" => {
+                has_current_port_key = true;
                 current.web_port = value.parse().ok().or(current.web_port)
+            }
+            "news-port" => {
+                current.has_news_port = true;
+                if !has_current_port_key {
+                    current.web_port = value.parse().ok().or(current.web_port)
+                }
             }
             "webui-enabled" => current.webui_enabled = value.parse().ok(),
             "webui-public-url" => current.public_url = Some(value),
@@ -329,7 +337,17 @@ fn scan(text: &str) -> Result<Vec<Line<'_>>, ConfigError> {
 fn comment_start(rest: &str) -> usize {
     let bytes = rest.as_bytes();
     let (mut single, mut double) = (false, false);
+    let mut escaped = false;
     for (i, &b) in bytes.iter().enumerate() {
+        // Inside double quotes a backslash escapes the next character (`quote()` writes `\"`).
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if double && b == b'\\' {
+            escaped = true;
+            continue;
+        }
         match b {
             b'\'' if !double => single = !single,
             b'"' if !single => double = !double,
@@ -377,6 +395,29 @@ fn quote(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_last_line_without_a_newline_gets_the_files_own_line_ending() {
+        let out = cfg(false)
+            .apply("max-clients: 16\r\nserver-port: 1")
+            .unwrap();
+        assert!(!out.replace("\r\n", "").contains('\n'), "{out:?}");
+        assert!(out.contains("server-port: 47624\r\n"), "{out:?}");
+    }
+
+    #[test]
+    fn the_current_web_port_key_beats_a_legacy_news_port_in_either_order() {
+        let a = read("webui/content_url-port: 9000\nnews-port: 8000\n").unwrap();
+        let b = read("news-port: 8000\nwebui/content_url-port: 9000\n").unwrap();
+        assert_eq!((a.web_port, b.web_port), (Some(9000), Some(9000)));
+        assert!(a.has_news_port && b.has_news_port);
+    }
+
+    #[test]
+    fn an_escaped_quote_does_not_end_a_double_quoted_value_early() {
+        let rest = r#" "a \" # not a comment" # real comment"#;
+        assert_eq!(&rest[comment_start(rest)..], " # real comment");
+    }
 
     const SHIPPED: &str = "# Restart the server after editing.\nserver-ip: 0.0.0.0\nserver-port: 47624\nmax-clients: 16\nlog-mode: normal\n# Shown once in chat.\nwelcome-message: Welcome to Tortodrone!\n\nwebui-enabled: true\nwebui-public-url: 0.0.0.0\n# One shared HTTP port.\nwebui/content_url-port: 8080\nwebui-tls-mode: http\n";
 

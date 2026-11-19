@@ -253,7 +253,7 @@ pub fn verify(envelope: &str, trusted: &[TrustedKey], now: u64) -> Result<Index,
         .ok_or_else(|| IndexError::Malformed("generatedAt".into()))?;
     let expires_at =
         parse_rfc3339(&raw.expires_at).ok_or_else(|| IndexError::Malformed("expiresAt".into()))?;
-    if generated_at > now + CLOCK_SKEW_SECS
+    if generated_at > now.saturating_add(CLOCK_SKEW_SECS)
         || expires_at <= generated_at
         || expires_at - generated_at > MAX_VALIDITY_SECS
     {

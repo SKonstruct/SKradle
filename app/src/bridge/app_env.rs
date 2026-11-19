@@ -111,7 +111,7 @@ impl qobject::AppEnv {
 
     fn local_path(&self, url: &QUrl) -> QString {
         QString::from(
-            crate::discovery::path_from_url_text(&url.to_qstring().to_string())
+            crate::discovery::local_path_from_url_text(&url.to_qstring().to_string())
                 .to_string_lossy()
                 .as_ref(),
         )

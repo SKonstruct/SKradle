@@ -54,13 +54,11 @@ AbstractButton {
             anchors.fill: parent
             radius: root.radius
             color: root.primary ? (root.down ? Theme.accentPressed : root.hovered ? Theme.accentHover : Theme.accent)
-                 : root.phase === "launching" ? Qt.darker(Theme.accent, 1.0)
+                 : root.phase === "launching" ? Theme.accentPressed   // opaque: white text is 7.7:1 (light) / 6.5:1 (dark), half-transparent pink was 2.1:1 on white
                  : (root.down ? Theme.pressTint : root.hovered ? Theme.hoverTint : Theme.raised)
-            opacity: root.phase === "launching" ? 0.5 : 1
             border.width: root.primary || root.phase === "launching" ? 0 : 1
             border.color: Theme.borderStrong
             Behavior on color { ColorAnimation { duration: Motion.base } }
-            Behavior on opacity { NumberAnimation { duration: Motion.base } }
         }
     }
 

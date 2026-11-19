@@ -29,7 +29,10 @@ std::atomic<QtMessageHandler> g_previous_handler{nullptr};
 // Counts warnings that point into our own QML files (binding errors, undefined values, missing types), so the
 // self-test can fail on them. Everything is still passed on to Qt's normal output.
 void message_handler(QtMsgType type, const QMessageLogContext &context, const QString &message) {
-    if ((type == QtWarningMsg || type == QtCriticalMsg) && message.startsWith(QLatin1String("qrc:/qt/qml/com/skradle/app/qml/"))) {
+    // Our QML lives under qrc:/qt/qml/com/skradle/app/ (qml/ and web/); Qt puts the file in the message or in the context.
+    const QLatin1String ours("qrc:/qt/qml/com/skradle/app/");
+    const bool in_our_qml = message.startsWith(ours) || (context.file && QString::fromUtf8(context.file).startsWith(ours));
+    if ((type == QtWarningMsg || type == QtCriticalMsg) && in_our_qml) {
         ++g_qml_warnings;
     }
     if (const QtMessageHandler previous = g_previous_handler.load()) previous(type, context, message);
@@ -48,8 +51,9 @@ public:
         if (!source || !*source) return QString();
         const QString text = QString::fromUtf8(source);
         static const QString accentsFrom = QStringLiteral("aeiouAEIOU");
-        static const QString accentsTo = QString::fromUtf8("áéíöüÅÉÍÖÜ");
-        static const QString filler = QStringLiteral("ßüöäenschaft");
+        // Escapes, not raw accents: MSVC reads a source file as the ANSI code page unless told it is UTF-8.
+        static const QString accentsTo = QStringLiteral(u"\u00e1\u00e9\u00ed\u00f6\u00fc\u00c5\u00c9\u00cd\u00d6\u00dc");
+        static const QString filler = QStringLiteral(u"\u00df\u00fc\u00f6\u00e4enschaft");
         QStringList words = text.split(QLatin1Char(' '));
         for (QString &word : words) {
             if (word.isEmpty() || word.contains(QLatin1Char('%'))) continue;
@@ -149,7 +153,10 @@ QString set_language(const QString &language) {
         if (language == QLatin1String("system")) {
             candidates = QLocale::system().uiLanguages(QLocale::TagSeparator::Underscore);
         } else {
-            candidates << language;
+            // "de-AT" (BCP 47) is "de_AT" here, so the fallback to "de" below works for both spellings.
+            QString tag = language;
+            tag.replace(QLatin1Char('-'), QLatin1Char('_'));
+            candidates << tag;
         }
         // "de_AT" falls back to "de".
         QStringList names;

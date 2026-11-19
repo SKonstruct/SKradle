@@ -52,10 +52,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:
-      # `--parallel` with Makefiles starts unlimited compile jobs; the UI shell has many large generated files and
-      # the Linux runner (2 cores, about 7 GB on a private repository) was killed with a shutdown signal while compiling
-      # it, even at 4 jobs. Linux compiles one file at a time.
-      CMAKE_BUILD_PARALLEL_LEVEL: ${{ matrix.name == 'linux-x64' && 1 || 4 }}
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
     # Experimental legs may fail without failing the workflow (runner labels and Qt arches not yet confirmed there).
     continue-on-error: ${{ matrix.experimental }}
     strategy:
@@ -152,34 +149,6 @@ jobs:
           path: spikes/native-look/shots
           if-no-files-found: ignore
 
-      # The launcher UI prototype: its screenshots on each OS are how the Windows and Linux looks are reviewed.
-      - name: Build the UI shell
-        working-directory: spikes/ui-shell
-        run: |
-          cmake -S . -B build -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
-          cmake --build build --config Release --parallel
-
-      - name: UI shell screenshots
-        timeout-minutes: 10
-        working-directory: spikes/ui-shell
-        run: |
-          if [ "$RUNNER_OS" = Linux ]; then export QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software; fi
-          exe=$(find build -maxdepth 3 -type f \( -name skradle_ui -o -name skradle_ui.exe \) | head -1)
-          echo "ui shell: $exe"
-          mkdir -p shots
-          for scheme in dark light; do "$exe" --scheme "$scheme" --shots shots --prefix "$scheme"; done
-          ls shots
-
-      - name: Upload UI shell screenshots
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: ui-shell-${{ matrix.name }}
-          path: spikes/ui-shell/shots
-          if-no-files-found: ignore
-
-      # Packaging smoke tests. The packaged app must start on its own, on the platform's real plugin.
-      # Linux packaging (AppImage with linuxdeploy and its Qt plugin) is added once the UI stack is chosen.
       - name: Package (macOS .app and .dmg)
         if: runner.os == 'macOS'
         continue-on-error: true

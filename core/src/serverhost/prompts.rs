@@ -174,7 +174,8 @@ impl PromptScript {
             return step;
         }
         if self.next < self.answers.len() {
-            if parsed.text.ends_with(':') {
+            // Only an INFO line is the console asking; a DEBUG line that happens to end in `:` is not.
+            if parsed.level == "INFO" && parsed.text.ends_with(':') {
                 step.reply = Some(self.answers[self.next].clone());
                 self.next += 1;
                 if self.next == self.answers.len() && self.success_prefix.is_none() {

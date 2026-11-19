@@ -19,8 +19,20 @@ Item {
         maximumLineCount: root.maximumLineCount
         elide: Text.ElideRight
     }
-    Component.onCompleted: label.text = text
-    onTextChanged: if (label.text !== text) swap.restart()
+    // The first text (a binding that runs before onCompleted) and any change under reduced motion are shown at once:
+    // fading in the title at start-up looked like a flicker, and reduced motion means no movement.
+    property bool completed: false
+    Component.onCompleted: { label.text = text; completed = true }
+    onTextChanged: {
+        if (!completed || Motion.reduce) {
+            swap.stop()
+            label.text = text
+            label.opacity = 1
+            label.y = 0
+        } else if (label.text !== text) {
+            swap.restart()
+        }
+    }
 
     SequentialAnimation {
         id: swap

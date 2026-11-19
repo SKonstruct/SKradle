@@ -133,11 +133,7 @@ pub fn prepare(
             initial_mb: None,
             max_mb: Some(mb),
         }),
-        jvm_args: settings
-            .extra_jvm_args
-            .split_whitespace()
-            .map(str::to_owned)
-            .collect(),
+        jvm_args: split_args(&settings.extra_jvm_args),
         ..DirectOptions::default()
     };
     let graphics = around
@@ -208,6 +204,40 @@ impl Launcher for PlannedLauncher {
             sink,
         )))
     }
+}
+
+/// Splits the player's extra JVM arguments on spaces, like a shell would: `"..."` or `'...'` keeps spaces inside one
+/// argument (`-javaagent:"C:\Program Files\x.jar"` is one argument, with the quotes removed). A backslash is not an
+/// escape (Windows paths), and an unclosed quote runs to the end of the text.
+pub(crate) fn split_args(text: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut started = false;
+    let mut quote: Option<char> = None;
+    for c in text.chars() {
+        match quote {
+            Some(q) if c == q => quote = None,
+            Some(_) => current.push(c),
+            None if c == '"' || c == '\'' => {
+                quote = Some(c);
+                started = true;
+            }
+            None if c.is_whitespace() => {
+                if started {
+                    args.push(std::mem::take(&mut current));
+                    started = false;
+                }
+            }
+            None => {
+                current.push(c);
+                started = true;
+            }
+        }
+    }
+    if started {
+        args.push(current);
+    }
+    args
 }
 
 #[cfg(test)]
@@ -427,5 +457,17 @@ mod tests {
         let error = prepare(&w.request, &w.machine, &around(), &mut fx).unwrap_err();
         assert!(matches!(error, LaunchError::CustomJavaInvalid { .. }));
         assert!(fx.calls.is_empty());
+    }
+
+    #[test]
+    fn extra_jvm_arguments_split_like_a_shell_without_backslash_escapes() {
+        assert_eq!(split_args("-Xss4m  -Dx=1"), ["-Xss4m", "-Dx=1"]);
+        assert_eq!(
+            split_args(r#"-javaagent:"C:\Program Files\a b.jar" -Dk='v w'"#),
+            [r"-javaagent:C:\Program Files\a b.jar", "-Dk=v w"]
+        );
+        assert_eq!(split_args(r#"-a "" -b"#), ["-a", "", "-b"]);
+        assert_eq!(split_args(r#"-a "b c"#), ["-a", "b c"]);
+        assert!(split_args("   ").is_empty());
     }
 }

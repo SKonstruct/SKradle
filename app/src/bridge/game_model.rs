@@ -188,8 +188,11 @@ impl qobject::GameModel {
         ));
         self.as_mut()
             .set_game_version(QString::from(snapshot.version.unwrap_or_default().as_str()));
-        self.as_mut()
-            .set_detected_memory_mb(snapshot.memory_mb.map_or(0, |m| m as i32));
+        self.as_mut().set_detected_memory_mb(
+            snapshot
+                .memory_mb
+                .map_or(0, |m| i32::try_from(m).unwrap_or(i32::MAX)),
+        );
         let state = shown_state(found, &self.forced);
         self.set_state(QString::from(state));
     }

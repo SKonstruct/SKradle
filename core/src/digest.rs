@@ -191,7 +191,7 @@ pub fn jar_digest<R: Read + Seek>(reader: R, limits: &Limits) -> Result<String, 
         let mut file = zip.by_index(index)?;
         let declared = file.size();
         let mut seen = 0u64;
-        let mut reader = (&mut file).take(declared + 1);
+        let mut reader = (&mut file).take(declared.saturating_add(1));
         loop {
             let n = reader
                 .read(&mut buf)

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SKradle
+GenericName=Spiral Knights launcher
+Comment=Launch Spiral Knights with mods, community servers and graphics enhancements
+Exec=skradle
+Icon=skradle
+Terminal=false
+Categories=Game;

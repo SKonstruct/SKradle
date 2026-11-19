@@ -367,7 +367,7 @@ impl<R: Read + Seek> Archive<R> {
             .ok_or_else(|| JarError::Zip(format!("no entry {index}")))?
             .clone();
         let mut file = self.zip.by_index(index)?;
-        let mut reader = (&mut file).take(meta.size + 1);
+        let mut reader = (&mut file).take(meta.size.saturating_add(1));
         let mut buf = [0u8; 64 * 1024];
         let mut done = 0u64;
         loop {

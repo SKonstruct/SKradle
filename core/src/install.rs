@@ -40,7 +40,13 @@ pub fn expand_appbase(config: &GetdownConfig) -> Option<String> {
     {
         return None;
     }
-    Some(format!("https://{host}/{}", path.trim_end_matches('/')))
+    let path = path.trim_end_matches('/');
+    // No path: no trailing slash either, or `updater_jar_url` would produce `//code/...`.
+    Some(if path.is_empty() {
+        format!("https://{host}")
+    } else {
+        format!("https://{host}/{path}")
+    })
 }
 
 /// The updater jar a fresh folder needs (`code/getdown-pro-new.jar`, the same file the Steam copy has).
@@ -72,6 +78,19 @@ pub fn fresh_install_command(dir: &Path, java: &Path) -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_appbase_without_a_path_has_no_trailing_slash() {
+        let c = config(Some("7"), Some("http://gamemedia.spiralknights.com/"));
+        assert_eq!(
+            expand_appbase(&c).unwrap(),
+            "https://gamemedia.spiralknights.com"
+        );
+        assert_eq!(
+            updater_jar_url(&c).unwrap(),
+            "https://gamemedia.spiralknights.com/code/getdown-pro-new.jar"
+        );
+    }
 
     fn config(version: Option<&str>, appbase: Option<&str>) -> GetdownConfig {
         GetdownConfig {
