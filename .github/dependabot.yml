@@ -20,22 +20,3 @@ updates:
     groups:
       rust:
         patterns: ["*"]
-
-  # Spikes are standalone crates with their own lock files.
-  - package-ecosystem: cargo
-    directory: /spikes/native-look/ffi/rust
-    schedule:
-      interval: weekly
-    commit-message:
-      prefix: "chore(deps)"
-
-  - package-ecosystem: cargo
-    directory: /spikes/native-look/cxxqt
-    schedule:
-      interval: weekly
-    commit-message:
-      prefix: "chore(deps)"
-    groups:
-      # These crates must be on the same version.
-      cxx-qt:
-        patterns: ["cxx-qt*", "cxx"]

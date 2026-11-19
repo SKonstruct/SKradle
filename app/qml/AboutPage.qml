@@ -100,6 +100,8 @@ PageScaffold {
                 Txt { Layout.preferredWidth: 150; text: k; color: Theme.textSecondary }
                 Txt { Layout.fillWidth: true; text: v; font.weight: Font.Medium }
             }
+            InfoRow { k: qsTr("Version"); v: AppEnv.version }
+            Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
             InfoRow { k: qsTr("Interface toolkit"); v: "Qt " + AppEnv.qtVersion + " (Qt Quick)" }
             Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
             InfoRow { k: qsTr("Control style"); v: AppEnv.styleName + " (themed)" }

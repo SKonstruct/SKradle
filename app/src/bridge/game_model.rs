@@ -296,6 +296,7 @@ mod tests {
             os: Os::MacOs,
             home: Some(home.to_path_buf()),
             program_files_x86: None,
+            steam_path: None,
             local_app_data: None,
         }
     }

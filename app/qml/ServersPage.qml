@@ -1,7 +1,6 @@
 import QtQuick
 import com.skradle.app
 import QtQuick.Controls
-import QtQuick.Layouts
 
 Item {
     id: page

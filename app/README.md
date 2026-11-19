@@ -45,7 +45,7 @@ app/
   build.rs            QML module (every qml/*.qml; `pragma Singleton` files become singletons), resources,
                       lrelease, QtWebView detection
   cpp/glue.{h,cpp}    the Qt calls cxx-qt-lib does not wrap (see below); the only C++ in the repository
-  qml/                the UI (copied from spikes/ui-shell; the pink design unchanged)
+  qml/                the UI (the pink design)
   qml-web/WebPane.qml the web view, deliberately NOT part of the QML module
   i18n/skradle_en.ts  the English catalogue (source of truth for strings)
   resources.qrc       brand assets (../assets) and WebPane.qml

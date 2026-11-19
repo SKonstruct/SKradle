@@ -1,6 +1,7 @@
 #include "glue.h"
 
 #include <QtCore/QCoreApplication>
+#include <QtCore/QLibrary>
 #include <QtCore/QLocale>
 #include <QtCore/QTranslator>
 #include <QtGui/QGuiApplication>
@@ -92,6 +93,8 @@ bool webview_backend_available() {
     for (const QString &path : QCoreApplication::libraryPaths()) {
         const QDir dir(path + QStringLiteral("/webview"));
         for (const QString &file : dir.entryList(QDir::Files)) {
+            // Only real plugin libraries (not a stray text or debug-symbol file), and only those that load.
+            if (!QLibrary::isLibrary(file)) continue;
             QPluginLoader loader(dir.absoluteFilePath(file));
             if (loader.load()) return true;
         }

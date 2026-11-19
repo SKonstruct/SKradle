@@ -1,6 +1,5 @@
 import QtQuick
 import com.skradle.app
-import QtQuick.Controls
 import QtQuick.Layouts
 
 // "My server": the server's own web interface. A web view where the platform has one; otherwise a button that

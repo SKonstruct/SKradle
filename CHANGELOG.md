@@ -24,6 +24,8 @@ history has the rest.
   with its web interface shown inside the window (system web view on macOS and Windows; the browser on Linux).
 - **Updates and reports**: checks GitHub for a newer launcher (can be switched off); optional crash reports, scrubbed
   of personal details, with an off switch.
+- Windows: Steam is found where the registry says it is, so installs on another drive work. The About page shows the
+  launcher's version, and a settings file that had to be reset is announced once.
 - **Test builds** from the Actions tab (`Build` workflow): a `.dmg` for macOS (Apple silicon and Intel), a `.zip` for
   Windows (x64 and ARM64) and an AppImage for Linux x64. They are unsigned: on macOS run `xattr -cr SKradle.app` once,
   on Windows choose "More info" then "Run anyway".
@@ -37,9 +39,12 @@ history has the rest.
 - Several smaller safety and correctness fixes found by the code review (names that Windows cannot store, links
   inside mod archives and backups, Java 8 version numbers, Discord presence replies, `getdown.txt` comments).
 
+### Removed
+
+- The early UI prototypes (`spikes/`); the app replaced them. They stay in the git history.
+
 ### Known gaps
 
 - Servers, Mods and News pages still show sample data in places; the real lists are being wired in.
 - No installer, no code signing, no automatic update of the launcher itself yet.
-- Windows: Steam libraries outside the default location are not found through the registry yet.
 - Linux arm64 is not supported (the game ships no Linux arm64 runtime).

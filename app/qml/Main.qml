@@ -1,7 +1,6 @@
 import QtQuick
 import com.skradle.app
 import QtQuick.Controls
-import QtQuick.Layouts
 
 ApplicationWindow {
     id: win
@@ -23,6 +22,9 @@ ApplicationWindow {
     palette.toolTipBase: Theme.raised
     palette.toolTipText: Theme.text
     palette.placeholderText: Theme.textTertiary
+
+    // The settings file was unreadable and reset to the defaults: say so once, instead of silently forgetting choices.
+    Component.onCompleted: if (Settings.loadWarning.length > 0) Qt.callLater(() => Data.toast(Settings.loadWarning))
 
     property int current: AppEnv.initialPage
     property int dir: 1

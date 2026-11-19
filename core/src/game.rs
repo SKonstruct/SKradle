@@ -40,6 +40,35 @@ pub struct Env {
     pub program_files_x86: Option<PathBuf>,
     /// `%LOCALAPPDATA%` on Windows.
     pub local_app_data: Option<PathBuf>,
+    /// Steam's own install folder as Windows' registry records it (`HKCU\Software\Valve\Steam\SteamPath`), which is
+    /// where Steam really is when it was installed to another drive.
+    pub steam_path: Option<PathBuf>,
+}
+
+/// The folder in the output of `reg query HKCU\Software\Valve\Steam /v SteamPath`:
+/// a line like `    SteamPath    REG_SZ    D:/Steam`.
+pub fn parse_reg_steam_path(output: &str) -> Option<PathBuf> {
+    output.lines().find_map(|line| {
+        let rest = line.trim().strip_prefix("SteamPath")?;
+        let value = rest.trim_start().strip_prefix("REG_SZ")?.trim();
+        (!value.is_empty()).then(|| PathBuf::from(value))
+    })
+}
+
+#[cfg(windows)]
+fn steam_path_from_registry() -> Option<PathBuf> {
+    use std::os::windows::process::CommandExt;
+    let output = std::process::Command::new("reg")
+        .args(["query", r"HKCU\Software\Valve\Steam", "/v", "SteamPath"])
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        .output()
+        .ok()?;
+    parse_reg_steam_path(&String::from_utf8_lossy(&output.stdout))
+}
+
+#[cfg(not(windows))]
+fn steam_path_from_registry() -> Option<PathBuf> {
+    None
 }
 
 impl Env {
@@ -50,6 +79,7 @@ impl Env {
             home: var("HOME").or_else(|| var("USERPROFILE")),
             program_files_x86: var("ProgramFiles(x86)"),
             local_app_data: var("LOCALAPPDATA"),
+            steam_path: steam_path_from_registry(),
         }
     }
 }
@@ -118,7 +148,14 @@ pub fn steam_roots(env: &Env) -> Vec<PathBuf> {
                 .program_files_x86
                 .clone()
                 .unwrap_or_else(|| PathBuf::from(r"C:\Program Files (x86)"));
-            vec![base.join("Steam")]
+            // Where the registry says Steam is comes first (it may be on another drive); the usual place stays as a
+            // fallback.
+            let mut roots: Vec<PathBuf> = env.steam_path.iter().cloned().collect();
+            let usual = base.join("Steam");
+            if !roots.contains(&usual) {
+                roots.push(usual);
+            }
+            roots
         }
     }
 }
@@ -218,6 +255,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_steam_folder_is_read_from_registry_output_and_comes_first() {
+        let out = "\r\nHKEY_CURRENT_USER\\Software\\Valve\\Steam\r\n    SteamPath    REG_SZ    D:/Games/Steam\r\n\r\n";
+        assert_eq!(
+            parse_reg_steam_path(out),
+            Some(PathBuf::from("D:/Games/Steam"))
+        );
+        assert_eq!(
+            parse_reg_steam_path("ERROR: The system was unable to find the specified registry key"),
+            None
+        );
+        let env = Env {
+            os: Os::Windows,
+            home: None,
+            program_files_x86: Some(PathBuf::from(r"C:\PF86")),
+            local_app_data: None,
+            steam_path: Some(PathBuf::from("D:/Games/Steam")),
+        };
+        let roots = steam_roots(&env);
+        assert_eq!(roots[0], PathBuf::from("D:/Games/Steam"));
+        assert!(roots.contains(&PathBuf::from(r"C:\PF86").join("Steam")));
+    }
+
+    #[test]
     fn a_manifest_folder_name_with_a_drive_colon_is_refused() {
         assert!(is_plain_folder_name("Spiral Knights"));
         assert!(!is_plain_folder_name("D:"));
@@ -241,6 +301,7 @@ mod tests {
             os: Os::MacOs,
             home: Some(home.to_path_buf()),
             program_files_x86: None,
+            steam_path: None,
             local_app_data: None,
         }
     }
@@ -341,6 +402,7 @@ mod tests {
             os: Os::Linux,
             home: None,
             program_files_x86: None,
+            steam_path: None,
             local_app_data: None,
         };
         assert!(locate(&env).is_empty());
@@ -352,6 +414,7 @@ mod tests {
             os: Os::Windows,
             home: None,
             program_files_x86: Some(PathBuf::from(r"D:\PF86")),
+            steam_path: None,
             local_app_data: Some(PathBuf::from(r"C:\Users\me\AppData\Local")),
         };
         assert_eq!(

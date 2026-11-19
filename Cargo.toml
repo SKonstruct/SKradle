@@ -4,8 +4,6 @@ members = ["core", "app"]
 # `cargo build`/`cargo test` without flags covers only the Qt-free core. The application crate needs a Qt install
 # (see app/README.md): build it with `-p skradle-app`.
 default-members = ["core"]
-# The spikes are standalone experiments with their own manifests.
-exclude = ["spikes"]
 
 [workspace.package]
 version = "0.1.0"

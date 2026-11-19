@@ -1,6 +1,5 @@
 import QtQuick
 import com.skradle.app
-import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Shapes
 import QtQuick.Dialogs

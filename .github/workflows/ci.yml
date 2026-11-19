@@ -1,8 +1,8 @@
 name: CI
 
-# Builds the native-look and Rust-bridge spikes on every platform SKradle v1 targets, runs their self-tests, takes
-# screenshots (the native look on Windows and macOS, to compare with the design) and checks that each OS can be
-# packaged. Linux arm64 is not part of v1: the game ships no Linux arm64 runtime or natives.
+# Builds, tests and lints the core and the app on every platform SKradle v1 targets, and starts the app headless for its
+# self-test and screenshots. (Packages for download come from build.yml.) Linux arm64 is not part of v1: the game ships
+# no Linux arm64 runtime or natives.
 on:
   push:
     branches: [main]
@@ -47,147 +47,13 @@ jobs:
       - run: cargo clippy -p skradle-core --all-targets -- -D warnings
       - run: cargo test -p skradle-core
 
-  spikes:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
-    env:
-      CMAKE_BUILD_PARALLEL_LEVEL: 4
-    # Experimental legs may fail without failing the workflow (runner labels and Qt arches not yet confirmed there).
-    continue-on-error: ${{ matrix.experimental }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { name: linux-x64, os: ubuntu-latest, qt_arch: "", cmake_args: "", experimental: false }
-          - { name: macos-arm64, os: macos-latest, qt_arch: "", cmake_args: "", experimental: false }
-          - { name: macos-x64, os: macos-15-intel, qt_arch: "", cmake_args: "", experimental: true }
-          - { name: windows-x64, os: windows-latest, qt_arch: win64_msvc2022_64, cmake_args: "-A x64", experimental: false }
-          - { name: windows-arm64, os: windows-11-arm, qt_arch: win64_msvc2022_arm64, qt_host: windows_arm64, cmake_args: "-A ARM64", experimental: true }
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
-        with:
-          version: ${{ env.QT_VERSION }}
-          host: ${{ matrix.qt_host }}
-          arch: ${{ matrix.qt_arch }}
-          aqtsource: ${{ env.AQT_SOURCE }}
-          cache: true
-
-      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
-
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          workspaces: |
-            spikes/native-look/ffi/rust
-            spikes/native-look/cxxqt
-
-      - name: Install Linux system libraries for Qt
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-x11-0 libegl1 libfontconfig1 libdbus-1-3 libxcb-cursor0
-
-      - name: Rust unit tests
-        run: cargo test --manifest-path spikes/native-look/ffi/rust/Cargo.toml
-
-      - name: Build the Qt spikes (CMake)
-        working-directory: spikes/native-look
-        run: |
-          for d in widgets qml ffi; do
-            cmake -S "$d" -B "$d/build" -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
-            cmake --build "$d/build" --config Release --parallel
-          done
-
-      - name: Build the cxx-qt spike (cargo)
-        working-directory: spikes/native-look/cxxqt
-        run: cargo build --release
-
-      # Both bridges must return the string the Rust code produced.
-      - name: Self-tests (Rust core through both bridges)
-        timeout-minutes: 5
-        working-directory: spikes/native-look
-        env:
-          # On Windows Qt logs to the debugger unless told otherwise, and the QML self-test reports through its log.
-          QT_FORCE_STDERR_LOGGING: "1"
-        run: |
-          if [ "$RUNNER_OS" = Linux ]; then export QT_QPA_PLATFORM=offscreen; fi
-          find_exe() { find "$1" -maxdepth 5 -type f \( -name "$2" -o -name "$2.exe" \) -not -path '*CMakeFiles*' | head -1; }
-          ffi=$(find_exe ffi/build nl_ffi)
-          cxxqt=cxxqt/target/release/nl_cxxqt
-          if [ -f "$cxxqt.exe" ]; then cxxqt="$cxxqt.exe"; fi
-          echo "ffi: $ffi"; echo "cxxqt: $cxxqt"
-          out=$("$ffi" --selftest); echo "$out"
-          echo "$out" | grep -q 'saved: render scale 150% with /usr/bin/java (computed in Rust)'
-          out=$("$cxxqt" --selftest 2>&1); echo "$out"
-          echo "$out" | grep -q 'saved: render scale 150% (computed in Rust)'
-
-      # Screenshots of the same settings page, with and without the pink palette override. Windows and macOS show the
-      # real platform style; Linux runs the offscreen platform here, so it is not a native-look reference.
-      - name: Screenshots
-        timeout-minutes: 5
-        working-directory: spikes/native-look
-        run: |
-          if [ "$RUNNER_OS" = Linux ]; then export QT_QPA_PLATFORM=offscreen; fi
-          find_exe() { find "$1" -maxdepth 5 -type f \( -name "$2" -o -name "$2.exe" \) -not -path '*CMakeFiles*' | head -1; }
-          w=$(find_exe widgets/build nl_widgets); q=$(find_exe qml/build nl_qml)
-          mkdir -p shots
-          "$w" --shot shots/widgets-native.png
-          "$w" --accent --shot shots/widgets-accent.png
-          "$q" --shot shots/qml-native.png
-          "$q" --accent --shot shots/qml-accent.png
-          for f in shots/*.png; do test "$(cat "$f.status")" = ok; done
-          ls -l shots
-
-      - name: Upload screenshots
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: native-look-${{ matrix.name }}
-          path: spikes/native-look/shots
-          if-no-files-found: ignore
-
-      - name: Package (macOS .app and .dmg)
-        if: runner.os == 'macOS'
-        continue-on-error: true
-        timeout-minutes: 10
-        working-directory: spikes/native-look/ffi/build
-        run: |
-          macdeployqt nl_ffi.app -dmg
-          env -i ./nl_ffi.app/Contents/MacOS/nl_ffi --selftest | grep -q 'saved: render scale 150%'
-          ls -lh nl_ffi.dmg
-
-      - name: Package (Windows deploy folder and zip)
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        timeout-minutes: 10
-        shell: pwsh
-        working-directory: spikes/native-look/ffi/build/Release
-        run: |
-          windeployqt --release --no-translations nl_ffi.exe
-          .\nl_ffi.exe --selftest
-          Compress-Archive -Path * -DestinationPath ../../../nl_ffi-windows.zip
-          Get-Item ../../../nl_ffi-windows.zip
-
-      - name: Upload packages
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: package-${{ matrix.name }}
-          path: |
-            spikes/native-look/ffi/build/nl_ffi.dmg
-            spikes/native-look/nl_ffi-windows.zip
-          if-no-files-found: ignore
-
   # The launcher itself (crate skradle-app: Qt Quick UI bridged to skradle-core with cxx-qt). Built from the workspace
   # root, tested, linted, then started headless for its self-test and its screenshots.
   app:
     name: app ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    # Experimental legs may fail without failing the workflow (same legs as the spikes job).
+    # Experimental legs may fail without failing the workflow (runner labels or Qt architectures not yet proven).
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false

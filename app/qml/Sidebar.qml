@@ -1,6 +1,5 @@
 import QtQuick
 import com.skradle.app
-import QtQuick.Controls
 import QtQuick.Layouts
 
 // Custom-drawn navigation rail. The selection pill is one item whose top and bottom edges animate with different
