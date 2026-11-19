@@ -9,6 +9,7 @@ set -euo pipefail
 binary=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")   # absolute: the steps below change directory
 version=$2
 out=$3
+mkdir -p "$out"; out=$(cd "$out" && pwd)   # absolute: the steps below change directory
 arch=${4:-linux-x64}
 root=$(cd "$(dirname "$0")/.." && pwd)
 tools=${LINUXDEPLOY_DIR:?set LINUXDEPLOY_DIR to the folder with linuxdeploy-x86_64.AppImage and the Qt plugin}

@@ -8,6 +8,7 @@ set -euo pipefail
 binary=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")   # absolute: the steps below change directory
 version=$2
 out=$3
+mkdir -p "$out"; out=$(cd "$out" && pwd)   # absolute: the steps below change directory
 arch=${4:-windows}
 root=$(cd "$(dirname "$0")/.." && pwd)
 
