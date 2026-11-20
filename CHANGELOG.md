@@ -14,8 +14,8 @@ history has the rest.
   testing.
 - **Home**: the launch card (update, launching and running states); the three latest Spiral Knights news items; an
   estimate of the players online (the Steam counts of the Live and Preview servers, each multiplied by 1.4 for
-  standalone players, with the breakdown shown); the game's live events with a countdown and a Learn more button (from
-  the project's backend; the card stays hidden until events are published); a donation button; and **Release notes**,
+  standalone players, with the breakdown shown); the game's live events (the same event feed the mobile apps use) with a countdown, a banner and a Learn more
+  button, hidden when there are none or the feed is unreachable; a donation button; and **Release notes**,
   this changelog bundled into the app, readable offline with each version collapsible. News and player counts come
   from Steam's public API, are kept on disk and shown as offline when Steam is unreachable.
 - **Launching Spiral Knights** from a Steam or standalone install, found automatically; a custom folder can be added.
@@ -24,7 +24,7 @@ history has the rest.
 - **Settings**: the game install to use, Java, memory (RAM), garbage collector and explicit-GC behaviour (recommended
   values by default: 4096 MB, G1, explicit GC disabled), extra JVM arguments; file cleaning, file purging and *Reset game files*; the graphics enhancements (render scale, sharpening,
   sharp HUD, frame generation, frame cap, FPS counter) passed to the game as the skgfx agent, which needs Java 24 or
-  newer; Discord Rich Presence (off until the project's Discord application id is set); the game's editors; appearance,
+  newer; Discord Rich Presence (off by default); the game's editors; appearance,
   language, reduced motion, hiding the launcher while playing, update check, crash reports; version and links.
 - **Mods**: the mods in your mods folder with an on/off switch each, a picture per mod (from `mod.json` or `mod.png`,
   a generic icon otherwise), tags found automatically, filters for enabled, disabled, mods with warnings and each tag,
@@ -41,6 +41,14 @@ history has the rest.
 - **Test builds** from the Actions tab (`Build` workflow): a `.dmg` for macOS (Apple silicon and Intel), a `.zip` for
   Windows (x64 and ARM64) and an AppImage for Linux x64. They are unsigned: on macOS run `xattr -cr SKradle.app` once,
   on Windows choose "More info" then "Run anyway".
+
+### Changed
+
+- A design pass over every page: one spacing, radius and type scale, contrast fixes in both themes, quieter cards,
+  one clear primary action per screen, plain-language errors instead of raw engine text, and layouts that hold at the
+  900 x 600 minimum window size. Servers lists the servers first and tucks the local server's controls under
+  "Manage"; Mods has compact 64 px rows, status filters (All, Enabled, Disabled, Warnings) and one type menu; the
+  release notes read in a comfortable column. See `docs/design-system.md`.
 
 ### Fixed
 
@@ -59,6 +67,8 @@ history has the rest.
 
 ### Known gaps
 
+- Live events and banners come from a third-party feed over plain HTTP (the only plain-HTTP request SKradle makes,
+  limited to that one address); the app works normally without it.
 - Everything is untested against a real Tortodrone engine, a real game launch and Windows; the first real runs will
   find problems.
 - Players on the Official servers are shown as Steam's count (the standalone client is not counted).
