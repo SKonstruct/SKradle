@@ -48,6 +48,9 @@ impl Theme {
     }
 }
 
+/// The memory (MB) SKradle recommends and starts with.
+pub const RECOMMENDED_MEMORY_MB: u32 = 4096;
+
 /// Which garbage collector the game's JVM uses. `Default` adds no flag and leaves the game's own choice alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Collector {
@@ -137,10 +140,11 @@ impl Default for Settings {
             custom_game_path: None,
             java_path: String::new(),
             extra_jvm_args: String::new(),
-            memory_mb: None,
+            // The recommended game settings: 4 GB, G1 and no explicit GC (avoids some stop-the-world pauses).
+            memory_mb: Some(RECOMMENDED_MEMORY_MB),
             minimize_while_playing: true,
-            collector: Collector::Default,
-            disable_explicit_gc: false,
+            collector: Collector::G1,
+            disable_explicit_gc: true,
             file_cleaning: true,
             file_purging: true,
             discord_presence: false,
@@ -211,7 +215,7 @@ impl Settings {
             custom_game_path: path_value(map, "customGamePath"),
             java_path: get(map, "javaPath").unwrap_or(d.java_path),
             extra_jvm_args: get(map, "extraJvmArgs").unwrap_or(d.extra_jvm_args),
-            memory_mb: get(map, "memoryMb"),
+            memory_mb: get(map, "memoryMb").or(d.memory_mb),
             minimize_while_playing: get(map, "minimizeWhilePlaying")
                 .unwrap_or(d.minimize_while_playing),
             collector: get::<String>(map, "collector")
@@ -513,8 +517,15 @@ mod tests {
     #[test]
     fn the_game_and_file_options_round_trip_and_default_sensibly() {
         let d = Settings::default();
-        assert_eq!(d.collector, Collector::Default);
-        assert!(!d.disable_explicit_gc && !d.discord_presence);
+        assert_eq!(d.collector, Collector::G1);
+        assert_eq!(d.memory_mb, Some(4096));
+        assert!(d.disable_explicit_gc && !d.discord_presence);
+        // A settings file from before these options existed gets the recommended values, not "unset".
+        let old = Settings::from_map(&Map::new());
+        assert_eq!(
+            (old.memory_mb, old.collector, old.disable_explicit_gc),
+            (Some(4096), Collector::G1, true)
+        );
         assert!(d.file_cleaning && d.file_purging);
         let dir = temp();
         let path = dir.path().join("settings.json");
@@ -540,7 +551,8 @@ mod tests {
         }
         let mut map = Map::new();
         map.insert("collector".into(), Value::from("shenandoah"));
-        assert_eq!(Settings::from_map(&map).collector, Collector::Default);
+        // An unknown collector falls back to the recommended default.
+        assert_eq!(Settings::from_map(&map).collector, Collector::G1);
         for c in [
             Collector::Default,
             Collector::G1,
@@ -616,7 +628,11 @@ mod tests {
         assert_eq!(outcome, LoadOutcome::Loaded);
         assert_eq!(s.theme, Theme::System);
         assert!(!s.reduce_motion);
-        assert_eq!(s.memory_mb, None);
+        assert_eq!(
+            s.memory_mb,
+            Some(4096),
+            "a wrong type falls back to the recommended memory"
+        );
         assert_eq!(s.language, "de");
         assert!(s.show_fps);
     }

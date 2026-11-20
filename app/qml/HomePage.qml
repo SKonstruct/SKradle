@@ -284,7 +284,7 @@ PageScaffold {
                     SButton {
                         Layout.fillWidth: true
                         highlighted: true
-                        glyph: "star"
+                        glyph: "coffee"
                         text: qsTr("Buy me a coffee")
                         onClicked: Qt.openUrlExternally("https://buymeacoffee.com/sirdankk")
                     }

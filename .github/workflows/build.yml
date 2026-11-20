@@ -95,6 +95,10 @@ jobs:
         run: echo "QMAKE=$QT_ROOT_DIR/bin/qmake" >> "$GITHUB_ENV"
 
       - name: Build
+        env:
+          # The crash reporter's project (a public client key, kept as a secret so forks do not report to it). Without
+          # the secret the reporter is compiled out; "Send crash reports" in Settings still switches it off for players.
+          SKRADLE_SENTRY_DSN: ${{ secrets.SKRADLE_SENTRY_DSN }}
         run: cargo build -p skradle-app --release --locked
 
       # A build that does not start is not worth uploading.

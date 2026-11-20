@@ -591,22 +591,23 @@ mod tests {
     }
 
     #[test]
-    fn default_settings_add_no_collector_and_no_explicit_gc_flag() {
+    fn default_settings_use_the_recommended_memory_collector_and_explicit_gc() {
         let w = world();
         let mut fx = Recorder::default();
         let (spec, _) = prepare(&w.request, &w.machine, &around(), &mut fx).unwrap();
         let args = arg_strings(&spec);
-        assert!(
-            !args
-                .iter()
-                .any(|a| a.starts_with("-XX:+Use") && a.ends_with("GC")),
-            "{args:?}"
+        let collectors: Vec<_> = args
+            .iter()
+            .filter(|a| a.starts_with("-XX:+Use") && a.ends_with("GC"))
+            .collect();
+        assert_eq!(collectors, ["-XX:+UseG1GC"], "{args:?}");
+        assert_eq!(
+            args.iter()
+                .filter(|a| *a == "-XX:+DisableExplicitGC")
+                .count(),
+            1
         );
-        assert!(!args.contains(&"-XX:+DisableExplicitGC".to_owned()));
-        assert!(
-            !args.iter().any(|a| a.starts_with("-Xmx")),
-            "no memory chosen, none added"
-        );
+        assert!(args.contains(&"-Xmx4096M".to_owned()), "{args:?}");
     }
 
     #[test]
