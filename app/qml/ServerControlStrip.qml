@@ -45,7 +45,7 @@ Card {
         case "io": return qsTr("A file operation failed: %1").arg(d)
         case "data_locked": return qsTr("Another server is already using this server's data folder. Close it and try again.")
         case "startup_failed": return qsTr("The server failed to start: %1").arg(d)
-        case "ended": return qsTr("The server stopped unexpectedly. %1").arg(d)
+        case "ended": return qsTr("Problem: %1").arg(d)
         case "offline": return qsTr("Couldn't reach GitHub, where the server engine is downloaded from. Check your internet connection and try again.")
         case "rate_limited": return qsTr("GitHub is limiting requests right now (HTTP %1). Try again in a few minutes.").arg(d)
         case "download_failed": return qsTr("The download failed (%1). Try again.").arg(d)
