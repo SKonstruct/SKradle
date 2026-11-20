@@ -312,6 +312,25 @@ fn part_path(dest: &Path) -> PathBuf {
     dest.with_file_name(name)
 }
 
+/// Whether `url` is a plain `https://` address that is safe to open in the system browser: a real host (letters,
+/// digits, dots, hyphens, an optional port; no user info), no whitespace, control characters or quotes anywhere.
+pub fn is_plain_https_url(url: &str) -> bool {
+    let host_ok = url
+        .strip_prefix("https://")
+        .and_then(|rest| rest.split(['/', '?', '#']).next())
+        .is_some_and(|host| {
+            !host.is_empty()
+                && !host.contains('@')
+                && host
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-' || b == b':')
+        });
+    host_ok
+        && !url.chars().any(|c| {
+            c.is_whitespace() || c.is_control() || matches!(c, '"' | '\'' | '<' | '>' | '\\')
+        })
+}
+
 /// Lower-case hex of `bytes`.
 pub fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write as _;

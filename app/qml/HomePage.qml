@@ -8,6 +8,14 @@ PageScaffold {
     title: qsTr("Home")
     subtitle: qsTr("Spiral Knights")
 
+    // The changelog is the launcher's only release information: a plain button, with the version it covers.
+    actions: SButton {
+        text: qsTr("Release notes  ·  v%1").arg(AppEnv.version)
+        glyph: "info"
+        Accessible.name: qsTr("Release notes, version %1").arg(AppEnv.version)
+        onClicked: Data.releaseNotes()
+    }
+
     readonly property string st: LaunchModel.state
     // The hero shows while searching too, so the "not found" screen never flashes at start-up.
     readonly property bool found: GameModel.state !== "notfound"
@@ -17,11 +25,33 @@ PageScaffold {
     readonly property bool wide: Math.min(Theme.pageMax, page.width - 2 * Theme.s8) > 700
     function formatDate(secs) { return new Date(secs * 1000).toLocaleDateString(Qt.locale(), Locale.ShortFormat) }
     function openArticle(url) { if (url.indexOf("https://") === 0) Qt.openUrlExternally(url) }
-    function refresh() { HomeFeed.refreshNews(); HomeFeed.refreshPlayers() }
+    readonly property var players: { try { return JSON.parse(HomeFeed.playersJson) } catch (e) { return ({}) } }
+    readonly property var events: { try { return JSON.parse(HomeFeed.eventsJson) } catch (e) { return [] } }
+    readonly property bool showEvents: HomeFeed.eventsState === "ok" || HomeFeed.eventsState === "offline"
+    function refresh() { HomeFeed.refreshNews(); HomeFeed.refreshPlayers(); HomeFeed.refreshEvents() }
+    function number(n) { return Number(n).toLocaleString(Qt.locale(), "f", 0) }
     Component.onCompleted: refresh()
-    onShownChanged: if (shown) refresh()
+    onShownChanged: if (shown) { refresh(); tick++ }
     // Steam is asked for the player count at most once a minute, and only while this page is on screen.
-    Timer { interval: 60000; repeat: true; running: page.shown; onTriggered: HomeFeed.refreshPlayers() }
+    Timer { interval: 60000; repeat: true; running: page.shown; onTriggered: { HomeFeed.refreshPlayers(); page.tick++ } }
+
+    // The event countdowns are recomputed every minute (and when the page comes back); `tick` is what they watch.
+    property int tick: 0
+    function span(d, h, m) {
+        return d > 0 ? qsTr("%1d %2h").arg(d).arg(h) : h > 0 ? qsTr("%1h %2m").arg(h).arg(m) : qsTr("%1m").arg(m)
+    }
+    function countdownText(ev) {
+        page.tick
+        let c
+        try { c = JSON.parse(HomeFeed.countdown(ev.startsAt, ev.endsAt)) } catch (e) { return "" }
+        const none = c.days === 0 && c.hours === 0 && c.minutes === 0
+        switch (c.kind) {
+        case "starts": return none ? qsTr("Starts in under a minute") : qsTr("Starts in %1").arg(span(c.days, c.hours, c.minutes))
+        case "ends": return qsTr("Ends in %1").arg(span(c.days, c.hours, c.minutes))
+        case "endsToday": return none ? qsTr("Ends today, under a minute left") : qsTr("Ends today, %1 left").arg(span(c.days, c.hours, c.minutes))
+        }
+        return qsTr("Ended")
+    }
 
     readonly property bool busyRing: st === "launching" || (st === "updating" && !LaunchModel.determinate)
 
@@ -89,7 +119,6 @@ PageScaffold {
                     Layout.minimumWidth: 140
                     Layout.alignment: Qt.AlignVCenter
                     spacing: 4
-                    Txt { Layout.fillWidth: true; text: qsTr("Spiral Knights"); kind: "caption"; wrapMode: Text.NoWrap; elide: Text.ElideRight }
                     FadeText {
                         Layout.fillWidth: true
                         kind: "title"
@@ -144,11 +173,91 @@ PageScaffold {
         columnSpacing: Theme.s4
         rowSpacing: Theme.s4
 
-        Card {   // Spiral Knights news
-            id: newsCard
+        ColumnLayout {   // events (when there are any) above the news
             Layout.fillWidth: true
             Layout.preferredWidth: page.wide ? 2 : 1
             Layout.alignment: Qt.AlignTop
+            spacing: Theme.s4
+
+        Card {   // live events
+            id: eventsCard
+            Layout.fillWidth: true
+            visible: page.showEvents
+            implicitHeight: eventsCol.implicitHeight + 2 * Theme.s5
+            ColumnLayout {
+                id: eventsCol
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                anchors.margins: Theme.s5
+                spacing: Theme.s3
+                Txt { Layout.fillWidth: true; text: qsTr("Live events"); kind: "heading"; Accessible.role: Accessible.Heading }
+                Txt {
+                    Layout.fillWidth: true
+                    visible: HomeFeed.eventsState === "offline"
+                    kind: "caption"
+                    color: Theme.amberText
+                    text: HomeFeed.eventsFetchedAt > 0
+                        ? qsTr("Offline. Showing the events saved on %1.").arg(page.formatDate(HomeFeed.eventsFetchedAt))
+                        : qsTr("Offline. Showing saved events.")
+                }
+                Repeater {
+                    model: page.events
+                    Rectangle {
+                        id: ev
+                        required property int index
+                        required property var modelData
+                        Layout.fillWidth: true
+                        implicitHeight: evCol.implicitHeight + 2 * Theme.s4
+                        radius: Theme.rMd
+                        color: "transparent"
+                        border.width: 1
+                        border.color: Theme.border
+                        readonly property string when: page.countdownText(modelData)
+                        readonly property bool upcoming: { page.tick; return modelData.startsAt * 1000 > Date.now() }
+                        Accessible.role: Accessible.Grouping
+                        Accessible.name: modelData.title + ", " + when
+                        ColumnLayout {
+                            id: evCol
+                            anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                            anchors.margins: Theme.s4
+                            spacing: Theme.s2
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: Theme.s3
+                                Txt { Layout.fillWidth: true; text: ev.modelData.title; font.weight: Font.DemiBold; maximumLineCount: 2; elide: Text.ElideRight }
+                                Rectangle {
+                                    Layout.alignment: Qt.AlignTop
+                                    implicitWidth: whenText.implicitWidth + 2 * Theme.s3
+                                    implicitHeight: whenText.implicitHeight + Theme.s2
+                                    radius: height / 2
+                                    color: ev.upcoming ? Theme.raised : Theme.accentTint
+                                    Txt {
+                                        id: whenText
+                                        anchors.centerIn: parent
+                                        text: ev.when
+                                        kind: "micro"
+                                        color: Theme.text
+                                        wrapMode: Text.NoWrap
+                                        font.features: { "tnum": 1 }
+                                    }
+                                }
+                            }
+                            Txt { Layout.fillWidth: true; visible: text !== ""; text: ev.modelData.description; kind: "caption" }
+                            SButton {
+                                visible: ev.modelData.url !== ""
+                                text: qsTr("Learn more")
+                                glyph: "globe"
+                                Accessible.name: qsTr("Learn more about %1").arg(ev.modelData.title)
+                                onClicked: page.openArticle(ev.modelData.url)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Card {   // Spiral Knights news
+            id: newsCard
+            Layout.fillWidth: true
             implicitHeight: newsCol.implicitHeight + 2 * Theme.s5
             ColumnLayout {
                 id: newsCol
@@ -226,6 +335,7 @@ PageScaffold {
                 }
             }
         }
+        }   // events and news column
 
         ColumnLayout {
             Layout.fillWidth: true
@@ -233,16 +343,18 @@ PageScaffold {
             Layout.alignment: Qt.AlignTop
             spacing: Theme.s4
 
-            Card {   // players on Steam
+            Card {   // players online (an estimate)
                 Layout.fillWidth: true
                 implicitHeight: playersCol.implicitHeight + 2 * Theme.s5
                 ColumnLayout {
                     id: playersCol
                     anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
                     anchors.margins: Theme.s5
-                    spacing: Theme.s1
+                    spacing: Theme.s2
                     Accessible.role: Accessible.StaticText
-                    Accessible.name: HomeFeed.playersState === "ok" ? qsTr("%1 players on Steam right now").arg(HomeFeed.players) : qsTr("Players on Steam right now: not available")
+                    Accessible.name: HomeFeed.playersState === "ok"
+                        ? qsTr("About %1 players online right now (estimate)").arg(HomeFeed.players)
+                        : qsTr("Players online: not available")
                     Txt { Layout.fillWidth: true; text: qsTr("Players online"); kind: "heading" }
                     RowLayout {
                         Layout.fillWidth: true
@@ -254,7 +366,7 @@ PageScaffold {
                         }
                         Txt {
                             Layout.fillWidth: true
-                            text: HomeFeed.playersState === "ok" ? HomeFeed.players.toLocaleString(Qt.locale(), "f", 0) : "\u2013"
+                            text: HomeFeed.playersState === "ok" ? qsTr("About %1").arg(page.number(HomeFeed.players)) : "\u2013"
                             font.pixelSize: Theme.fsTitle
                             font.weight: Font.DemiBold
                             font.features: { "tnum": 1 }
@@ -264,9 +376,34 @@ PageScaffold {
                     Txt {
                         Layout.fillWidth: true
                         kind: "caption"
-                        text: HomeFeed.playersState === "ok" ? qsTr("players on Steam right now. Players of the standalone client are not counted.")
+                        text: HomeFeed.playersState === "ok" ? qsTr("players online right now (an estimate)")
                             : HomeFeed.playersState === "unavailable" ? qsTr("The player count is not available right now.")
                             : qsTr("Asking Steam…")
+                    }
+                    GridLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.s2
+                        visible: HomeFeed.playersState === "ok"
+                        columns: 2
+                        columnSpacing: Theme.s3
+                        rowSpacing: 2
+                        Txt { text: qsTr("Live"); kind: "caption"; font.weight: Font.DemiBold; color: Theme.text; Layout.alignment: Qt.AlignTop }
+                        Txt {
+                            Layout.fillWidth: true; kind: "caption"
+                            text: qsTr("%1 on Steam, about %2 in total").arg(page.number(page.players.liveSteam || 0)).arg(page.number(page.players.liveTotal || 0))
+                        }
+                        Txt { text: qsTr("Preview"); kind: "caption"; font.weight: Font.DemiBold; color: Theme.text; Layout.alignment: Qt.AlignTop }
+                        Txt {
+                            Layout.fillWidth: true; kind: "caption"
+                            text: qsTr("%1 on Steam, about %2 in total").arg(page.number(page.players.previewSteam || 0)).arg(page.number(page.players.previewTotal || 0))
+                        }
+                    }
+                    Txt {
+                        Layout.fillWidth: true
+                        visible: HomeFeed.playersState === "ok"
+                        kind: "caption"
+                        color: Theme.textTertiary
+                        text: qsTr("Steam counts only some of the players, so each Steam count is multiplied by %1 to include players of the standalone client.").arg(Number(page.players.factor || 1.4).toLocaleString(Qt.locale(), "f", 1))
                     }
                 }
             }

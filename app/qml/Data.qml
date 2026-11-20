@@ -7,4 +7,6 @@ import com.skradle.app
 QtObject {
     signal toast(string text)
     signal navigate(int page)
+    // Opens the release-notes viewer (Home and Settings ask; Main owns the dialog).
+    signal releaseNotes()
 }
