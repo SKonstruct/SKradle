@@ -38,6 +38,15 @@ build still works and the UI stays English (a build warning says so).
 
 The old prototype's `--bench` frame-time recorder was not ported (it needed render-thread C++).
 
+## Debugging in VS Code
+
+`.vscode/launch.json` has debug configurations for CodeLLDB (`vadimcn.vscode-lldb`; the folder recommends it): the app,
+the app in dark with reduced motion, with the software renderer, with a scratch settings and mods folder (so debugging
+never touches yours), the self-test, and unit tests for `skradle-core` and `skradle-app`. Each app configuration first
+runs the `build skradle (debug)` task. The build needs Qt: start VS Code from a shell where `QMAKE` is Qt's `qmake` and
+Qt's `bin` folder is on `PATH` (see Building above), or the build task fails with a clear message. Breakpoints work in
+the Rust code; QML errors appear in the Debug Console (`QT_FORCE_STDERR_LOGGING=1`).
+
 ## Structure
 
 ```text

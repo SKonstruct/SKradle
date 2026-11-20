@@ -1,0 +1,101 @@
+{
+  // Debug SKradle with CodeLLDB (extension vadimcn.vscode-lldb). The app crate needs a Qt 6.10+ install: before
+  // starting VS Code set QMAKE to Qt's qmake (for example /path/to/Qt/6.11.3/macos/bin/qmake) and put Qt's bin folder
+  // on PATH, see app/README.md. The "build skradle (debug)" task runs first, so a debug session always runs the code
+  // you are looking at.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "SKradle (debug)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/skradle",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build skradle (debug)",
+      "env": {
+        "RUST_BACKTRACE": "1",
+        "QT_FORCE_STDERR_LOGGING": "1"
+      }
+    },
+    {
+      "name": "SKradle (debug, dark, reduced motion)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/skradle",
+      "args": ["--scheme", "dark"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build skradle (debug)",
+      "env": {
+        "RUST_BACKTRACE": "1",
+        "QT_FORCE_STDERR_LOGGING": "1",
+        "SKRADLE_REDUCE_MOTION": "1"
+      }
+    },
+    {
+      "name": "SKradle (debug, software renderer)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/skradle",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build skradle (debug)",
+      "env": {
+        "RUST_BACKTRACE": "1",
+        "QT_FORCE_STDERR_LOGGING": "1",
+        "QT_QUICK_BACKEND": "software"
+      }
+    },
+    {
+      "name": "SKradle (debug, scratch settings folder)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/skradle",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build skradle (debug)",
+      "env": {
+        "RUST_BACKTRACE": "1",
+        "QT_FORCE_STDERR_LOGGING": "1",
+        // A throw-away settings and mods folder, so debugging never touches your real ones.
+        "SKRADLE_CONFIG_DIR": "${workspaceFolder}/target/debug-config",
+        "SKRADLE_MODS_DIR": "${workspaceFolder}/target/debug-mods"
+      }
+    },
+    {
+      "name": "SKradle self-test",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/skradle",
+      "args": ["--selftest"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build skradle (debug)",
+      "env": {
+        "RUST_BACKTRACE": "1",
+        "QT_FORCE_STDERR_LOGGING": "1"
+      }
+    },
+    {
+      "name": "Unit tests: skradle-core",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["test", "--no-run", "-p", "skradle-core", "--lib"],
+        "filter": { "name": "skradle_core", "kind": "lib" }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Unit tests: skradle-app",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["test", "--no-run", "-p", "skradle-app", "--bin", "skradle"],
+        "filter": { "name": "skradle", "kind": "bin" }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

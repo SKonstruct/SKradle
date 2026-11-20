@@ -1,7 +1,11 @@
 # OS / editors
 .DS_Store
 .idea/
-.vscode/
+# VS Code: personal settings stay local; the shared debug setup is committed
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 *.swp
 
 # Rust

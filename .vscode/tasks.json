@@ -1,0 +1,43 @@
+{
+  // The debug build the launch configurations run first. It needs Qt: QMAKE must point at Qt's qmake (see app/README.md).
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build skradle (debug)",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["build", "-p", "skradle-app"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$rustc",
+      "presentation": { "reveal": "silent", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "check skradle (core and app)",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["check", "--workspace", "--all-targets"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "test skradle-core",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["test", "-p", "skradle-core"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "clippy (warnings are errors)",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "problemMatcher": "$rustc"
+    }
+  ]
+}
