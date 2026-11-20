@@ -10,7 +10,10 @@ Item {
     id: page
 
     // ---- state ---------------------------------------------------------------------------------------------------
-    property string filter: "all"          // "all" or a tag id
+    // Three filters, and a mod must pass all of them: one status ("all", "enabled", "disabled" or "warning"), one
+    // type (a tag id, "" for any) and the search text.
+    property string status: "all"
+    property string tag: ""
     property string query: ""
     property bool dropForced: false        // screenshots
     property bool shotEmpty: false         // screenshots: show the empty state without touching the folder
@@ -28,13 +31,22 @@ Item {
         if (shotEmpty) return []
         try { return JSON.parse(ModsModel.tags) } catch (e) { return [] }
     }
-    // A filter whose tag is gone (the last such mod was removed) falls back to "all".
-    readonly property string activeFilter: filter === "all" || tags.some(t => t.id === filter) ? filter : "all"
-    readonly property var shown: {
-        const q = query.trim().toLowerCase()
-        return all.filter(m => (activeFilter === "all" || m.tags.indexOf(activeFilter) >= 0)
-                               && (q.length === 0 || m.search.indexOf(q) >= 0))
+    // A warning filter or a type whose mods are all gone falls back to "any".
+    readonly property int warnCount: all.filter(m => m.warning).length
+    readonly property string activeStatus: status === "warning" && warnCount === 0 ? "all" : status
+    readonly property string activeTag: tags.some(t => t.id === tag) ? tag : ""
+    readonly property string needle: query.trim().toLowerCase()
+    function passStatus(m, st) {
+        return st === "all" || (st === "enabled" ? m.enabled : st === "disabled" ? !m.enabled : m.warning)
     }
+    function passTag(m, t) { return t === "" || m.tags.indexOf(t) >= 0 }
+    function passText(m) { return needle.length === 0 || m.search.indexOf(needle) >= 0 }
+    readonly property var shown: all.filter(m => passStatus(m, activeStatus) && passTag(m, activeTag) && passText(m))
+    // Chip counts say what the chip would show given the other two filters, so a count always matches the list.
+    function statusCount(st) { return all.filter(m => passStatus(m, st) && passTag(m, activeTag) && passText(m)).length }
+    function tagCount(t) { return all.filter(m => passStatus(m, activeStatus) && passTag(m, t) && passText(m)).length }
+    readonly property bool filtering: activeStatus !== "all" || activeTag !== "" || needle.length > 0
+    function clearFilters() { search.text = ""; status = "all"; tag = "" }
     readonly property int enabledCount: all.filter(m => m.enabled).length
 
     property var sel: ({})                 // file name -> true
@@ -47,7 +59,7 @@ Item {
 
     function setSearch(t) { search.text = t; query = t }
     function resetShot() {
-        dropForced = false; shotEmpty = false; setSearch(""); filter = "all"
+        dropForced = false; shotEmpty = false; setSearch(""); status = "all"; tag = ""
         sel = ({}); cur = -1; issues = []; confirm.close(); keyboardNav = false
         ModsModel.forcePack("")
     }
@@ -55,7 +67,15 @@ Item {
         switch (name) {
         case "selected": sel = ({ [all[0].file]: true, [all[1].file]: true }); cur = 1; anchorIndex = 0; break
         case "focus": cur = 2; keyboardNav = true; rowsScope.forceActiveFocus(); break
-        case "tag": filter = "textures"; break
+        case "tag": tag = "textures"; break
+        case "enabled": status = "enabled"; break
+        case "disabled": status = "disabled"; break
+        case "warning": status = "warning"; break
+        case "combo": status = "enabled"; tag = "textures"; setSearch("s"); break
+        case "long": setSearch("texture"); break
+        case "scroll1": Qt.callLater(() => scroller.contentY = 900); break
+        case "scroll2": Qt.callLater(() => scroller.contentY = scroller.contentHeight - scroller.height); break
+        case "nomatch": status = "warning"; tag = "audio"; break
         case "empty": shotEmpty = true; break
         case "confirm": sel = ({ [all[0].file]: true }); askRemove(selectedFiles); break
         case "issues": issues = [{ file: "notes.txt", text: qsTr("not a .zip, .jar or .modpack file"), bad: true }, { file: "Sharp HUD.zip", text: qsTr("added as Sharp HUD (2).zip"), bad: false }]; break
@@ -277,24 +297,59 @@ Item {
             }
         }
 
-        Flow {   // filter chips: only tags the installed mods have
+        ColumnLayout {   // the filters and a line on how they combine
+            Layout.fillWidth: true
+            visible: page.all.length > 0
+            spacing: Theme.s2
+        Flow {   // filters: one status, one type; only types the installed mods have
             Layout.fillWidth: true
             visible: page.all.length > 0
             spacing: Theme.s2
             Chip {
-                text: qsTr("All"); badge: page.all.length
-                selected: page.activeFilter === "all"
-                onClicked: page.filter = "all"
+                text: qsTr("All"); badge: page.statusCount("all")
+                selected: page.activeStatus === "all"
+                onClicked: page.status = "all"
+            }
+            Chip {
+                text: qsTr("Enabled"); badge: page.statusCount("enabled")
+                selected: page.activeStatus === "enabled"
+                onClicked: page.status = "enabled"
+            }
+            Chip {
+                text: qsTr("Disabled"); badge: page.statusCount("disabled")
+                selected: page.activeStatus === "disabled"
+                onClicked: page.status = "disabled"
+            }
+            Chip {
+                visible: page.warnCount > 0
+                text: qsTr("Warnings"); badge: page.statusCount("warning")
+                selected: page.activeStatus === "warning"
+                onClicked: page.status = "warning"
+            }
+            Rectangle {   // between the status chips and the type chips
+                visible: page.tags.length > 0
+                width: 1; height: 20
+                color: Theme.border
             }
             Repeater {
                 model: page.tags
                 delegate: Chip {
                     required property var modelData
-                    text: ModsText.tagLabel(modelData.id); badge: modelData.count
-                    selected: page.activeFilter === modelData.id
-                    onClicked: page.filter = modelData.id
+                    text: ModsText.tagLabel(modelData.id); badge: page.tagCount(modelData.id)
+                    selected: page.activeTag === modelData.id
+                    Accessible.description: selected ? qsTr("Selected. Click to show every type.") : ""
+                    onClicked: page.tag = selected ? "" : modelData.id
                 }
             }
+        }
+
+        Txt {   // how the filters combine, and what they leave
+            Layout.fillWidth: true
+            kind: "micro"
+            color: Theme.textTertiary
+            text: (page.filtering ? qsTr("Showing %1 of %2 mods. ").arg(page.shown.length).arg(page.all.length) : "")
+                  + qsTr("Pick one status and one type. A mod must match both and the search to be listed.")
+        }
         }
 
         ColumnLayout {   // bulk bar and hints
@@ -399,7 +454,7 @@ Item {
             Icon { Layout.alignment: Qt.AlignHCenter; name: "search"; size: 32; color: Theme.textTertiary }
             Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: qsTr("No mods match"); kind: "heading" }
             Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: qsTr("Try a different search or filter."); color: Theme.textSecondary }
-            SButton { Layout.alignment: Qt.AlignHCenter; text: qsTr("Show all mods"); onClicked: { search.text = ""; page.filter = "all" } }
+            SButton { Layout.alignment: Qt.AlignHCenter; text: qsTr("Show all mods"); onClicked: page.clearFilters() }
         }
 
         ColumnLayout {   // the folder could not be read

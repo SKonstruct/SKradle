@@ -54,6 +54,9 @@ fn main() {
         let dir = std::env::temp_dir().join(format!("skradle-mods-{}", std::process::id()));
         if mods_host::write_fixtures(&dir).is_ok() {
             std::env::set_var("SKRADLE_MODS_DIR", &dir);
+            if std::env::var_os("SKRADLE_ICON_CACHE").is_none() {
+                std::env::set_var("SKRADLE_ICON_CACHE", dir.join(".icons"));
+            }
             mods_fixture_dir = Some(dir);
         }
     }

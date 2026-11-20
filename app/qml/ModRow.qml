@@ -17,7 +17,7 @@ Control {
     signal toggled(bool on)
 
     readonly property bool broken: item.error !== null
-    readonly property bool warned: item.incompatible || item.warnings.length > 0
+    readonly property bool warned: item.warning
     hoverEnabled: true
     activeFocusOnTab: false
     padding: Theme.s4
@@ -27,6 +27,7 @@ Control {
     Accessible.focusable: true
     Accessible.name: item.name + ", " + item.tags.map(t => ModsText.tagLabel(t)).join(", ") + ", "
                      + (item.enabled ? qsTr("enabled") : qsTr("disabled")) + (broken ? ", " + item.error : "")
+                     + (!broken && warned ? ", " + qsTr("has a warning") : "")
 
     background: Card {
         raised: false
@@ -54,44 +55,46 @@ Control {
             opacity: root.item.enabled ? 1 : 0.55
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
 
-            Rectangle {
+            ModImage {
                 Layout.alignment: Qt.AlignTop
-                Layout.preferredWidth: 44; Layout.preferredHeight: 44
-                radius: 11
-                color: root.broken || root.warned ? Theme.amberTint : Theme.accentTint
-                border.width: 1
-                border.color: Theme.border
-                Icon { visible: root.broken; anchors.centerIn: parent; name: "warning"; size: 22; color: Theme.amberText }
-                Txt {
-                    visible: !root.broken
-                    anchors.centerIn: parent
-                    text: root.item.name.charAt(0).toUpperCase()
-                    kind: "heading"
-                    wrapMode: Text.NoWrap
-                    color: root.warned ? Theme.amberText : Theme.accentFg
-                }
+                source: root.item.image
+                warned: root.warned
             }
-            ColumnLayout {
+            ColumnLayout {   // each fact once: title, version and author, description, file, then problems
                 Layout.fillWidth: true
                 spacing: 3
-                RowLayout {
+                Txt {   // wraps to a second line before it ever elides
                     Layout.fillWidth: true
-                    spacing: Theme.s2
-                    Txt { text: root.item.name; kind: "heading"; font.pixelSize: Theme.fsBody + 2; wrapMode: Text.NoWrap; elide: Text.ElideRight; Layout.fillWidth: true; Layout.maximumWidth: implicitWidth }
-                    Txt { id: verTxt; visible: root.item.version.length > 0; text: "v" + root.item.version; kind: "micro"; color: Theme.textTertiary; wrapMode: Text.NoWrap }
-                    Item { Layout.fillWidth: true }
-                }
-                Txt {
-                    Layout.fillWidth: true
-                    visible: text.length > 0
-                    text: (root.item.author.length > 0 ? qsTr("by %1").arg(root.item.author) + (root.item.description.length > 0 ? " · " : "") : "") + root.item.description
-                    kind: "caption"
+                    text: root.item.name
+                    kind: "heading"
+                    font.pixelSize: Theme.fsBody + 2
+                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                     maximumLineCount: 2
                     elide: Text.ElideRight
                 }
                 Txt {
                     Layout.fillWidth: true
-                    text: (root.item.file !== root.item.name ? root.item.file + " · " : "") + ModsText.kindText(root.item)
+                    visible: text.length > 0
+                    readonly property var bits: [root.item.version.length > 0 ? "v" + root.item.version : "",
+                                                 root.item.author.length > 0 ? qsTr("by %1").arg(root.item.author) : ""]
+                    text: bits.filter(b => b.length > 0).join(" · ")
+                    kind: "caption"
+                    color: Theme.textSecondary
+                    wrapMode: Text.NoWrap
+                    elide: Text.ElideRight
+                }
+                Txt {
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: root.item.description.replace(/\s+/g, " ")
+                    kind: "caption"
+                    wrapMode: Text.NoWrap
+                    elide: Text.ElideRight
+                }
+                Txt {   // the file name only when it says something the title does not
+                    Layout.fillWidth: true
+                    text: (root.item.file_note.length > 0 ? root.item.file_note + " · " : "") + ModsText.sizeText(root.item.size)
+                          + (root.item.container === "modpack" ? " · " + (root.item.parts === 1 ? qsTr("1 mod") : qsTr("%1 mods").arg(root.item.parts)) : "")
                     kind: "micro"
                     color: Theme.textTertiary
                     wrapMode: Text.NoWrap
@@ -111,14 +114,17 @@ Control {
                     kind: "caption"
                     color: Theme.amberText
                 }
-                Txt {
-                    Layout.fillWidth: true
-                    visible: !root.broken && root.item.warnings.length > 0
-                    text: root.item.warnings[0] + (root.item.warnings.length > 1 ? " " + qsTr("(+%n more)", "", root.item.warnings.length - 1) : "")
-                    kind: "caption"
-                    color: Theme.amberText
-                    maximumLineCount: 2
-                    elide: Text.ElideRight
+                Repeater {   // what the scan noted: every warning, none repeated
+                    model: root.broken ? [] : root.item.warnings
+                    delegate: Txt {
+                        required property string modelData
+                        Layout.fillWidth: true
+                        text: modelData
+                        kind: "caption"
+                        color: Theme.amberText
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
+                    }
                 }
             }
         }

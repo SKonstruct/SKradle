@@ -583,7 +583,19 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>has a warning</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>by %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 mod</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 mods</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -593,13 +605,6 @@
     <message>
         <source>Built for another game version. It is skipped when the game starts.</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>(+%n more)</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
     </message>
     <message>
         <source>Enable %1</source>
@@ -715,6 +720,30 @@
     </message>
     <message>
         <source>Dismiss the details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warnings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selected. Click to show every type.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Showing %1 of %2 mods. </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pick one status and one type. A mod must match both and the search to be listed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
@@ -872,21 +901,6 @@
     </message>
     <message>
         <source>%1 B</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>Modpack of %n mod(s)</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>JAR</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>ZIP</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

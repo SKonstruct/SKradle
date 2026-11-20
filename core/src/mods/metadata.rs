@@ -34,6 +34,8 @@ pub struct ModInfo {
     pub mod_type: Option<String>,
     /// Read from `pxVersion`.
     pub px_version: Option<String>,
+    /// Read from `icon` (or `image`): the archive path of the mod's picture. Checked when the picture is read.
+    pub icon: Option<String>,
     /// Bundle name to (key to text).
     pub locale: BTreeMap<String, BTreeMap<String, String>>,
 }
@@ -131,6 +133,10 @@ pub fn parse_mod_json(bytes: &[u8]) -> Result<(ModInfo, Vec<String>), MetaError>
         compatibility: text_of(obj.get("compatibility")),
         mod_type: text_of(obj.get("type")),
         px_version: text_of(obj.get("pxVersion")).filter(|s| !s.trim().is_empty()),
+        icon: text_of(obj.get("icon"))
+            .or_else(|| text_of(obj.get("image")))
+            .map(|s| s.trim().to_owned())
+            .filter(|s| !s.is_empty()),
         locale: BTreeMap::new(),
     };
     match obj.get("locale") {
@@ -296,6 +302,19 @@ mod tests {
 
     fn parse(json: &str) -> ModInfo {
         parse_mod_json(json.as_bytes()).unwrap().0
+    }
+
+    #[test]
+    fn reads_the_icon_path_from_icon_or_image() {
+        assert_eq!(
+            parse(r#"{"mod":{"icon":" art/logo.png "}}"#)
+                .icon
+                .as_deref(),
+            Some("art/logo.png")
+        );
+        assert_eq!(parse(r#"{"image":"a.png"}"#).icon.as_deref(), Some("a.png"));
+        assert_eq!(parse(r#"{"icon":"  "}"#).icon, None);
+        assert_eq!(parse(r#"{"icon":["a.png"]}"#).icon, None);
     }
 
     #[test]
