@@ -60,6 +60,8 @@ fn notice(kind: &'static str, code: &'static str, detail: impl Into<String>) -> 
 pub struct Join {
     pub host: String,
     pub port: u16,
+    #[serde(rename = "publicKey")]
+    pub public_key: String,
     #[serde(rename = "contentUrl")]
     pub content_url: String,
     #[serde(rename = "reachableByOthers")]
@@ -447,6 +449,7 @@ impl Inner {
             .map(|j| Join {
                 host: j.host,
                 port: j.port,
+                public_key: j.public_key,
                 content_url: j.content_url,
                 reachable_by_others: j.reachable_by_others,
             });
@@ -983,6 +986,7 @@ impl ServerHost for FixtureHost {
                 s.join = Some(Join {
                     host: "192.168.1.20".into(),
                     port: 47624,
+                    public_key: "a5ed0dc3892b9472#10001".into(),
                     content_url: "http://192.168.1.20:8080/".into(),
                     reachable_by_others: s.lan,
                 });

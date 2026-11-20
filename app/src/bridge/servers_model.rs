@@ -41,6 +41,11 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "draftOf"]
         fn draft_of(self: &ServerBook, id: &QString) -> QString;
+        /// What the game's connection settings become for a server (`official` too), as a JSON array of
+        /// `{key, value}`; empty for an unknown id.
+        #[qinvokable]
+        #[cxx_name = "summaryOf"]
+        fn summary_of(self: &ServerBook, id: &QString) -> QString;
         /// Removes a saved server (never Official or the hosted one). True when something was removed.
         #[qinvokable]
         fn remove(self: Pin<&mut ServerBook>, id: &QString) -> bool;
@@ -195,8 +200,49 @@ impl qobject::ServerBook {
     }
 
     pub fn draft_of(&self, id: &QString) -> QString {
-        let draft = servers::draft_of(&self.book.load(), &id.to_string());
+        let id = id.to_string();
+        let draft = if self.fixture {
+            self.rows.iter().find(|r| r.id == id).map(|r| {
+                serde_json::json!({ "id": r.id, "name": r.name, "address": r.host, "port": r.port.to_string(),
+                                    "key": "", "getdown": "", "content": "" })
+            })
+        } else {
+            servers::draft_of(&self.book.load(), &id)
+        };
         QString::from(draft.map(|d| d.to_string()).unwrap_or_default().as_str())
+    }
+
+    pub fn summary_of(&self, id: &QString) -> QString {
+        let id = id.to_string();
+        let mut list = self.book.load();
+        if self.fixture {
+            list.servers = self
+                .rows
+                .iter()
+                .filter(|r| r.kind != "official")
+                .map(|r| skradle_core::servers::Server {
+                    id: r.id.clone(),
+                    name: r.name.clone(),
+                    host: r.host.clone(),
+                    port: r.port,
+                    public_key: String::new(),
+                    client_url: String::new(),
+                    content_url: String::new(),
+                })
+                .collect();
+        }
+        let server = list.servers.iter().find(|s| s.id == id);
+        let summary = if id == servers::OFFICIAL_ID {
+            Some(skradle_core::servers::connection_summary(None))
+        } else {
+            server.map(|s| skradle_core::servers::connection_summary(Some(s)))
+        };
+        let rows: Vec<_> = summary
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(key, value)| serde_json::json!({ "key": key, "value": value }))
+            .collect();
+        QString::from(serde_json::Value::Array(rows).to_string().as_str())
     }
 
     pub fn remove(mut self: Pin<&mut Self>, id: &QString) -> bool {

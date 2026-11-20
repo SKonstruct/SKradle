@@ -160,7 +160,9 @@ ApplicationWindow {
     // ---- screenshot driver (skradle --shots <dir> [--prefix name]) -----------------------------------------------
     readonly property var shotNames: ["home-ready", "home-updating", "home-launching", "home-running", "home-error", "home-firstrun",
         "home-collapsed", "home-scrolled", "servers", "servers-dialog", "mods", "mods-search", "mods-drop", "graphics", "graphics-running",
-        "about", "focus", "focus-controls", "servers-menu", "graphics-combo", "mods-toggle", "servers-myserver"]
+        "about", "focus", "focus-controls", "servers-menu", "graphics-combo", "mods-toggle", "servers-myserver",
+        "srv-notinstalled", "srv-offline", "srv-install", "srv-busy", "srv-nojava", "srv-stopped", "srv-starting", "srv-running", "srv-running-lan",
+        "srv-failed", "srv-portbusy", "srv-backup", "srv-add", "srv-add-errors", "srv-edit", "srv-info", "srv-delete", "srv-selected-menu"]
     property int shotIndex: 0
     property int shotsFailed: 0
     function nextShot() {
@@ -196,6 +198,9 @@ ApplicationWindow {
         LaunchModel.force("ready", 0)
         const hp = pageItem(0); if (hp) hp.scroller.contentY = 0
         const sv = pageItem(1); if (sv) sv.closeAll()
+        // The Servers page shows a fixed list and a fixed server state, never this computer's.
+        ServerBook.force("list"); ServerHost.force("stopped")
+        if (name.indexOf("srv-") === 0) { go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.shot(name.substring(4)) }); return }
         const gp = pageItem(3); if (gp) gp.closeCombo()
         const md = pageItem(2); if (md) { md.dropForced = false; md.setSearch(""); md.filter = "all" }
         switch (name) {
@@ -219,7 +224,7 @@ ApplicationWindow {
         case "graphics-combo": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.openCombo() }); break
         case "focus-controls": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.focusSlider() }); break
         case "mods-toggle": go(2); Qt.callLater(() => { const p = pageItem(2); if (p) { p.setOn(4, true); p.setOn(0, false) } }); break
-        case "servers-myserver": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.showHost = true }); break
+        case "servers-myserver": go(1); ServerHost.force("running"); Qt.callLater(() => { const p = pageItem(1); if (p) p.showHost = true }); break
         case "focus": go(1); Qt.callLater(() => side.focusItem(1)); break
         }
     }

@@ -27,7 +27,7 @@ QtObject {
         { tag: QT_TRANSLATE_NOOP("Data", "Tips"), title: QT_TRANSLATE_NOOP("Data", "Smoother on laptops"), body: QT_TRANSLATE_NOOP("Data", "Lower the render scale and cap the frame rate to keep temperatures down on battery."), date: QT_TRANSLATE_NOOP("Data", "1 week ago"), hue: 2 }
     ]
 
-    // TODO(serverhost): replace with the server list (core servers module) and the hosted server.
+    // TODO(home): only HomePage's "Jump back in" still reads this; switch it to ServerBook (entries, probes) and delete.
     property ListModel servers: ListModel {
         ListElement { name: "Official servers"; address: "game.example.invalid:47011"; region: "Global"; status: "online"; players: 1284; capacity: 2000; ping: 38; isDefault: true }
         ListElement { name: "Haven community"; address: "haven.example.invalid:47011"; region: "Europe"; status: "online"; players: 96; capacity: 150; ping: 74; isDefault: false }

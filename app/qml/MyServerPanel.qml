@@ -2,15 +2,16 @@ import QtQuick
 import com.skradle.app
 import QtQuick.Layouts
 
-// "My server": the server's own web interface. A web view where the platform has one; otherwise a button that
-// opens the system browser. The choice is made at run time: WebPane.qml is loaded by URL, so a missing QtWebView
-// module or backend can only make this Loader fail.
+// The hosted server's own web interface. A web view where the platform has one; otherwise a button that opens the
+// system browser. The choice is made at run time: WebPane.qml is loaded by URL, so a missing QtWebView module or
+// backend can only make this Loader fail. The panel only has something to show while the server runs.
 Item {
     id: root
     signal back()
 
-    // "loading", "embedded" or "browser": what is shown now (the self-test reads it).
-    readonly property string mode: ServerHost.state !== "ready" ? "loading"
+    // "stopped" (not running), "loading", "embedded" or "browser": what is shown now (the self-test reads it).
+    readonly property bool running: ServerHost.state === "running"
+    readonly property string mode: !running ? (ServerHost.state === "starting" ? "loading" : "stopped")
         : !AppEnv.webViewAvailable ? "browser"
         : loader.status === Loader.Ready && !failed ? "embedded"
         : loader.status === Loader.Error || failed ? "browser" : "loading"
@@ -29,10 +30,9 @@ Item {
 
         PageHeader {
             Layout.fillWidth: true
-            title: qsTr("My server")
-            subtitle: ServerHost.state === "ready" ? qsTr("Managed through the server's own web interface.")
-                    : ServerHost.state === "failed" ? ServerHost.message
-                    : qsTr("The server is not running.")
+            title: qsTr("Server web interface")
+            subtitle: root.running ? qsTr("The server's own page for accounts, items and its console.")
+                    : qsTr("The server isn't running, so there is nothing to show.")
             SButton { text: qsTr("Back to servers"); variant: "ghost"; onClicked: root.back(); Accessible.name: text }
         }
 
@@ -50,7 +50,7 @@ Item {
                     anchors.fill: parent
                     anchors.margins: 2
                     // A failed native view stays on top of everything below it, so it must not stay mounted.
-                    active: root.shown && ServerHost.state === "ready" && AppEnv.webViewAvailable && !root.failed
+                    active: root.shown && root.running && AppEnv.webViewAvailable && !root.failed
                     source: "qrc:/qt/qml/com/skradle/app/web/WebPane.qml"
                     onLoaded: item.loadFailed.connect((why) => { console.warn("web view: " + why); root.failed = true })
                     // A Binding, not a one-off assignment: the view follows the server to another address.
@@ -63,7 +63,7 @@ Item {
                 anchors.centerIn: parent
                 width: Math.min(parent.width - 2 * Theme.s8, 440)
                 spacing: Theme.s3
-                visible: root.mode === "browser" && ServerHost.state === "ready"
+                visible: root.mode === "browser"
                 Txt {
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
@@ -75,7 +75,7 @@ Item {
                     Layout.alignment: Qt.AlignHCenter
                     highlighted: true
                     text: qsTr("Open in browser")
-                    // Only a web address can be handed to the browser (the preview host serves a data: page).
+                    // Only a web address can be handed to the browser.
                     enabled: /^https?:\/\//.test(String(ServerHost.url))
                     onClicked: Qt.openUrlExternally(ServerHost.url)
                     Accessible.name: text
@@ -83,8 +83,10 @@ Item {
             }
             Txt {
                 anchors.centerIn: parent
-                visible: ServerHost.state !== "ready"
-                text: ServerHost.state === "starting" ? qsTr("Starting the server…") : qsTr("The server is not running.")
+                width: Math.min(parent.width - 2 * Theme.s8, 440)
+                horizontalAlignment: Text.AlignHCenter
+                visible: !root.running
+                text: ServerHost.state === "starting" ? qsTr("Starting the server…") : qsTr("The server isn't running. Start it from the server controls, then open its web interface.")
                 color: Theme.textSecondary
             }
         }

@@ -190,6 +190,38 @@ host `127.0.0.1`, the game port, the public key and the content URL `http://127.
 gives other players the host (the computer's primary address, found without sending anything; the player can override it
 for a VPN), the port, the key and the content URL. It says plainly when the server only listens on this computer.
 
+## In the app
+
+The Servers page (`app/qml/ServersPage.qml`) has the **control strip** "Your server" above the list. Code:
+`app/src/server_host.rs` (trait `ServerHost`, `RealHost` on top of `core::serverhost`), bridge `ServerHost` in
+`app/src/bridge/server_host_model.rs`.
+
+- Every call (install, start, stop, restart, back up, restore, update, ports, password) runs on a worker thread of its own;
+  one task at a time (Stop may cancel a Start that is waiting). A poller reads `snapshot()` three times a second and the
+  strip shows the state: checking, not installed, stopped, starting, running, stopping, failed or busy. The engine's
+  SHA-256 is computed on a worker at start and after an install, never on the UI thread.
+- **Install** shows the licence summary (`terms::SUMMARY`) and a checkbox; `terms::accept` is called only after it, then
+  `update_engine` does the download. A second **Update engine** uses the same call. Backup, restore and update stop a running
+  server and start it again afterwards.
+- **Java 25+** is found with `runtime::find_runtimes` (SKradle's runtimes, `JAVA_HOME`, `PATH`; the game's own `java_vm` is
+  not used). None: Start is disabled and the strip says so, with a link to get Java.
+- **Ports and network access** are applied with `configure` while stopped; before a start the core checks both ports.
+  A busy port is named and the next free one is offered as a button. Nothing is ever left spinning: a failed start,
+  an offline download, a rate limit, a checksum mismatch and a locked data folder each have their own sentence.
+- **Registration.** After a start, after a port change and at launch of the app (once a key exists) the "Local Server"
+  entry is written to `servers.json` through the same writer lock the Servers page uses (`register::register`). A saved
+  server already called "Local Server" is reported, not overwritten.
+- **Web UI** opens from the strip only while the server runs (embedded where a web view exists, else the system browser).
+  The generated administrator is shown as user plus a hidden password with Show, Copy and New password.
+- **Quit.** `main` calls `server_host::shutdown()` after the event loop ends: a running engine gets the graceful stop
+  sequence; an install or backup in progress is not waited for.
+- Test runs (`--selftest`, `--shots`) use `FixtureHost`: fixed states, no Java, no network, no files. The real host is
+  covered by unit tests (state mapping, error wording, an empty folder, refused licence and ports).
+- Folder: `SKRADLE_SERVER_DIR`, else `<data dir>/SKradle/server`.
+
+Not verified: everything with a real engine and Java 25 (no jar was available), the clipboard copy on Windows and Linux,
+and the embedded view against the real WebUI.
+
 ## What the server cannot do
 
 This is the engine's current scope, not SKradle's: it is a development release. Login, the Ready Room, Haven, the supported

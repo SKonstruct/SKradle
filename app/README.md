@@ -51,7 +51,7 @@ app/
   resources.qrc       brand assets (../assets) and WebPane.qml
   src/
     main.rs options.rs reporter.rs
-    settings.rs discovery.rs selfupdate.rs server_host.rs
+    settings.rs discovery.rs selfupdate.rs server_host.rs servers.rs
     launch/{mod,plan,planned,log,memory,supervisor,winprobe}.rs
     bridge/*.rs       the QObjects
 ```
@@ -72,7 +72,8 @@ result back with cxx-qt's `CxxQtThread::queue`.
 | `GameModel` | `state` (`searching` `ready` `notfound`) `installPaths installKinds selectedPath selectedKind gameVersion detectedMemoryMb error` | `refresh() select(path) addCustomFolder(url) forgetCustom() force(state)` |
 | `LaunchModel` | `state` (`ready` `updating` `launching` `running` `error`) `step` (`checking` `downloading`) `message progress determinate` | `start(path) stop() cancel() dismiss() force(state, progress)` |
 | `UpdateModel` | `state` (`idle checking uptodate available downloading ready error`) `version progress message` | `check() download() install() skip()` |
-| `ServerHost` | `state url message` | `refresh()` |
+| `ServerHost` | `state url status` (JSON snapshot) | `refresh() install(accepted) updateEngine() start() stop() restart() backup() restore(name) backupsJson() setLan(on) setPorts(game, web) resetAdminPassword() adminPassword() dismiss() termsJson() force(name)` |
+| `ServerBook` | `entries probes selectedId selectedName error` (JSON; probes by id) | `reload() select(id) check(draft) save(draft) draftOf(id) summaryOf(id) remove(id) portOf(address) probeAll() force(name)` |
 
 `force(...)` exists for screenshots and does nothing else. The state properties have a `WRITE` only because cxx-qt
 generates its Rust setter from it; nothing in QML assigns them.
@@ -99,8 +100,7 @@ as described below and a direct launch as the game itself: "launching" until it 
 non-zero exit within 20 s is a failed start and carries the end of the game's output. A private server is refused while
 the game needs an update. Planner warnings and mod notes go to standard error for now (no UI for them yet).
 
-Where the inputs come from: the selected server from `servers.json` in the config folder (none is Official; there is
-no UI that writes it yet, `TODO(servers)`), the player's mods from `<data dir>/SKradle/mods` (no folder, no mods), the
+Where the inputs come from: the selected server from `servers.json` in the config folder (none is Official; written by the Servers page, `servers.rs`), the player's mods from `<data dir>/SKradle/mods` (no folder, no mods), the
 graphics agent from `<data dir>/SKradle/skgfx/skgfx-agent.jar` (no file, no graphics enhancements; the Graphics page
 values become `-Dskgfx.*` arguments through `skradle_core::graphics`; the anti-aliasing choice has no agent property
 and is not used; **nothing downloads the agent yet**, `TODO(graphics)`), and "an update is pending" from the game's
@@ -139,9 +139,10 @@ window:
 * `QtWebView::initialize()` must run **before** the `QGuiApplication` exists. `main` is Rust and creates the
   application object, so `glue::init_webview()` (C++, `cpp/glue.cpp`) is called first. If the Qt install has no
   QtWebView, `build.rs` does not link it and that function does nothing; one source tree builds either way.
-* The address and state come from the `ServerHost` singleton, which wraps the `ServerHost` trait in `server_host.rs`.
-  The stub answers with an inline page (`TODO(serverhost)`); the core's `serverhost` module is the real implementation
-  to connect.
+* The address and state come from the `ServerHost` singleton, which wraps the `ServerHost` trait in `server_host.rs`
+  (the real host on `core::serverhost`; see `docs/server-host.md`, "In the app"). The panel is reached with "Open web UI"
+  in the server control strip and only has content while the server runs. In the self-test and screenshot runs a
+  fixture host serves an inline page that sets its own title, so the embedded view is still checked.
 * A native web view is drawn above Qt Quick and cannot be clipped by a scroll view: the panel is a page of its own
   (reached with the "My server" button on the Servers page), not a card in a list. Toasts and dialogs would appear
   behind it. `grabWindow` (the screenshots) does not capture it.
@@ -178,10 +179,9 @@ pseudo mode.
 
 ### What is real and what is placeholder
 
-Real: game discovery and the custom folder, Java choice and the launch state machine, settings, launcher self-update
+Real: the Servers page (saved list, selection, probes, hosted server), game discovery and the custom folder, Java choice and the launch state machine, settings, launcher self-update
 (`UpdateModel`: check on request, download with SHA-256 check, start the installer), crash-report switch, theme,
 reduced motion, language.
 
-Placeholder (`Data.qml`, each marked): news (`TODO(backend)`), servers list (`TODO(serverhost)`), mods and mod updates
-(`TODO(mods)`), graphics presets and the Graphics page's effect on the game (`TODO(graphics)`), and the "My server"
-host (`TODO(serverhost)`).
+Placeholder (`Data.qml`, each marked): news (`TODO(backend)`), mods and mod updates
+(`TODO(mods)`), graphics presets and the Graphics page's effect on the game (`TODO(graphics)`).
