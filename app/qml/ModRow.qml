@@ -3,96 +3,156 @@ import com.skradle.app
 import QtQuick.Controls
 import QtQuick.Layouts
 
+// One mod. Columns: info (fills), type tags (fixed), switch (fixed, on the right edge). The page gives the two fixed
+// widths so every row lines up. Clicking selects (the page decides what that means with the modifier keys).
 Control {
     id: root
-    required property int index
-    required property int mid
-    required property string name
-    required property string tag
-    required property string desc
-    required property string ver
-    required property bool enabledState
+    required property var item
+    property bool selected: false
+    property bool showFocus: false
+    property bool canToggle: true
+    property int tagsWidth: 140
+    property int switchWidth: 52
+    signal clicked(int modifiers)
     signal toggled(bool on)
 
+    readonly property bool broken: item.error !== null
+    readonly property bool warned: item.incompatible || item.warnings.length > 0
     hoverEnabled: true
     activeFocusOnTab: false
     padding: Theme.s4
-    leftPadding: Theme.s4
     property int radius: Theme.rLg
-    readonly property color tileColor: [Theme.accent, "#43CDCA", "#F2BF3A", "#7C9CF2", "#E58A5C"][mid % 5]
     Accessible.role: Accessible.ListItem
-    Accessible.name: name + ", " + tag + ", " + (enabledState ? "enabled" : "disabled")
+    Accessible.selected: selected
+    Accessible.focusable: true
+    Accessible.name: item.name + ", " + item.tags.map(t => ModsText.tagLabel(t)).join(", ") + ", "
+                     + (item.enabled ? qsTr("enabled") : qsTr("disabled")) + (broken ? ", " + item.error : "")
 
-    background: Card { raised: root.hovered; fill: root.hovered ? Theme.cardHover : Theme.card; radius: root.radius }
+    background: Card {
+        raised: false
+        fill: root.selected ? Theme.cardHover : (root.hovered ? Theme.cardHover : Theme.card)
+        radius: root.radius
+        Rectangle {
+            anchors.fill: parent; radius: root.radius
+            color: root.selected ? Theme.accentTint : "transparent"
+            border.width: root.selected ? 2 : 0
+            border.color: Theme.accentFg
+        }
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            onClicked: (mouse) => root.clicked(mouse.modifiers)
+        }
+    }
 
     contentItem: RowLayout {
         spacing: Theme.s4
-        // everything except the switch dims when the mod is off
-        RowLayout {
+        RowLayout {   // info column; dims when the mod is off
             Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
             spacing: Theme.s4
-            opacity: root.enabledState ? 1 : 0.55
+            opacity: root.item.enabled ? 1 : 0.55
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
 
-            Rectangle {   // tile
-                Layout.alignment: Qt.AlignVCenter
+            Rectangle {
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredWidth: 44; Layout.preferredHeight: 44
                 radius: 11
-                color: Qt.rgba(root.tileColor.r, root.tileColor.g, root.tileColor.b, Theme.dark ? 0.20 : 0.18)
+                color: root.broken || root.warned ? Theme.amberTint : Theme.accentTint
                 border.width: 1
-                border.color: Qt.rgba(root.tileColor.r, root.tileColor.g, root.tileColor.b, 0.45)
+                border.color: Theme.border
+                Icon { visible: root.broken; anchors.centerIn: parent; name: "warning"; size: 22; color: Theme.amberText }
                 Txt {
+                    visible: !root.broken
                     anchors.centerIn: parent
-                    text: root.name.charAt(0)
+                    text: root.item.name.charAt(0).toUpperCase()
                     kind: "heading"
                     wrapMode: Text.NoWrap
-                    color: Theme.dark ? root.tileColor : Qt.darker(root.tileColor, 1.6)
+                    color: root.warned ? Theme.amberText : Theme.accentFg
                 }
             }
             ColumnLayout {
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
                 spacing: 3
                 RowLayout {
-                    spacing: 8
-                    Txt { text: root.name; kind: "heading"; font.pixelSize: Theme.fsBody + 2; wrapMode: Text.NoWrap; elide: Text.ElideRight; Layout.maximumWidth: implicitWidth }
-                    Rectangle {
-                        implicitWidth: tagTxt.implicitWidth + 14; implicitHeight: 20; radius: 10
-                        color: Theme.hoverTint
-                        Txt { id: tagTxt; anchors.centerIn: parent; text: qsTranslate("Data", root.tag); kind: "micro"; wrapMode: Text.NoWrap }
-                    }
-                    Txt { text: "v" + root.ver; kind: "micro"; color: Theme.textTertiary; wrapMode: Text.NoWrap }
+                    Layout.fillWidth: true
+                    spacing: Theme.s2
+                    Txt { text: root.item.name; kind: "heading"; font.pixelSize: Theme.fsBody + 2; wrapMode: Text.NoWrap; elide: Text.ElideRight; Layout.fillWidth: true; Layout.maximumWidth: implicitWidth }
+                    Txt { id: verTxt; visible: root.item.version.length > 0; text: "v" + root.item.version; kind: "micro"; color: Theme.textTertiary; wrapMode: Text.NoWrap }
                     Item { Layout.fillWidth: true }
                 }
-                Txt { Layout.fillWidth: true; text: qsTranslate("Data", root.desc); kind: "caption" }
+                Txt {
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: (root.item.author.length > 0 ? qsTr("by %1").arg(root.item.author) + (root.item.description.length > 0 ? " · " : "") : "") + root.item.description
+                    kind: "caption"
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                }
+                Txt {
+                    Layout.fillWidth: true
+                    text: (root.item.file !== root.item.name ? root.item.file + " · " : "") + ModsText.kindText(root.item)
+                    kind: "micro"
+                    color: Theme.textTertiary
+                    wrapMode: Text.NoWrap
+                    elide: Text.ElideMiddle
+                }
+                Txt {
+                    Layout.fillWidth: true
+                    visible: root.broken
+                    text: qsTr("Cannot be used: %1").arg(root.item.error || "")
+                    kind: "caption"
+                    color: Theme.danger
+                }
+                Txt {
+                    Layout.fillWidth: true
+                    visible: !root.broken && root.item.incompatible
+                    text: qsTr("Built for another game version. It is skipped when the game starts.")
+                    kind: "caption"
+                    color: Theme.amberText
+                }
+                Txt {
+                    Layout.fillWidth: true
+                    visible: !root.broken && root.item.warnings.length > 0
+                    text: root.item.warnings[0] + (root.item.warnings.length > 1 ? " " + qsTr("(+%n more)", "", root.item.warnings.length - 1) : "")
+                    kind: "caption"
+                    color: Theme.amberText
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                }
             }
         }
-        ColumnLayout {
+        Flow {   // type tags column
+            Layout.preferredWidth: root.tagsWidth
+            Layout.maximumWidth: root.tagsWidth
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: 84
-            spacing: 2
+            spacing: 6
+            opacity: root.item.enabled ? 1 : 0.55
+            Repeater {
+                model: root.item.tags
+                delegate: Rectangle {
+                    required property string modelData
+                    implicitWidth: tagTxt.implicitWidth + 16; implicitHeight: 22; radius: 11
+                    color: modelData === "broken" ? Theme.amberTint : Theme.hoverTint
+                    Txt { id: tagTxt; anchors.centerIn: parent; text: ModsText.tagLabel(parent.modelData); kind: "micro"; wrapMode: Text.NoWrap
+                          color: parent.modelData === "broken" ? Theme.amberText : Theme.textSecondary }
+                }
+            }
+        }
+        Item {   // switch column, flush with the right edge
+            Layout.preferredWidth: root.switchWidth
+            Layout.alignment: Qt.AlignVCenter
+            implicitHeight: sw.implicitHeight
             SSwitch {
                 id: sw
-                Layout.alignment: Qt.AlignHCenter
-                checked: root.enabledState
+                anchors.right: parent.right
+                enabled: root.canToggle
+                focusPolicy: Qt.NoFocus   // the list is one tab stop; Space toggles the focused or selected mods
+                checked: root.item.enabled
                 onToggled: root.toggled(checked)
-                Accessible.name: qsTr("Enable %1").arg(root.name)
-            }
-            Item {
-                Layout.fillWidth: true
-                implicitHeight: stTxt.implicitHeight
-                Txt {
-                    id: stTxt
-                    width: parent.width
-                    horizontalAlignment: Text.AlignHCenter
-                    text: root.enabledState ? qsTr("Enabled") : qsTr("Disabled")
-                    kind: "micro"
-                    wrapMode: Text.NoWrap
-                    elide: Text.ElideRight
-                    color: root.enabledState ? Theme.ok : Theme.textTertiary
-                    Behavior on color { ColorAnimation { duration: Motion.base } }
-                }
+                Accessible.name: qsTr("Enable %1").arg(root.item.name)
             }
         }
     }
+    FocusRing { active: root.showFocus; grow: 3 }
 }

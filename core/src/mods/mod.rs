@@ -9,17 +9,21 @@
 //! - [`apply`]: [`apply::apply`] and [`apply::restore_pristine`], atomic and fail-closed.
 //! - [`source`]: where an original code jar comes from when none is on disk.
 //! - [`txn`]: the journaled all-or-nothing file changes `apply` is built on.
+//! - [`tags`]: what a mod contains, as tags derived from the scan.
+//! - [`import`]: validating and copying a mod file into the mods folder.
 //! - [`sync`]: the modpack download.
 
 pub mod apply;
+pub mod import;
 pub mod list;
 pub mod metadata;
 pub mod model;
 pub mod protected;
 pub mod source;
 pub mod sync;
+pub mod tags;
 pub mod txn;
 
 pub use apply::{apply, restore_pristine, ApplyError, ApplyOptions, ApplyReport};
-pub use list::{list as list_mods, set_enabled, InstalledMod};
+pub use list::{list as list_mods, remove, set_enabled, InstalledMod};
 pub use model::{Container, Kind, Mod, ModError};
