@@ -108,6 +108,31 @@ from the bytecode and never tried.
 The pending-update check (`servers::update_pending`) treats an unreachable server as no update, so an offline private
 server still launches.
 
+## Steam installs and sign-in
+
+A Steam install signs in through the running Steam client, and the game decides that itself: `ProjectXApp.init` calls the
+Steam API (`SteamAPI_Init`, `native/libsteam_api`, found through the `java.library.path` that `getdown.txt` sets). When
+it succeeds the game logs in as the Steam account (log line `Steam initialized.`) and shows the character screen; when it
+fails the game shows the password screen. The API needs a running Steam client of the same user **and** the app id, which
+Steam gives the games it starts as the environment variables `SteamAppId` and `SteamGameId` (`99900`). A game started any
+other way had no app id, so Steam was running and the password screen came up anyway.
+
+`launch::steam` therefore adds `SteamAppId=99900` and `SteamGameId=99900` to the command (`CommandSpec::env`) for an
+install of kind Steam on Official, on both paths. The updater path sets them on the updater, whose child inherits them
+(observed). The working directory is the game folder on both paths, as Steam's. SKradle starts the game itself and not
+through `steam://rungameid/99900`, because a Steam launch cannot carry the direct launch's JVM arguments, mods or graphics
+agent (Steam only takes launch options, and the game then runs on its own trimmed runtime).
+
+- **Steam not running:** the plan is refused (`Refusal::SteamNotRunning`) before anything is applied or started, and the
+  app starts Steam (`steam://open/main`) and says so. Detection: process `steam_osx` (macOS), `steam` (Linux),
+  `steam.exe` (Windows, `tasklist`).
+- **Private server:** no Steam variables and no Steam check; the game uses the server's own accounts and the Steam identity
+  is not sent. A standalone install is unchanged.
+- Not set: the overlay (`DYLD_INSERT_LIBRARIES`/`LD_PRELOAD`), so no Steam overlay in the game; the sign-in does not need it.
+- Verified on macOS (arm64) against a real Steam client: the same game command without the variables shows the password
+  screen; with them the game reports `Steam initialized.` and reaches the character screen, direct and updater paths. Not
+  verified: Windows and Linux, and a Steam account other than the one signed in here.
+
 ## Player settings in the launch
 
 `app/src/launch/planned.rs` maps the settings to the plan: `direct_options` (memory, `GarbageCollector`, `DisableExplicitGC`,

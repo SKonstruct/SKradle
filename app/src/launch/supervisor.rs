@@ -534,6 +534,7 @@ mod tests {
             program: "/bin/sh".into(),
             args: vec![java.into_os_string()],
             cwd: dir.path().to_path_buf(),
+            env: Vec::new(),
         };
         (dir, spec)
     }
@@ -622,6 +623,7 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
             program: dir.path().join("no-such-java"),
             args: vec![],
             cwd: dir.path().to_path_buf(),
+            env: Vec::new(),
         };
         let events = Arc::new(Events::default());
         let _handle = start(spec, dir.path().to_path_buf(), fast(), events.sink());

@@ -72,6 +72,7 @@ pub fn fresh_install_command(dir: &Path, java: &Path) -> CommandSpec {
         .map(OsString::from)
         .to_vec(),
         cwd: dir.to_path_buf(),
+        env: Vec::new(),
     }
 }
 

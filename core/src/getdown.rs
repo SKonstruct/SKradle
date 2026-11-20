@@ -15,12 +15,15 @@ pub struct CommandSpec {
     pub program: PathBuf,
     pub args: Vec<OsString>,
     pub cwd: PathBuf,
+    /// Variables set for the child, on top of the environment it inherits. Empty for most commands.
+    pub env: Vec<(OsString, OsString)>,
 }
 
 impl CommandSpec {
     pub fn to_command(&self) -> Command {
         let mut command = Command::new(&self.program);
         command.args(&self.args).current_dir(&self.cwd);
+        command.envs(self.env.iter().map(|(k, v)| (k, v)));
         command
     }
 }
@@ -50,6 +53,7 @@ pub fn update_and_launch(install: &GameInstall, java: &Path, jvm_args: &[OsStrin
         program: java.to_path_buf(),
         args,
         cwd: install.root.clone(),
+        env: Vec::new(),
     }
 }
 

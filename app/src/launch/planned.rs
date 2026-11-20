@@ -15,11 +15,13 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use skradle_core::game::Os;
 use skradle_core::getdown::CommandSpec;
 use skradle_core::graphics::{agent_args, GraphicsSettings};
 use skradle_core::install::LATEST_GETDOWN_TXT_URL;
 use skradle_core::launch::direct::{DirectOptions, GarbageCollector, Inputs, Memory};
 use skradle_core::launch::plan::{self as core_plan, Effects, LaunchKind, PlanInputs, RealEffects};
+use skradle_core::launch::steam;
 use skradle_core::mods::ApplyOptions;
 use skradle_core::net;
 use skradle_core::runtime::{self, Runtime};
@@ -40,11 +42,16 @@ pub struct Surroundings {
     /// The newest `getdown.txt` from the game's server; `None` when it could not be fetched (offline), which counts
     /// as "no update" so a private server still launches.
     pub remote_getdown: Option<String>,
+    /// The Steam client is running. Only a Steam install on Official needs it.
+    pub steam_running: bool,
+    /// Starts the Steam client (best effort, returns whether it could be started); `None` in tests.
+    pub start_steam: Option<fn(Os) -> bool>,
 }
 
 impl Surroundings {
     /// Looks around on this computer. Fetches the remote `getdown.txt` (a few seconds at most).
     pub fn detect() -> Self {
+        let os = Os::current();
         let data = dirs::data_dir().map(|d| d.join("SKradle"));
         Self {
             arch: std::env::consts::ARCH.to_owned(),
@@ -61,6 +68,8 @@ impl Surroundings {
             )
             .get_text(LATEST_GETDOWN_TXT_URL, 256 * 1024)
             .ok(),
+            steam_running: steam::client_running(os),
+            start_steam: Some(steam::start_client),
         }
     }
 }
@@ -186,8 +195,12 @@ pub fn prepare(
         update_pending,
         options: &options,
         mod_options: mod_options(settings),
+        steam_running: around.steam_running,
     })
-    .map_err(|refusal| LaunchError::Refused(refusal.to_string()))?;
+    .map_err(|refusal| match refusal {
+        core_plan::Refusal::SteamNotRunning => steam_not_running(machine.os, around),
+        other => LaunchError::Refused(other.to_string()),
+    })?;
     for warning in &plan.warnings {
         eprintln!("skradle: {warning}");
     }
@@ -204,6 +217,16 @@ pub fn prepare(
         }
     }
     Ok((launched.handle, launched.kind))
+}
+
+/// The error for a Steam install with no Steam client: starts Steam when it can, and says so.
+fn steam_not_running(os: Os, around: &Surroundings) -> LaunchError {
+    let started = around.start_steam.is_some_and(|start| start(os));
+    LaunchError::Refused(if started {
+        "Steam was not running, so SKradle started it. This copy of the game signs in through Steam: wait until Steam has signed in, then launch again.".to_owned()
+    } else {
+        core_plan::Refusal::SteamNotRunning.to_string()
+    })
 }
 
 /// Starts the game the way the core's planner decides.
@@ -395,6 +418,81 @@ mod tests {
             })
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    static STEAM_STARTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    fn fake_start_steam(_: Os) -> bool {
+        STEAM_STARTS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        true
+    }
+
+    #[test]
+    fn a_steam_install_without_steam_running_starts_steam_and_says_so() {
+        let mut w = world();
+        w.request.install.kind = Kind::Steam;
+        let around = Surroundings {
+            steam_running: false,
+            start_steam: Some(fake_start_steam),
+            ..around()
+        };
+        let before = STEAM_STARTS.load(std::sync::atomic::Ordering::SeqCst);
+        let mut fx = Recorder::default();
+        let error = prepare(&w.request, &w.machine, &around, &mut fx).unwrap_err();
+        let LaunchError::Refused(text) = error else {
+            panic!("expected a refusal");
+        };
+        assert!(text.contains("Steam was not running"), "{text}");
+        assert_eq!(
+            STEAM_STARTS.load(std::sync::atomic::Ordering::SeqCst),
+            before + 1
+        );
+        assert!(!fx.calls.contains(&"spawn"), "the game must not start");
+    }
+
+    #[test]
+    fn a_steam_install_that_cannot_start_steam_gets_the_plain_error() {
+        let mut w = world();
+        w.request.install.kind = Kind::Steam;
+        let around = Surroundings {
+            steam_running: false,
+            ..around()
+        };
+        let mut fx = Recorder::default();
+        let error = prepare(&w.request, &w.machine, &around, &mut fx).unwrap_err();
+        assert!(
+            matches!(&error, LaunchError::Refused(t) if t.starts_with("Steam is not running."))
+        );
+    }
+
+    #[test]
+    fn a_steam_install_with_steam_running_carries_the_app_id() {
+        let mut w = world();
+        w.request.install.kind = Kind::Steam;
+        let around = Surroundings {
+            steam_running: true,
+            ..around()
+        };
+        let mut fx = Recorder::default();
+        let (spec, _) = prepare(&w.request, &w.machine, &around, &mut fx).unwrap();
+        let names: Vec<_> = spec
+            .env
+            .iter()
+            .map(|(k, _)| k.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, ["SteamAppId", "SteamGameId"]);
+    }
+
+    #[test]
+    fn a_standalone_install_never_asks_for_steam() {
+        let w = world();
+        let around = Surroundings {
+            steam_running: false,
+            ..around()
+        };
+        let mut fx = Recorder::default();
+        let (spec, _) = prepare(&w.request, &w.machine, &around, &mut fx).unwrap();
+        assert!(spec.env.is_empty());
     }
 
     #[test]

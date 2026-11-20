@@ -250,6 +250,7 @@ pub fn command_with_env(
         program: java.to_path_buf(),
         args,
         cwd: root.clone(),
+        env: Vec::new(),
     })
 }
 
