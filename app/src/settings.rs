@@ -14,9 +14,10 @@ use std::time::Duration;
 
 use serde_json::{Map, Value};
 
-/// Bounds for the game's memory limit (megabytes).
+/// Bounds for the game's memory limit (megabytes). The upper bound is a ceiling for hand-edited files; the Settings
+/// page offers the machine's own memory (see `launch::memory::slider_range`).
 pub const MEMORY_MIN: u32 = 512;
-pub const MEMORY_MAX: u32 = 16384;
+pub const MEMORY_MAX: u32 = 262_144;
 pub const FPS_MIN: u32 = 30;
 pub const FPS_MAX: u32 = 360;
 
@@ -47,6 +48,40 @@ impl Theme {
     }
 }
 
+/// Which garbage collector the game's JVM uses. `Default` adds no flag and leaves the game's own choice alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Collector {
+    #[default]
+    Default,
+    G1,
+    Zgc,
+    Parallel,
+    Serial,
+}
+
+impl Collector {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Collector::Default => "default",
+            Collector::G1 => "g1",
+            Collector::Zgc => "zgc",
+            Collector::Parallel => "parallel",
+            Collector::Serial => "serial",
+        }
+    }
+
+    pub fn parse(text: &str) -> Option<Collector> {
+        match text {
+            "default" => Some(Collector::Default),
+            "g1" => Some(Collector::G1),
+            "zgc" => Some(Collector::Zgc),
+            "parallel" => Some(Collector::Parallel),
+            "serial" => Some(Collector::Serial),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
     pub theme: Theme,
@@ -64,6 +99,16 @@ pub struct Settings {
     /// The game's heap limit. `None` leaves the game's own `extra.txt` setting alone.
     pub memory_mb: Option<u32>,
     pub minimize_while_playing: bool,
+    /// The garbage collector flag written for the game (`Default` writes none).
+    pub collector: Collector,
+    /// `-XX:+DisableExplicitGC`: ignore `System.gc()` calls, which avoid some stop-the-world pauses.
+    pub disable_explicit_gc: bool,
+    /// Apply mods against the game's original files, so removing a mod restores the original.
+    pub file_cleaning: bool,
+    /// Remove files earlier mod applications added to the game folder (only those the launcher recorded).
+    pub file_purging: bool,
+    /// Discord Rich Presence while the game runs (needs an application id, see `core::presence`).
+    pub discord_presence: bool,
     /// Crash reports (the telemetry switch).
     pub crash_reports: bool,
     /// Look for a newer launcher a moment after start (on by default; the About page's button always works).
@@ -94,6 +139,11 @@ impl Default for Settings {
             extra_jvm_args: String::new(),
             memory_mb: None,
             minimize_while_playing: true,
+            collector: Collector::Default,
+            disable_explicit_gc: false,
+            file_cleaning: true,
+            file_purging: true,
+            discord_presence: false,
             crash_reports: true,
             auto_update_check: true,
             skipped_update: None,
@@ -120,6 +170,11 @@ const KNOWN_KEYS: &[&str] = &[
     "extraJvmArgs",
     "memoryMb",
     "minimizeWhilePlaying",
+    "collector",
+    "disableExplicitGc",
+    "fileCleaning",
+    "filePurging",
+    "discordPresence",
     "crashReports",
     "autoUpdateCheck",
     "skippedUpdate",
@@ -159,6 +214,13 @@ impl Settings {
             memory_mb: get(map, "memoryMb"),
             minimize_while_playing: get(map, "minimizeWhilePlaying")
                 .unwrap_or(d.minimize_while_playing),
+            collector: get::<String>(map, "collector")
+                .and_then(|c| Collector::parse(&c))
+                .unwrap_or(d.collector),
+            disable_explicit_gc: get(map, "disableExplicitGc").unwrap_or(d.disable_explicit_gc),
+            file_cleaning: get(map, "fileCleaning").unwrap_or(d.file_cleaning),
+            file_purging: get(map, "filePurging").unwrap_or(d.file_purging),
+            discord_presence: get(map, "discordPresence").unwrap_or(d.discord_presence),
             crash_reports: get(map, "crashReports").unwrap_or(d.crash_reports),
             auto_update_check: get(map, "autoUpdateCheck").unwrap_or(d.auto_update_check),
             skipped_update: path_value(map, "skippedUpdate"),
@@ -210,6 +272,11 @@ impl Settings {
             "minimizeWhilePlaying",
             Value::from(self.minimize_while_playing),
         );
+        put("collector", Value::from(self.collector.as_str()));
+        put("disableExplicitGc", Value::from(self.disable_explicit_gc));
+        put("fileCleaning", Value::from(self.file_cleaning));
+        put("filePurging", Value::from(self.file_purging));
+        put("discordPresence", Value::from(self.discord_presence));
         put("crashReports", Value::from(self.crash_reports));
         put("autoUpdateCheck", Value::from(self.auto_update_check));
         put("skippedUpdate", self.skipped_update.clone().into());
@@ -441,6 +508,48 @@ mod tests {
         assert_eq!(back, s);
         assert_eq!(outcome, LoadOutcome::Loaded);
         assert!(!dir.path().join("sub/settings.json.tmp").exists());
+    }
+
+    #[test]
+    fn the_game_and_file_options_round_trip_and_default_sensibly() {
+        let d = Settings::default();
+        assert_eq!(d.collector, Collector::Default);
+        assert!(!d.disable_explicit_gc && !d.discord_presence);
+        assert!(d.file_cleaning && d.file_purging);
+        let dir = temp();
+        let path = dir.path().join("settings.json");
+        let s = Settings {
+            collector: Collector::Zgc,
+            disable_explicit_gc: true,
+            file_cleaning: false,
+            file_purging: false,
+            discord_presence: true,
+            ..Settings::default()
+        };
+        save(&path, &s).unwrap();
+        assert_eq!(load(&path).0, s);
+        let text = std::fs::read_to_string(&path).unwrap();
+        for key in [
+            "collector",
+            "disableExplicitGc",
+            "fileCleaning",
+            "filePurging",
+            "discordPresence",
+        ] {
+            assert!(text.contains(key), "{key} missing from {text}");
+        }
+        let mut map = Map::new();
+        map.insert("collector".into(), Value::from("shenandoah"));
+        assert_eq!(Settings::from_map(&map).collector, Collector::Default);
+        for c in [
+            Collector::Default,
+            Collector::G1,
+            Collector::Zgc,
+            Collector::Parallel,
+            Collector::Serial,
+        ] {
+            assert_eq!(Collector::parse(c.as_str()), Some(c));
+        }
     }
 
     #[test]

@@ -20,6 +20,8 @@ pub mod source;
 pub mod sync;
 pub mod txn;
 
-pub use apply::{apply, restore_pristine, ApplyError, ApplyOptions, ApplyReport};
+pub use apply::{
+    apply, apply_with_options, restore_pristine, ApplyError, ApplyOptions, ApplyReport,
+};
 pub use list::{list as list_mods, set_enabled, InstalledMod};
 pub use model::{Container, Kind, Mod, ModError};

@@ -63,9 +63,105 @@ pub fn write_limit(dir: &std::path::Path, mb: u32) -> std::io::Result<()> {
     skradle_core::jar::write_atomic(&path, updated.as_bytes())
 }
 
+/// The machine's memory in megabytes, or `None` when it cannot be read. Runs a short system command on macOS and
+/// Windows (a few milliseconds), so call it off the UI thread.
+pub fn total_ram_mb() -> Option<u32> {
+    #[cfg(target_os = "linux")]
+    {
+        parse_meminfo(&std::fs::read_to_string("/proc/meminfo").ok()?)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("/usr/sbin/sysctl")
+            .args(["-n", "hw.memsize"])
+            .output()
+            .ok()?;
+        parse_bytes(&String::from_utf8_lossy(&out.stdout))
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        let out = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory",
+            ])
+            .creation_flags(super::winprobe::CREATE_NO_WINDOW)
+            .output()
+            .ok()?;
+        parse_bytes(&String::from_utf8_lossy(&out.stdout))
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+    {
+        None
+    }
+}
+
+/// `MemTotal:  16384256 kB` from `/proc/meminfo`, in megabytes.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn parse_meminfo(text: &str) -> Option<u32> {
+    let line = text.lines().find(|l| l.starts_with("MemTotal:"))?;
+    let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    u32::try_from(kb / 1024).ok().filter(|mb| *mb > 0)
+}
+
+/// A byte count printed by a system command, in megabytes.
+#[cfg_attr(target_os = "linux", allow(dead_code))]
+pub fn parse_bytes(text: &str) -> Option<u32> {
+    let bytes: u64 = text.trim().parse().ok()?;
+    u32::try_from(bytes / (1024 * 1024))
+        .ok()
+        .filter(|mb| *mb > 0)
+}
+
+/// What the memory slider offers: from [`crate::settings::MEMORY_MIN`] up to three quarters of the machine's memory
+/// (the rest is left to the system), rounded down to a step of 256 MB, but never below 2048 so there is always a
+/// range, and never below what is already chosen. An unknown total offers up to 8192.
+pub fn slider_range(total_mb: Option<u32>, current_mb: u32) -> (u32, u32) {
+    let by_machine = total_mb.map_or(8192, |t| (t / 4 * 3) / 256 * 256);
+    let max = by_machine
+        .max(2048)
+        .max(current_mb.div_ceil(256) * 256)
+        .min(crate::settings::MEMORY_MAX);
+    (crate::settings::MEMORY_MIN, max)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_machines_memory_from_the_system_outputs() {
+        assert_eq!(
+            parse_meminfo("MemTotal:       16384256 kB\nMemFree: 1 kB\n"),
+            Some(16000)
+        );
+        assert_eq!(parse_meminfo("MemFree: 1 kB\n"), None);
+        assert_eq!(parse_bytes("17179869184\n"), Some(16384));
+        assert_eq!(parse_bytes("lots"), None);
+        assert_eq!(parse_bytes("0"), None);
+    }
+
+    #[test]
+    fn the_slider_range_follows_the_machine_and_never_hides_the_current_value() {
+        use crate::settings::{MEMORY_MAX, MEMORY_MIN};
+        assert_eq!(slider_range(Some(16384), 0), (MEMORY_MIN, 12288));
+        assert_eq!(slider_range(Some(8192), 0), (MEMORY_MIN, 6144));
+        assert_eq!(
+            slider_range(Some(3000), 0),
+            (MEMORY_MIN, 2048),
+            "always a range"
+        );
+        assert_eq!(slider_range(None, 0), (MEMORY_MIN, 8192));
+        assert_eq!(
+            slider_range(Some(8192), 10000),
+            (MEMORY_MIN, 10240),
+            "a larger saved value stays reachable"
+        );
+        assert_eq!(slider_range(Some(u32::MAX), 0).1, MEMORY_MAX);
+    }
 
     #[test]
     fn sizes() {

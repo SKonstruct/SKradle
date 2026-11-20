@@ -1,6 +1,6 @@
 //! Command-line flags and the environment switches that are read once at start.
 //!
-//! Flags: `--selftest`, `--pseudo`, `--scheme light|dark`, `--style <Name>`, `--page <0-4>`, `--collapsed`,
+//! Flags: `--selftest`, `--pseudo`, `--scheme light|dark`, `--style <Name>`, `--page <0-3>`, `--collapsed`,
 //! `--size WxH`, `--shots <dir>` with `--prefix <name>`. Environment: `SKRADLE_REDUCE_MOTION=1`.
 
 use std::path::PathBuf;
@@ -79,8 +79,8 @@ impl Options {
                     options.page = page
                         .parse::<i32>()
                         .ok()
-                        .filter(|p| (0..5).contains(p))
-                        .ok_or_else(|| format!("--page must be 0 to 4, not {page}"))?;
+                        .filter(|p| (0..4).contains(p))
+                        .ok_or_else(|| format!("--page must be 0 to 3, not {page}"))?;
                 }
                 "--size" => {
                     let size = value("--size")?;

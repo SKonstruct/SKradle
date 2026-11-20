@@ -23,6 +23,12 @@ pub mod qobject {
         #[qproperty(QString, java_path, cxx_name = "javaPath")]
         #[qproperty(QString, extra_jvm_args, cxx_name = "extraJvmArgs")]
         #[qproperty(bool, minimize_while_playing, cxx_name = "minimizeWhilePlaying")]
+        /// "default", "g1", "zgc", "parallel" or "serial".
+        #[qproperty(QString, collector)]
+        #[qproperty(bool, disable_explicit_gc, cxx_name = "disableExplicitGc")]
+        #[qproperty(bool, file_cleaning, cxx_name = "fileCleaning")]
+        #[qproperty(bool, file_purging, cxx_name = "filePurging")]
+        #[qproperty(bool, discord_presence, cxx_name = "discordPresence")]
         #[qproperty(bool, crash_reports, cxx_name = "crashReports")]
         #[qproperty(bool, auto_update_check, cxx_name = "autoUpdateCheck")]
         #[qproperty(i32, render_scale, cxx_name = "renderScale")]
@@ -45,7 +51,7 @@ use core::pin::Pin;
 use cxx_qt::{CxxQtType, Initialize};
 use cxx_qt_lib::QString;
 
-use crate::settings::{self, LoadOutcome, Settings as Stored, Theme};
+use crate::settings::{self, Collector, LoadOutcome, Settings as Stored, Theme};
 
 pub struct SettingsRust {
     theme: QString,
@@ -55,6 +61,11 @@ pub struct SettingsRust {
     java_path: QString,
     extra_jvm_args: QString,
     minimize_while_playing: bool,
+    collector: QString,
+    disable_explicit_gc: bool,
+    file_cleaning: bool,
+    file_purging: bool,
+    discord_presence: bool,
     crash_reports: bool,
     auto_update_check: bool,
     render_scale: i32,
@@ -82,6 +93,11 @@ impl Default for SettingsRust {
             java_path: QString::default(),
             extra_jvm_args: QString::default(),
             minimize_while_playing: d.minimize_while_playing,
+            collector: QString::from(d.collector.as_str()),
+            disable_explicit_gc: d.disable_explicit_gc,
+            file_cleaning: d.file_cleaning,
+            file_purging: d.file_purging,
+            discord_presence: d.discord_presence,
             crash_reports: d.crash_reports,
             auto_update_check: d.auto_update_check,
             render_scale: d.render_scale as i32,
@@ -127,6 +143,12 @@ impl qobject::Settings {
             .set_extra_jvm_args(QString::from(s.extra_jvm_args.as_str()));
         self.as_mut()
             .set_minimize_while_playing(s.minimize_while_playing);
+        self.as_mut()
+            .set_collector(QString::from(s.collector.as_str()));
+        self.as_mut().set_disable_explicit_gc(s.disable_explicit_gc);
+        self.as_mut().set_file_cleaning(s.file_cleaning);
+        self.as_mut().set_file_purging(s.file_purging);
+        self.as_mut().set_discord_presence(s.discord_presence);
         self.as_mut().set_crash_reports(s.crash_reports);
         self.as_mut().set_auto_update_check(s.auto_update_check);
         self.as_mut().set_render_scale(s.render_scale as i32);
@@ -151,6 +173,11 @@ impl qobject::Settings {
         let java_path = self.java_path().to_string();
         let extra_jvm_args = self.extra_jvm_args().to_string();
         let minimize_while_playing = *self.minimize_while_playing();
+        let collector = Collector::parse(&self.collector().to_string());
+        let disable_explicit_gc = *self.disable_explicit_gc();
+        let file_cleaning = *self.file_cleaning();
+        let file_purging = *self.file_purging();
+        let discord_presence = *self.discord_presence();
         let crash_reports = *self.crash_reports();
         let auto_update_check = *self.auto_update_check();
         let render_scale = unsigned(*self.render_scale());
@@ -172,6 +199,13 @@ impl qobject::Settings {
             s.java_path = java_path;
             s.extra_jvm_args = extra_jvm_args;
             s.minimize_while_playing = minimize_while_playing;
+            if let Some(collector) = collector {
+                s.collector = collector;
+            }
+            s.disable_explicit_gc = disable_explicit_gc;
+            s.file_cleaning = file_cleaning;
+            s.file_purging = file_purging;
+            s.discord_presence = discord_presence;
             s.crash_reports = crash_reports;
             s.auto_update_check = auto_update_check;
             s.render_scale = render_scale;
@@ -184,6 +218,7 @@ impl qobject::Settings {
             s.clone()
         });
         crate::reporter::set_enabled(after.crash_reports);
+        crate::presence_driver::setting_changed(after.discord_presence);
         let language = language_for(&after.language);
         if language != self.applied_language {
             super::glue::set_language(&language);
@@ -220,6 +255,19 @@ impl Initialize for qobject::Settings {
             .release();
         self.as_mut()
             .on_minimize_while_playing_changed(|q| q.push())
+            .release();
+        self.as_mut().on_collector_changed(|q| q.push()).release();
+        self.as_mut()
+            .on_disable_explicit_gc_changed(|q| q.push())
+            .release();
+        self.as_mut()
+            .on_file_cleaning_changed(|q| q.push())
+            .release();
+        self.as_mut()
+            .on_file_purging_changed(|q| q.push())
+            .release();
+        self.as_mut()
+            .on_discord_presence_changed(|q| q.push())
             .release();
         self.as_mut()
             .on_crash_reports_changed(|q| q.push())

@@ -33,8 +33,7 @@ ApplicationWindow {
         { label: qsTr("Home"), icon: "home" },
         { label: qsTr("Servers"), icon: "servers" },
         { label: qsTr("Mods"), icon: "mods" },
-        { label: qsTr("Graphics"), icon: "graphics" },
-        { label: qsTr("About"), icon: "info" }
+        { label: qsTr("Settings"), icon: "graphics" }
     ]
     function go(i) {
         if (i === current || i < 0 || i >= navItems.length) return
@@ -47,7 +46,6 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+2"; onActivated: win.go(1) }
     Shortcut { sequence: "Ctrl+3"; onActivated: win.go(2) }
     Shortcut { sequence: "Ctrl+4"; onActivated: win.go(3) }
-    Shortcut { sequence: "Ctrl+5"; onActivated: win.go(4) }
     Shortcut { sequence: "Ctrl+B"; onActivated: win.collapsed = !win.collapsed }
 
     Sidebar {
@@ -71,7 +69,7 @@ ApplicationWindow {
 
         Repeater {
             id: pages
-            model: 5
+            model: 4
             delegate: Item {
                 id: host
                 required property int index
@@ -108,15 +106,14 @@ ApplicationWindow {
                     id: loader
                     anchors.fill: parent
                     active: host.visited
-                    sourceComponent: [homeC, serversC, modsC, graphicsC, aboutC][host.index]
+                    sourceComponent: [homeC, serversC, modsC, settingsC][host.index]
                 }
             }
         }
         Component { id: homeC; HomePage {} }
         Component { id: serversC; ServersPage {} }
         Component { id: modsC; ModsPage {} }
-        Component { id: graphicsC; GraphicsPage {} }
-        Component { id: aboutC; AboutPage {} }
+        Component { id: settingsC; SettingsPage {} }
     }
 
     Toast {
@@ -159,8 +156,10 @@ ApplicationWindow {
 
     // ---- screenshot driver (skradle --shots <dir> [--prefix name]) -----------------------------------------------
     readonly property var shotNames: ["home-ready", "home-updating", "home-launching", "home-running", "home-error", "home-firstrun",
-        "home-collapsed", "home-scrolled", "servers", "servers-dialog", "mods", "mods-search", "mods-drop", "graphics", "graphics-running",
-        "about", "focus", "focus-controls", "servers-menu", "graphics-combo", "mods-toggle", "servers-myserver"]
+        "home-collapsed", "home-scrolled", "home-offline", "home-nonews", "servers", "servers-dialog", "mods", "mods-search", "mods-drop",
+        "settings-general", "settings-game", "settings-files", "settings-graphics", "settings-graphics-running", "settings-integrations",
+        "settings-tools", "settings-about", "settings-reset", "focus", "focus-controls", "servers-menu", "settings-combo", "mods-toggle",
+        "servers-myserver"]
     property int shotIndex: 0
     property int shotsFailed: 0
     function nextShot() {
@@ -196,7 +195,8 @@ ApplicationWindow {
         LaunchModel.force("ready", 0)
         const hp = pageItem(0); if (hp) hp.scroller.contentY = 0
         const sv = pageItem(1); if (sv) sv.closeAll()
-        const gp = pageItem(3); if (gp) gp.closeCombo()
+        const gp = pageItem(3); if (gp) { gp.closeCombo(); gp.closeReset(); gp.scroller.contentY = 0 }
+        HomeFeed.force("ok")
         const md = pageItem(2); if (md) { md.dropForced = false; md.setSearch(""); md.filter = "all" }
         switch (name) {
         case "home-ready": go(0); break
@@ -212,12 +212,20 @@ ApplicationWindow {
         case "mods": go(2); break
         case "mods-search": go(2); Qt.callLater(() => { const p = pageItem(2); if (p) p.setSearch("hud") }); break
         case "mods-drop": go(2); Qt.callLater(() => { const p = pageItem(2); if (p) p.dropForced = true }); break
-        case "graphics": go(3); break
-        case "graphics-running": go(3); LaunchModel.force("running", 0); break
-        case "about": go(4); break
+        case "home-offline": go(0); HomeFeed.force("offline"); break
+        case "home-nonews": go(0); HomeFeed.force("empty"); break
+        case "settings-general": go(3); break
+        case "settings-game": go(3); Qt.callLater(() => pageItem(3).scrollTo(1)); break
+        case "settings-files": go(3); Qt.callLater(() => pageItem(3).scrollTo(2)); break
+        case "settings-graphics": go(3); Qt.callLater(() => pageItem(3).scrollTo(3)); break
+        case "settings-graphics-running": go(3); LaunchModel.force("running", 0); Qt.callLater(() => pageItem(3).scrollTo(3)); break
+        case "settings-integrations": go(3); Qt.callLater(() => pageItem(3).scrollTo(4)); break
+        case "settings-tools": go(3); Qt.callLater(() => pageItem(3).scrollTo(5)); break
+        case "settings-about": go(3); Qt.callLater(() => pageItem(3).scrollTo(6)); break
+        case "settings-reset": go(3); Qt.callLater(() => pageItem(3).scrollTo(2)); Qt.callLater(() => pageItem(3).openReset()); break
         case "servers-menu": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.openMenu() }); break
-        case "graphics-combo": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.openCombo() }); break
-        case "focus-controls": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.focusSlider() }); break
+        case "settings-combo": go(3); Qt.callLater(() => pageItem(3).scrollTo(1)); Qt.callLater(() => { const p = pageItem(3); if (p) p.openCombo() }); break
+        case "focus-controls": go(3); Qt.callLater(() => pageItem(3).scrollTo(1)); Qt.callLater(() => { const p = pageItem(3); if (p) p.focusSlider() }); break
         case "mods-toggle": go(2); Qt.callLater(() => { const p = pageItem(2); if (p) { p.setOn(4, true); p.setOn(0, false) } }); break
         case "servers-myserver": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.showHost = true }); break
         case "focus": go(1); Qt.callLater(() => side.focusItem(1)); break
