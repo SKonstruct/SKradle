@@ -142,11 +142,16 @@ jobs:
 
       - name: Checksums
         run: |
+          # The artifact is one folder (the download is the zip around it): the package, and SHA256SUMS.txt inside the
+          # same folder, listing every file in it (check with `sha256sum -c SHA256SUMS.txt` or `shasum -a 256 -c`).
+          folder=$(find dist -mindepth 1 -maxdepth 1 -type d | head -1)
+          [ -n "$folder" ] || { echo "no package folder was produced" >&2; exit 1; }
           # A package must exist (the checksum file alone would make a 200-byte "build").
-          ls dist | grep -E '\.(dmg|zip|AppImage)$' || { echo "no package was produced" >&2; exit 1; }
-          cd dist
-          (sha256sum * 2>/dev/null || shasum -a 256 *) > SHA256SUMS.txt
-          cat SHA256SUMS.txt
+          ls "$folder" | grep -E '\.(dmg|AppImage)$|^skradle\.exe$' || { echo "no package was produced" >&2; exit 1; }
+          (cd "$folder" && find . -type f ! -name SHA256SUMS.txt | sed 's|^\./||' | sort | while IFS= read -r f; do
+            sha256sum "$f" 2>/dev/null || shasum -a 256 "$f"
+          done > SHA256SUMS.txt)
+          head -5 "$folder/SHA256SUMS.txt"; echo "... $(wc -l < "$folder/SHA256SUMS.txt") files"
 
       - name: Upload
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

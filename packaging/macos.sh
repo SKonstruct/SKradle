@@ -50,8 +50,10 @@ for needed in Frameworks/QtQuick.framework PlugIns/platforms/libqcocoa.dylib Plu
   [ -e "$app/Contents/$needed" ] || { echo "packaging/macos.sh: $needed is missing from the bundle" >&2; exit 1; }
 done
 
-mkdir -p "$out"
-dmg="$out/SKradle-${version}-${arch}.dmg"
+# <output-dir>/SKradle-<version>-<arch>/SKradle-<version>-<arch>.dmg (the CI artifact is the zip around the folder)
+pkg="$out/SKradle-${version}-${arch}"
+mkdir -p "$pkg"
+dmg="$pkg/SKradle-${version}-${arch}.dmg"
 rm -f "$dmg"
 hdiutil create -volname SKradle -srcfolder "$app" -ov -format UDZO "$dmg" >/dev/null
 echo "$dmg"

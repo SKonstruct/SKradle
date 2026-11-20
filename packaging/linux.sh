@@ -37,6 +37,9 @@ export LINUXDEPLOY_OUTPUT_VERSION="$version"
     --output appimage
 )
 
-result="$out/SKradle-${version}-${arch}.AppImage"
+# <output-dir>/SKradle-<version>-<arch>/SKradle-<version>-<arch>.AppImage (the CI artifact is the zip around the folder)
+pkg="$out/SKradle-${version}-${arch}"
+mkdir -p "$pkg"
+result="$pkg/SKradle-${version}-${arch}.AppImage"
 mv "$work"/SKradle*.AppImage "$result"
 echo "$result"

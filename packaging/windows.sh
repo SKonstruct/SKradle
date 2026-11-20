@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Builds a portable Windows folder and zip from the release binary (run in Git Bash on a Windows runner). Needs Qt's
-# bin folder on PATH (windeployqt) and 7z.
+# Builds a portable Windows folder from the release binary (run in Git Bash on a Windows runner). Needs Qt's bin
+# folder on PATH (windeployqt).
 #   packaging/windows.sh <binary> <version> <output-dir> [arch-name]
-# Unzip anywhere and run skradle.exe. Not signed, so SmartScreen may ask once ("More info" > "Run anyway").
+# The result is <output-dir>/SKradle-<version>-<arch>/ (not zipped: the CI artifact is the zip). Put the folder anywhere
+# and run skradle.exe. Not signed, so SmartScreen may ask once ("More info" > "Run anyway").
 set -euo pipefail
 
 binary=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")   # absolute: the steps below change directory
@@ -24,7 +25,7 @@ windeployqt --release --no-translations --compiler-runtime \
   --qmldir "$root/app/qml" --qmldir "$root/app/qml-web" "$dir/skradle.exe"
 
 mkdir -p "$out"
-zip="$out/SKradle-${version}-${arch}.zip"
-rm -f "$zip"
-(cd "$work" && 7z a -tzip -mx=6 "$zip" SKradle >/dev/null)
-echo "$zip"
+pkg="$out/SKradle-${version}-${arch}"
+rm -rf "$pkg"
+mv "$dir" "$pkg"
+echo "$pkg"

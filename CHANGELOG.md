@@ -38,9 +38,10 @@ history has the rest.
 - **Updates and reports**: checks GitHub for a newer launcher (can be switched off); optional crash reports, scrubbed
   of personal details, with an off switch.
 - Windows: Steam is found where the registry says it is, so installs on another drive work.
-- **Test builds** from the Actions tab (`Build` workflow): a `.dmg` for macOS (Apple silicon and Intel), a `.zip` for
-  Windows (x64 and ARM64) and an AppImage for Linux x64. They are unsigned: on macOS run `xattr -cr SKradle.app` once,
-  on Windows choose "More info" then "Run anyway".
+- **Test builds** from the Actions tab (`Build` workflow). Each download is one zip holding one folder with a
+  `SHA256SUMS.txt` inside it: a `.dmg` for macOS (Apple silicon and Intel), the app folder for Windows (x64 and
+  ARM64; run `skradle.exe`) and an AppImage for Linux x64. They are unsigned: on macOS run `xattr -cr SKradle.app`
+  once, on Windows choose "More info" then "Run anyway".
 
 ### Changed
 
