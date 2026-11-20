@@ -157,6 +157,8 @@ pub struct ItemView {
     pub enabled: bool,
     /// Why it cannot be used; `None` for a mod that scanned.
     pub error: Option<String>,
+    /// The engine's own text for `error`, for a tooltip; empty when there is no error.
+    pub error_detail: String,
     pub warnings: Vec<String>,
     /// A class mod built for another game version than the install.
     pub incompatible: bool,
@@ -165,6 +167,160 @@ pub struct ItemView {
     pub warning: bool,
     /// Lower-case text the search box matches.
     pub search: String,
+}
+
+// ---- plain words for engine errors ---------------------------------------------------------------------------------
+// The engine's messages are for logs. The page gets a sentence that says what failed and why; the raw text stays in
+// `error_detail` (a tooltip) and on stderr.
+
+/// Capitalises the first letter.
+fn capitalised(text: &str) -> String {
+    // A file name ("bad.zip", "mod.json") at the start keeps its case.
+    if text.split(' ').next().is_some_and(|w| w.contains('.')) {
+        return text.to_owned();
+    }
+    let mut chars = text.chars();
+    chars
+        .next()
+        .map(|c| c.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
+}
+
+/// The reason for a failure on an archive, a file or the disk, short and without a final period. `None` when the text
+/// matches nothing known.
+fn archive_reason(raw: &str) -> Option<&'static str> {
+    let t = raw.to_lowercase();
+    let has = |needles: &[&str]| needles.iter().any(|n| t.contains(n));
+    Some(
+        if has(&["eocd", "not a readable zip", "invalid zip", "zip archive"]) {
+            "The file is not a valid zip"
+        } else if has(&["is encrypted"]) {
+            "The archive is password protected"
+        } else if has(&["unsafe entry name"]) {
+            "It has a file with an unsafe path"
+        } else if has(&["symbolic link"]) {
+            "It contains a link, which is not allowed"
+        } else if has(&[
+            "appears more than once",
+            "both a file and a folder",
+            "not the size its header",
+        ]) {
+            "The archive is damaged"
+        } else if has(&["more than", "too large"]) && !t.contains("mod.json") {
+            "The file is too large"
+        } else if has(&[
+            "permission denied",
+            "access is denied",
+            "operation not permitted",
+        ]) {
+            "SKradle is not allowed to open it"
+        } else if has(&["no such file", "not found", "cannot find", "os error 2"]) {
+            "The file is missing"
+        } else if has(&["mod.json is not valid", "mod.json is not a json"]) {
+            "Its mod.json is not valid"
+        } else if has(&["not a regular file"]) {
+            "It is not a regular file"
+        } else if has(&["not a .zip, .jar or .modpack"]) {
+            "It is not a .zip, .jar or .modpack file"
+        } else if has(&["changed while"]) {
+            "The file changed while it was being read"
+        } else {
+            return None;
+        },
+    )
+}
+
+/// Why a file could not be used, for any engine text: the known reason, else a generic one.
+pub fn plain_reason(raw: &str) -> String {
+    archive_reason(raw)
+        .unwrap_or("The file could not be read")
+        .to_owned()
+}
+
+/// The row's message for a mod that cannot be read.
+pub fn unusable(raw: &str) -> String {
+    format!("Can't be used. {}.", plain_reason(raw))
+}
+
+/// A note from the scan (a warning): plain sentences stay, archive errors inside them become words.
+pub fn plain_note(raw: &str) -> String {
+    match raw.split_once(": ") {
+        Some((head, rest)) if archive_reason(rest).is_some() => {
+            format!(
+                "{}: {}",
+                capitalised(head),
+                archive_reason(rest).unwrap_or_default()
+            )
+        }
+        _ => match archive_reason(raw) {
+            Some(why) if raw.to_lowercase().contains("zip") => why.to_owned(),
+            _ => capitalised(raw),
+        },
+    }
+}
+
+/// Why a file was refused when adding it. The core's refusals are already words for the player; the ones that wrap an
+/// engine error are replaced.
+pub fn plain_refusal(raw: &str) -> String {
+    if let Some(inner) = raw.strip_prefix("not a usable mod: ") {
+        return plain_reason(inner);
+    }
+    if raw.starts_with("cannot be read") {
+        return plain_reason(raw);
+    }
+    capitalised(raw)
+}
+
+/// Why a modpack check or download failed.
+pub fn plain_pack_error(raw: &str) -> String {
+    let t = raw.to_lowercase();
+    if t.contains("lists no mods") {
+        "The modpack is empty right now. Try again later.".to_owned()
+    } else if t.contains("cannot read the modpack listing")
+        || ["connect", "network", "timed out", "dns", "https", "status"]
+            .iter()
+            .any(|n| t.contains(n))
+    {
+        "Could not reach the modpack. Check your internet connection and try again.".to_owned()
+    } else if t.contains("permission denied") || t.contains("access is denied") {
+        "SKradle is not allowed to write to the mods folder.".to_owned()
+    } else {
+        "The modpack could not be updated. Try again.".to_owned()
+    }
+}
+
+/// Why one modpack file failed.
+pub fn plain_pack_file(raw: &str) -> String {
+    let t = raw.to_lowercase();
+    if t.contains("hash") || t.contains("sha") {
+        "The download was damaged, so it was discarded".to_owned()
+    } else if let Some(why) = archive_reason(raw) {
+        why.to_owned()
+    } else if ["connect", "network", "timed out", "dns", "https", "status"]
+        .iter()
+        .any(|n| t.contains(n))
+    {
+        "The download did not finish".to_owned()
+    } else {
+        "The file could not be downloaded".to_owned()
+    }
+}
+
+/// Why the folder could not be listed.
+pub fn plain_folder_error(raw: &str) -> String {
+    let t = raw.to_lowercase();
+    if t.contains("state file") {
+        "The list of switched-off mods is damaged. Delete .skradle-mods.json in the mods folder and try again."
+            .to_owned()
+    } else if t.contains("permission denied") || t.contains("access is denied") {
+        "SKradle is not allowed to open the mods folder. Check its permissions.".to_owned()
+    } else {
+        "Check that the folder exists and can be read.".to_owned()
+    }
+}
+
+fn log_raw(what: &str, raw: &str) {
+    eprintln!("skradle: mods: {what}: {raw}");
 }
 
 fn container_id(c: Container) -> &'static str {
@@ -200,6 +356,7 @@ pub fn item_view(
         size,
         enabled: m.enabled,
         error: None,
+        error_detail: String::new(),
         warnings: Vec::new(),
         incompatible: false,
         warning: false,
@@ -207,7 +364,10 @@ pub fn item_view(
     };
     match &m.parsed {
         Err(e) => {
-            v.error = Some(e.to_string());
+            let raw = e.to_string();
+            log_raw(&m.file_name, &raw);
+            v.error = Some(unusable(&raw));
+            v.error_detail = raw;
         }
         Ok(scanned) => {
             let info = scanned.pack_info().unwrap_or(&scanned.info);
@@ -231,10 +391,12 @@ pub fn item_view(
                 .iter()
                 .map(|p| p.applicable_files().count())
                 .sum();
-            v.warnings = scanned.warnings.clone();
-            for p in &scanned.parts {
-                v.warnings.extend(p.warnings.iter().cloned());
-            }
+            v.warnings = scanned
+                .warnings
+                .iter()
+                .chain(scanned.parts.iter().flat_map(|p| p.warnings.iter()))
+                .map(|w| plain_note(w))
+                .collect();
             v.incompatible = scanned
                 .parts
                 .iter()
@@ -320,7 +482,10 @@ pub fn build_listing(dir: &Path, game_version: Option<&str>) -> Listing {
             }
         }
         Err(e) => Listing {
-            error: Some(e.to_string()),
+            error: Some({
+                log_raw("folder", &e.to_string());
+                plain_folder_error(&e.to_string())
+            }),
             ..Listing::default()
         },
     }
@@ -347,7 +512,10 @@ pub fn set_enabled_all(dir: &Path, files: &[String], enabled: bool) -> Outcome {
     for f in files {
         match mods::set_enabled(dir, f, enabled) {
             Ok(()) => out.ok += 1,
-            Err(e) => out.failed.push((f.clone(), e.to_string())),
+            Err(e) => {
+                log_raw(f, &e.to_string());
+                out.failed.push((f.clone(), plain_reason(&e.to_string())));
+            }
         }
     }
     out
@@ -361,7 +529,10 @@ pub fn remove_all(dir: &Path, files: &[String]) -> Outcome {
     for f in files {
         match mods::remove(dir, f) {
             Ok(()) => out.ok += 1,
-            Err(e) => out.failed.push((f.clone(), e.to_string())),
+            Err(e) => {
+                log_raw(f, &e.to_string());
+                out.failed.push((f.clone(), plain_reason(&e.to_string())));
+            }
         }
     }
     out
@@ -380,7 +551,7 @@ pub fn add_all(dir: &Path, sources: &[String]) -> Outcome {
             .map_or_else(|| s.clone(), |n| n.to_string_lossy().into_owned());
         if path.as_os_str().is_empty() {
             out.failed
-                .push((shown, "this is not a file on this computer".to_owned()));
+                .push((shown, "This is not a file on this computer".to_owned()));
             continue;
         }
         match import_file(&path, dir) {
@@ -390,7 +561,7 @@ pub fn add_all(dir: &Path, sources: &[String]) -> Outcome {
                     out.renamed.push((shown, done.file_name));
                 }
             }
-            Err(why) => out.failed.push((shown, why.to_string())),
+            Err(why) => out.failed.push((shown, plain_refusal(&why.to_string()))),
         }
     }
     out
@@ -831,5 +1002,63 @@ mod tests {
         std::fs::write(dir.path().join(".skradle-mods.json"), b"{ nope").unwrap();
         let l = build_listing(dir.path(), None);
         assert!(l.error.is_some() && l.items.is_empty());
+    }
+
+    #[test]
+    fn engine_errors_become_plain_sentences() {
+        let raw = "not a readable zip archive: invalid Zip archive: Could not find EOCD";
+        assert_eq!(unusable(raw), "Can't be used. The file is not a valid zip.");
+        assert_eq!(
+            unusable("entry \"a.png\" is encrypted"),
+            "Can't be used. The archive is password protected."
+        );
+        assert_eq!(
+            unusable("No such file or directory (os error 2)"),
+            "Can't be used. The file is missing."
+        );
+        assert_eq!(
+            unusable("something odd"),
+            "Can't be used. The file could not be read."
+        );
+        assert_eq!(
+            plain_refusal("not a usable mod: not a readable zip archive: Could not find EOCD"),
+            "The file is not a valid zip"
+        );
+        assert_eq!(
+            plain_refusal("it is a folder; add the mod files inside it"),
+            "It is a folder; add the mod files inside it"
+        );
+        assert_eq!(
+            plain_note("bad.zip was skipped: not a readable zip archive: x"),
+            "bad.zip was skipped: The file is not a valid zip"
+        );
+        assert_eq!(
+            plain_note("mod.json is too large and was ignored"),
+            "mod.json is too large and was ignored"
+        );
+        assert!(
+            plain_pack_error("cannot read the modpack listing: tls handshake")
+                .starts_with("Could not reach")
+        );
+        assert!(plain_pack_file("sha256 mismatch").contains("damaged"));
+        for text in [
+            unusable(raw),
+            plain_pack_error("io error"),
+            plain_folder_error("the mods state file is damaged: expected value"),
+        ] {
+            assert!(!text.contains("EOCD") && !text.contains("os error"));
+        }
+    }
+
+    #[test]
+    fn a_broken_mod_shows_words_and_keeps_the_raw_text_as_detail() {
+        let dir = tempfile::tempdir().unwrap();
+        write_fixtures(dir.path()).unwrap();
+        let l = build_listing(dir.path(), None);
+        let broken = l.items.iter().find(|i| i.file == "Broken Mod.zip").unwrap();
+        let shown = broken.error.as_deref().unwrap();
+        assert!(shown.starts_with("Can't be used. "), "{shown}");
+        assert!(!shown.contains("EOCD"));
+        assert!(!broken.error_detail.is_empty());
     }
 }

@@ -20,8 +20,7 @@ Item {
     readonly property alias scroller: scaffold.scroller
     readonly property bool gameOk: GameModel.state === "ready"
     readonly property string cmd: ModsText.cmdKey
-    readonly property int tagsCol: 140
-    readonly property int switchCol: 52
+    readonly property int tagsCol: width < 760 ? 132 : 148
 
     readonly property var all: {
         if (shotEmpty) return []
@@ -46,6 +45,19 @@ Item {
     function statusCount(st) { return all.filter(m => passStatus(m, st) && passTag(m, activeTag) && passText(m)).length }
     function tagCount(t) { return all.filter(m => passStatus(m, activeStatus) && passTag(m, t) && passText(m)).length }
     readonly property bool filtering: activeStatus !== "all" || activeTag !== "" || needle.length > 0
+    // What the two filters offer: the status segments (Warnings only when there are some) and the types.
+    readonly property var statusModel: {
+        const m = [{ id: "all", label: qsTr("All"), badge: String(statusCount("all")) },
+                   { id: "enabled", label: qsTr("Enabled"), badge: String(statusCount("enabled")) },
+                   { id: "disabled", label: qsTr("Disabled"), badge: String(statusCount("disabled")) }]
+        if (warnCount > 0) m.push({ id: "warning", label: qsTr("Warnings"), badge: String(statusCount("warning")) })
+        return m
+    }
+    readonly property var typeModel: {
+        const m = [{ id: "", label: qsTr("All types") }]
+        for (const t of tags) m.push({ id: t.id, label: ModsText.tagLabel(t.id) + " (" + tagCount(t.id) + ")" })
+        return m
+    }
     function clearFilters() { search.text = ""; status = "all"; tag = "" }
     readonly property int enabledCount: all.filter(m => m.enabled).length
 
@@ -62,6 +74,7 @@ Item {
         dropForced = false; shotEmpty = false; setSearch(""); status = "all"; tag = ""
         sel = ({}); cur = -1; issues = []; confirm.close(); keyboardNav = false
         ModsModel.forcePack("")
+        pack.open = false; help.close()
     }
     function shotState(name) {
         switch (name) {
@@ -81,8 +94,9 @@ Item {
         case "issues": issues = [{ file: "notes.txt", text: qsTr("not a .zip, .jar or .modpack file"), bad: true }, { file: "Sharp HUD.zip", text: qsTr("added as Sharp HUD (2).zip"), bad: false }]; break
         case "pack-update": ModsModel.forcePack("update"); break
         case "pack-syncing": ModsModel.forcePack("syncing"); break
-        case "pack-report": ModsModel.forcePack("report"); break
+        case "pack-report": ModsModel.forcePack("report"); pack.open = true; break
         case "pack-error": ModsModel.forcePack("error"); break
+        case "help": Qt.callLater(() => help.open()); break
         }
     }
 
@@ -211,258 +225,187 @@ Item {
         title: qsTr("Mods")
         subtitle: !page.gameOk ? qsTr("Mods are applied when the game starts.")
                   : page.all.length === 0 ? qsTr("Add mods, or install the modpack.")
+                  : page.filtering ? qsTr("Showing %1 of %2 mods").arg(page.shown.length).arg(page.all.length)
                   : qsTr("%1 of %2 enabled").arg(page.enabledCount).arg(page.all.length)
-
-        Card {   // no game
-            Layout.fillWidth: true
-            visible: !page.gameOk
-            fill: Theme.amberTint
-            implicitHeight: noGame.implicitHeight + 2 * Theme.s4
-            RowLayout {
-                id: noGame
-                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.s4 }
-                spacing: Theme.s3
-                Icon { name: "warning"; size: 20; color: Theme.amberText }
-                Txt { Layout.fillWidth: true; color: Theme.text
-                      text: GameModel.state === "searching" ? qsTr("Looking for Spiral Knights…")
-                            : qsTr("Spiral Knights was not found, so mods are switched off here. Set up the game on the Home page first.") }
-            }
-        }
-
-        DropZone {
-            Layout.fillWidth: true
-            enabled: page.gameOk && !page.busy
-            roomy: page.all.length === 0
-            dragging: drops.containsDrag
-            forceActive: page.dropForced
-            onBrowse: fileDialog.open()
-        }
-
-        Card {   // what the last action did, when it needs a word
-            Layout.fillWidth: true
-            visible: page.issues.length > 0
-            implicitHeight: issueCol.implicitHeight + 2 * Theme.s4
-            ColumnLayout {
-                id: issueCol
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.s4 }
-                spacing: Theme.s2
-                RowLayout {
-                    Layout.fillWidth: true
-                    Txt { Layout.fillWidth: true; text: qsTr("Details"); font.weight: Font.Medium; Accessible.role: Accessible.Heading }
-                    SButton { variant: "ghost"; text: qsTr("Dismiss"); Accessible.name: qsTr("Dismiss the details"); onClicked: page.issues = [] }
-                }
-                Repeater {
-                    model: page.issues
-                    delegate: Txt {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        text: modelData.file + ": " + modelData.text
-                        kind: "caption"
-                        color: modelData.bad ? Theme.danger : Theme.textSecondary
-                    }
-                }
-            }
-        }
-
-        PackPanel {
-            Layout.fillWidth: true
-            usable: page.gameOk
-            onCheckRequested: ModsModel.checkPack()
-        }
-
-        RowLayout {   // search and folder buttons
-            Layout.fillWidth: true
-            spacing: Theme.s3
-            STextField {
-                id: search
-                glyph: "search"
-                Layout.fillWidth: true
-                Layout.maximumWidth: 340
-                placeholderText: qsTr("Search mods")
-                Accessible.name: qsTr("Search mods")
-                onTextChanged: page.query = text
-                Keys.onEscapePressed: (event) => { if (text.length > 0) text = ""; else event.accepted = false }
-            }
-            Item { Layout.fillWidth: true }
+        actions: [
             SButton {
+                visible: page.all.length > 0
                 glyph: "folder"
-                text: qsTr("Open mods folder")
+                text: qsTr("Open folder")
+                Accessible.name: qsTr("Open the mods folder")
                 onClicked: page.openFolder()
-            }
+            },
             SButton {
+                visible: page.all.length > 0
+                variant: "primary"
                 glyph: "plus"
                 text: qsTr("Add mods…")
                 enabled: page.gameOk && !page.busy
                 onClicked: fileDialog.open()
             }
-        }
+        ]
 
-        ColumnLayout {   // the filters and a line on how they combine
+        ColumnLayout {
             Layout.fillWidth: true
-            visible: page.all.length > 0
-            spacing: Theme.s2
-        Flow {   // filters: one status, one type; only types the installed mods have
-            Layout.fillWidth: true
-            visible: page.all.length > 0
-            spacing: Theme.s2
-            Chip {
-                text: qsTr("All"); badge: page.statusCount("all")
-                selected: page.activeStatus === "all"
-                onClicked: page.status = "all"
+            spacing: Theme.s3
+
+            Banner {   // no game, but there are mods to look at
+                visible: !page.gameOk && page.all.length > 0
+                kind: "warn"
+                text: GameModel.state === "searching" ? qsTr("Looking for Spiral Knights…")
+                      : qsTr("Spiral Knights was not found, so mods are switched off here. Set up the game on the Home page first.")
+                actionText: GameModel.state === "searching" ? "" : qsTr("Open Home")
+                onAction: Data.navigate(0)
             }
-            Chip {
-                text: qsTr("Enabled"); badge: page.statusCount("enabled")
-                selected: page.activeStatus === "enabled"
-                onClicked: page.status = "enabled"
+
+            PackPanel {
+                id: pack
+                Layout.fillWidth: true
+                visible: page.gameOk || page.all.length > 0
+                usable: page.gameOk
+                onCheckRequested: ModsModel.checkPack()
             }
-            Chip {
-                text: qsTr("Disabled"); badge: page.statusCount("disabled")
-                selected: page.activeStatus === "disabled"
-                onClicked: page.status = "disabled"
+
+            Banner {   // what the last action did, when it needs a word
+                visible: page.issues.length > 0
+                kind: page.issues.some(i => i.bad) ? "warn" : "info"
+                title: page.issues.some(i => i.bad) ? qsTr("Some files need attention") : qsTr("Done")
+                text: page.issues.map(i => i.file + ": " + i.text).join("\n")
+                dismissible: true
+                onDismissed: page.issues = []
             }
-            Chip {
-                visible: page.warnCount > 0
-                text: qsTr("Warnings"); badge: page.statusCount("warning")
-                selected: page.activeStatus === "warning"
-                onClicked: page.status = "warning"
-            }
-            Rectangle {   // between the status chips and the type chips
-                visible: page.tags.length > 0
-                width: 1; height: 20
-                color: Theme.border
-            }
-            Repeater {
-                model: page.tags
-                delegate: Chip {
-                    required property var modelData
-                    text: ModsText.tagLabel(modelData.id); badge: page.tagCount(modelData.id)
-                    selected: page.activeTag === modelData.id
-                    Accessible.description: selected ? qsTr("Selected. Click to show every type.") : ""
-                    onClicked: page.tag = selected ? "" : modelData.id
+
+            Item {   // search, or the bulk bar in its place (the list never moves)
+                Layout.fillWidth: true
+                visible: page.all.length > 0
+                implicitHeight: Theme.hMd
+                RowLayout {
+                    anchors.fill: parent
+                    visible: page.selectedFiles.length === 0
+                    spacing: Theme.s2
+                    STextField {
+                        id: search
+                        glyph: "search"
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: 360
+                        placeholderText: qsTr("Search mods")
+                        label: qsTr("Search mods")
+                        onTextChanged: page.query = text
+                        Keys.onEscapePressed: (event) => { if (text.length > 0) text = ""; else event.accepted = false }
+                    }
+                    Item { Layout.fillWidth: true }
+                    IconButton {
+                        id: helpBtn
+                        glyph: "question"
+                        tip: qsTr("Keyboard shortcuts")
+                        onClicked: help.opened ? help.close() : help.open()
+                    }
+                }
+                SelectionBar {
+                    anchors.fill: parent
+                    visible: page.selectedFiles.length > 0
+                    count: page.selectedFiles.length
+                    canAct: page.gameOk && !page.busy
+                    onEnable: page.setEnabled(page.selectedFiles, true)
+                    onDisable: page.setEnabled(page.selectedFiles, false)
+                    onRemove: page.askRemove(page.selectedFiles)
+                    onClear: page.clearSelection()
                 }
             }
-        }
 
-        Txt {   // how the filters combine, and what they leave
-            Layout.fillWidth: true
-            kind: "micro"
-            color: Theme.textTertiary
-            text: (page.filtering ? qsTr("Showing %1 of %2 mods. ").arg(page.shown.length).arg(page.all.length) : "")
-                  + qsTr("Pick one status and one type. A mod must match both and the search to be listed.")
-        }
-        }
-
-        ColumnLayout {   // bulk bar and hints
-            Layout.fillWidth: true
-            visible: page.all.length > 0
-            spacing: Theme.s2
-            RowLayout {
+            ModFilters {
                 Layout.fillWidth: true
-                visible: page.selectedFiles.length > 0
-                spacing: Theme.s2
-                Txt { text: qsTr("%n selected", "", page.selectedFiles.length); font.weight: Font.Medium; wrapMode: Text.NoWrap
-                      Accessible.role: Accessible.StatusBar }
-                Item { Layout.fillWidth: true }
-                SButton { text: qsTr("Enable"); enabled: page.gameOk && !page.busy; onClicked: page.setEnabled(page.selectedFiles, true)
-                          Accessible.name: qsTr("Enable the selected mods") }
-                SButton { text: qsTr("Disable"); enabled: page.gameOk && !page.busy; onClicked: page.setEnabled(page.selectedFiles, false)
-                          Accessible.name: qsTr("Disable the selected mods") }
-                SButton { text: qsTr("Remove"); variant: "danger"; glyph: "trash"; enabled: page.gameOk && !page.busy; onClicked: page.askRemove(page.selectedFiles)
-                          Accessible.name: qsTr("Remove the selected mods") }
-                SButton { text: qsTr("Clear"); variant: "ghost"; onClicked: page.clearSelection()
-                          Accessible.name: qsTr("Clear the selection") }
+                visible: page.all.length > 0
+                statusModel: page.statusModel
+                typeModel: page.typeModel
+                status: page.activeStatus
+                tag: page.activeTag
+                onStatusPicked: (id) => page.status = id
+                onTagPicked: (id) => page.tag = id
             }
-            Txt {
+
+            FocusScope {   // the rows: one tab stop, arrow keys inside
+                id: rowsScope
                 Layout.fillWidth: true
                 visible: page.shown.length > 0
-                kind: "micro"
-                color: Theme.textTertiary
-                text: qsTr("Click selects. %1+click adds or removes one, Shift+click selects a range, %1+A selects all, Esc clears. Up and Down move, Space switches, Delete removes.").arg(page.cmd)
-            }
-        }
+                activeFocusOnTab: true
+                implicitHeight: rowCol.implicitHeight
+                Accessible.role: Accessible.List
+                Accessible.name: qsTr("Installed mods")
+                onActiveFocusChanged: if (activeFocus && page.cur < 0 && page.shown.length > 0) page.cur = 0
 
-        Item {   // column headings, lined up with the rows
-            Layout.fillWidth: true
-            visible: page.shown.length > 0
-            implicitHeight: headRow.implicitHeight
-            RowLayout {
-                id: headRow
-                anchors { left: parent.left; right: parent.right; leftMargin: Theme.s4; rightMargin: Theme.s4 }
-                spacing: Theme.s4
-                Txt { Layout.fillWidth: true; text: qsTr("Mod"); kind: "micro"; color: Theme.textTertiary }
-                Txt { Layout.preferredWidth: page.tagsCol; text: qsTr("Type"); kind: "micro"; color: Theme.textTertiary }
-                Txt { Layout.preferredWidth: page.switchCol; horizontalAlignment: Text.AlignRight; text: qsTr("On"); kind: "micro"; color: Theme.textTertiary }
-            }
-        }
-
-        FocusScope {   // the rows: one tab stop, arrow keys inside
-            id: rowsScope
-            Layout.fillWidth: true
-            Layout.topMargin: -Theme.s4
-            visible: page.shown.length > 0
-            activeFocusOnTab: true
-            implicitHeight: rowCol.implicitHeight
-            Accessible.role: Accessible.List
-            Accessible.name: qsTr("Installed mods")
-            onActiveFocusChanged: if (activeFocus && page.cur < 0 && page.shown.length > 0) page.cur = 0
-
-            Keys.onPressed: (event) => {
-                if (event.matches(StandardKey.SelectAll)) { page.selectAll(); event.accepted = true; return }
-                switch (event.key) {
-                case Qt.Key_Up: page.moveFocus(-1, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
-                case Qt.Key_Down: page.moveFocus(1, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
-                case Qt.Key_Home: page.moveFocus(-page.shown.length, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
-                case Qt.Key_End: page.moveFocus(page.shown.length, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
-                case Qt.Key_Space: page.keyboardNav = true; page.toggleTargets(); event.accepted = true; break
-                case Qt.Key_Delete:
-                case Qt.Key_Backspace: page.askRemove(page.targets()); event.accepted = true; break
-                case Qt.Key_Escape:
-                    if (page.selectedFiles.length > 0) { page.clearSelection(); event.accepted = true }
-                    break
+                Keys.onPressed: (event) => {
+                    if (event.matches(StandardKey.SelectAll)) { page.selectAll(); event.accepted = true; return }
+                    switch (event.key) {
+                    case Qt.Key_Up: page.moveFocus(-1, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
+                    case Qt.Key_Down: page.moveFocus(1, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
+                    case Qt.Key_Home: page.moveFocus(-page.shown.length, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
+                    case Qt.Key_End: page.moveFocus(page.shown.length, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
+                    case Qt.Key_Space: page.keyboardNav = true; page.toggleTargets(); event.accepted = true; break
+                    case Qt.Key_Delete:
+                    case Qt.Key_Backspace: page.askRemove(page.targets()); event.accepted = true; break
+                    case Qt.Key_Escape:
+                        if (page.selectedFiles.length > 0) { page.clearSelection(); event.accepted = true }
+                        break
+                    }
                 }
-            }
 
-            Column {
-                id: rowCol
-                width: parent.width
-                spacing: Theme.s3
-                Repeater {
-                    id: rows
-                    model: page.shown
-                    delegate: ModRow {
-                        required property var modelData
-                        required property int index
-                        width: rowCol.width
-                        item: modelData
-                        tagsWidth: page.tagsCol
-                        switchWidth: page.switchCol
-                        selected: page.sel[modelData.file] === true
-                        canToggle: page.gameOk && !page.busy
-                        showFocus: rowsScope.activeFocus && page.keyboardNav && page.cur === index
-                        onClicked: (mods) => page.clickRow(index, mods)
-                        onToggled: (on) => page.setEnabled([modelData.file], on)
+                Column {
+                    id: rowCol
+                    width: parent.width
+                    spacing: Theme.s2
+                    Repeater {
+                        id: rows
+                        model: page.shown
+                        delegate: ModRow {
+                            required property var modelData
+                            required property int index
+                            width: rowCol.width
+                            item: modelData
+                            tagsWidth: page.tagsCol
+                            selected: page.sel[modelData.file] === true
+                            canToggle: page.gameOk && !page.busy
+                            showFocus: rowsScope.activeFocus && page.keyboardNav && page.cur === index
+                            onClicked: (mods) => page.clickRow(index, mods)
+                            onToggled: (on) => page.setEnabled([modelData.file], on)
+                        }
                     }
                 }
             }
-        }
 
-        ColumnLayout {   // search or filter with no result
-            Layout.fillWidth: true
-            Layout.topMargin: Theme.s4
-            visible: page.all.length > 0 && page.shown.length === 0
-            spacing: Theme.s2
-            Icon { Layout.alignment: Qt.AlignHCenter; name: "search"; size: 32; color: Theme.textTertiary }
-            Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: qsTr("No mods match"); kind: "heading" }
-            Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: qsTr("Try a different search or filter."); color: Theme.textSecondary }
-            SButton { Layout.alignment: Qt.AlignHCenter; text: qsTr("Show all mods"); onClicked: page.clearFilters() }
-        }
-
-        ColumnLayout {   // the folder could not be read
-            Layout.fillWidth: true
-            visible: ModsModel.error !== ""
-            spacing: Theme.s2
-            Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: qsTr("The mods folder could not be read"); kind: "heading" }
-            Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: ModsModel.error; color: Theme.danger }
+            EmptyState {   // search or filter with no result
+                visible: page.all.length > 0 && page.shown.length === 0
+                glyph: "search"
+                title: qsTr("No mods match")
+                text: qsTr("Try a different search or filter.")
+                actionText: qsTr("Show all mods")
+                onAction: page.clearFilters()
+            }
+            EmptyState {   // nothing in the folder
+                visible: page.all.length === 0 && ModsModel.error === "" && page.gameOk
+                glyph: "mods"
+                title: qsTr("No mods yet")
+                text: qsTr("Drop .zip, .jar or .modpack files anywhere on this page, or choose them. Each file is checked before it is copied in. You can also install the modpack above.")
+                actionText: qsTr("Add mods…")
+                actionGlyph: "plus"
+                onAction: fileDialog.open()
+            }
+            EmptyState {   // no game
+                visible: page.all.length === 0 && ModsModel.error === "" && !page.gameOk
+                glyph: "warning"
+                title: GameModel.state === "searching" ? qsTr("Looking for Spiral Knights…") : qsTr("Spiral Knights was not found")
+                text: qsTr("Mods are applied when the game starts, so the game has to be set up first.")
+                actionText: GameModel.state === "searching" ? "" : qsTr("Open Home")
+                onAction: Data.navigate(0)
+            }
+            EmptyState {   // the folder could not be read
+                visible: ModsModel.error !== ""
+                glyph: "warning"
+                title: qsTr("The mods folder could not be read")
+                text: ModsModel.error
+                actionText: qsTr("Try again")
+                onAction: page.load()
+            }
         }
     }
 
@@ -472,6 +415,46 @@ Item {
         anchors.fill: parent
         enabled: page.gameOk && !page.busy
         onDropped: (drop) => page.addUrls(drop.urls)
+    }
+    DropZone {
+        anchors.fill: parent
+        anchors.margins: Theme.s4
+        enabled: page.gameOk && !page.busy
+        dragging: drops.containsDrag
+        forceActive: page.dropForced
+    }
+
+    Popup {   // keyboard help, opened by the "?" button
+        id: help
+        parent: helpBtn
+        x: helpBtn.width - width
+        y: helpBtn.height + Theme.s1
+        width: 320
+        padding: Theme.s4
+        modal: false
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Card { fill: Theme.overlay; elevation: 2; radius: Theme.rMd }
+        contentItem: ColumnLayout {
+            spacing: Theme.s2
+            Txt { text: qsTr("Selecting and switching"); kind: "heading"; Accessible.role: Accessible.Heading }
+            Repeater {
+                model: [[qsTr("Click"), qsTr("Select one mod")],
+                        [page.cmd + " + " + qsTr("click"), qsTr("Add or remove one")],
+                        [qsTr("Shift + click"), qsTr("Select a range")],
+                        [page.cmd + " + A", qsTr("Select all")],
+                        [qsTr("Up, Down"), qsTr("Move")],
+                        [qsTr("Space"), qsTr("Switch on or off")],
+                        [qsTr("Delete"), qsTr("Remove")],
+                        [qsTr("Esc"), qsTr("Clear the selection")]]
+                delegate: RowLayout {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    spacing: Theme.s3
+                    Txt { Layout.preferredWidth: 112; text: modelData[0]; font.weight: Font.Medium; wrapMode: Text.NoWrap }
+                    Txt { Layout.fillWidth: true; text: modelData[1]; color: Theme.textSecondary }
+                }
+            }
+        }
     }
 
     FileDialog {
