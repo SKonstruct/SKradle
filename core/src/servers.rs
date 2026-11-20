@@ -142,6 +142,40 @@ pub fn to_client_root(url: &str) -> String {
     )
 }
 
+/// Splits what a player typed as the server address into the host and an optional port: `host`, `host:47624`,
+/// `[::1]` or `[::1]:47624`. A bare IPv6 address (several colons, no brackets) has no port. The result is not
+/// validated; give the host to [`validate`]. `Err` carries a port that is present but not a number from 1 to 65535.
+pub fn split_address(text: &str) -> Result<(String, Option<u16>), String> {
+    let text = text.trim();
+    let port_of = |p: &str| match p.parse::<u16>() {
+        Ok(n) if n > 0 => Ok(Some(n)),
+        _ => Err(p.to_owned()),
+    };
+    if let Some(rest) = text.strip_prefix('[') {
+        let (inner, after) = rest.split_once(']').unwrap_or((rest, ""));
+        let host = format!("[{inner}]");
+        return match after.strip_prefix(':') {
+            Some(p) => port_of(p).map(|p| (host, p)),
+            None => Ok((host, None)),
+        };
+    }
+    if text.matches(':').count() == 1 {
+        let (host, p) = text.split_once(':').unwrap_or((text, ""));
+        return port_of(p).map(|p| (host.to_owned(), p));
+    }
+    Ok((text.to_owned(), None))
+}
+
+/// The connection settings in the words of the game's properties file, as `(key, value)` pairs for a server
+/// (Official when `None`), in the order shown to the player: what launching with this server changes.
+pub fn connection_summary(server: Option<&Server>) -> Vec<(&'static str, String)> {
+    let wanted = desired_properties(server);
+    KEYS.iter()
+        .filter(|k| **k != "datagram_ports")
+        .map(|k| (*k, wanted[k].clone()))
+        .collect()
+}
+
 /// The connection settings to write for `server`, or for Official when `None`. Blank fields fall back to Official's.
 pub fn desired_properties(server: Option<&Server>) -> BTreeMap<&'static str, String> {
     let port = server.map_or(official::PORT, |s| s.port).to_string();
@@ -1043,5 +1077,44 @@ mod logical_line_tests {
         ] {
             assert!(!is_local_network_host(remote), "{remote}");
         }
+    }
+
+    #[test]
+    fn addresses_split_into_host_and_port() {
+        let ok = |t: &str| split_address(t).unwrap();
+        assert_eq!(ok("play.example.com"), ("play.example.com".into(), None));
+        assert_eq!(
+            ok(" play.example.com:1234 "),
+            ("play.example.com".into(), Some(1234))
+        );
+        assert_eq!(ok("10.0.0.2:47624"), ("10.0.0.2".into(), Some(47624)));
+        assert_eq!(ok("[::1]"), ("[::1]".into(), None));
+        assert_eq!(ok("[fe80::1]:99"), ("[fe80::1]".into(), Some(99)));
+        assert_eq!(ok("fe80::1"), ("fe80::1".into(), None));
+        assert_eq!(ok(""), (String::new(), None));
+        for bad in ["a:0", "a:70000", "a:", "a:x", "[::1]:"] {
+            assert!(split_address(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_connection_summary_lists_what_the_game_gets() {
+        let s = Server {
+            id: "a".into(),
+            name: "A".into(),
+            host: "play.example".into(),
+            port: 9000,
+            public_key: String::new(),
+            client_url: "https://dl.example/client/x".into(),
+            content_url: String::new(),
+        };
+        let summary = connection_summary(Some(&s));
+        let get = |k: &str| summary.iter().find(|(key, _)| *key == k).unwrap().1.clone();
+        assert_eq!(get("server_host"), "play.example");
+        assert_eq!(get("server_ports"), "9000");
+        assert_eq!(get("key.public"), official::PUBLIC_KEY);
+        assert_eq!(get("client_root_url"), "https://dl.example");
+        assert_eq!(get("content_url"), official::CONTENT_URL);
+        assert_eq!(connection_summary(None)[0].1, official::HOST);
     }
 }
