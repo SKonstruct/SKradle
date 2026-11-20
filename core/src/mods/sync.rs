@@ -144,6 +144,8 @@ pub struct SyncReport {
     pub failed: Vec<(String, String)>,
     /// Listing entries that were ignored, and why.
     pub warnings: Vec<String>,
+    /// The sync was stopped on request: files after the stop were not looked at and nothing was deleted.
+    pub cancelled: bool,
 }
 
 impl SyncReport {
@@ -388,6 +390,75 @@ pub fn sync(
     sync_with(mods_dir, http, progress, CASE_INSENSITIVE_FS)
 }
 
+/// [`sync`] that can be stopped: `cancel` is asked before each file, and a `true` ends the sync there. The file being
+/// downloaded at that moment still completes (a download is never cut in half). A cancelled sync deletes nothing and
+/// keeps every claim an earlier sync made, so a later sync picks up where this one stopped.
+pub fn sync_cancellable(
+    mods_dir: &Path,
+    http: &dyn PackHttp,
+    progress: &mut dyn FnMut(&SyncProgress),
+    cancel: &dyn Fn() -> bool,
+) -> Result<SyncReport, SyncError> {
+    sync_inner(mods_dir, http, progress, CASE_INSENSITIVE_FS, cancel)
+}
+
+/// What a sync would do, without doing it.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PackStatus {
+    /// Files the pack lists.
+    pub total: usize,
+    /// Pack files that are missing here or differ from the published hash.
+    pub to_download: Vec<String>,
+    /// Files an earlier sync wrote that the pack has dropped.
+    pub to_delete: Vec<String>,
+    /// An earlier sync wrote at least one file that is still here.
+    pub installed: bool,
+}
+
+impl PackStatus {
+    /// True when a sync would change something.
+    pub fn has_changes(&self) -> bool {
+        !self.to_download.is_empty() || !self.to_delete.is_empty()
+    }
+}
+
+/// Reads the pack's listing and compares it with `mods_dir` (one request, no download).
+pub fn status(mods_dir: &Path, http: &dyn PackHttp) -> Result<PackStatus, SyncError> {
+    let fold_case = CASE_INSENSITIVE_FS;
+    let listing = http.listing().map_err(SyncError::Listing)?;
+    let (remote, _) = parse_listing(&listing)?;
+    if remote.is_empty() {
+        return Err(SyncError::EmptyListing);
+    }
+    let previous = read_manifest(mods_dir);
+    let remote_keys: HashSet<String> = remote
+        .iter()
+        .map(|f| name_key(&f.name, fold_case))
+        .collect();
+    let mut out = PackStatus {
+        total: remote.len(),
+        ..PackStatus::default()
+    };
+    for file in &remote {
+        let dest = mods_dir.join(&file.name);
+        if let Ok(local) = classify(&dest) {
+            if matches!(decide(&local, &file.sha), Decision::Download(_)) {
+                out.to_download.push(file.name.clone());
+            }
+        }
+    }
+    for name in &previous {
+        let exists = fs::symlink_metadata(mods_dir.join(name)).is_ok_and(|m| m.is_file());
+        if exists {
+            out.installed = true;
+            if !remote_keys.contains(&name_key(name, fold_case)) {
+                out.to_delete.push(name.clone());
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// Whether file names that differ only in case are the same file on this platform's usual file systems.
 const CASE_INSENSITIVE_FS: bool = cfg!(any(windows, target_os = "macos"));
 
@@ -409,6 +480,16 @@ fn sync_with(
     progress: &mut dyn FnMut(&SyncProgress),
     fold_case: bool,
 ) -> Result<SyncReport, SyncError> {
+    sync_inner(mods_dir, http, progress, fold_case, &|| false)
+}
+
+fn sync_inner(
+    mods_dir: &Path,
+    http: &dyn PackHttp,
+    progress: &mut dyn FnMut(&SyncProgress),
+    fold_case: bool,
+    cancel: &dyn Fn() -> bool,
+) -> Result<SyncReport, SyncError> {
     fs::create_dir_all(mods_dir)?;
     let listing = http.listing().map_err(SyncError::Listing)?;
     let (remote, warnings) = parse_listing(&listing)?;
@@ -429,6 +510,10 @@ fn sync_with(
     let mut owned: BTreeSet<String> = BTreeSet::new();
 
     for (i, file) in remote.iter().enumerate() {
+        if cancel() {
+            report.cancelled = true;
+            break;
+        }
         progress(&SyncProgress {
             current: i + 1,
             total: remote.len(),
@@ -480,6 +565,13 @@ fn sync_with(
                 report.failed.push((file.name.clone(), why));
             }
         }
+    }
+
+    if report.cancelled {
+        // Stopped on request: keep every earlier claim, delete nothing.
+        owned.extend(previous.iter().cloned());
+        write_manifest(mods_dir, &owned)?;
+        return Ok(report);
     }
 
     // Remove what the pack dropped, but only files an earlier sync wrote.
@@ -1023,6 +1115,66 @@ mod tests {
             .filter(|n| n.ends_with(".skradle-tmp") || n.ends_with(".part"))
             .collect();
         assert!(leftovers.is_empty(), "{leftovers:?}");
+    }
+
+    #[test]
+    fn a_cancelled_sync_stops_before_the_next_file_and_deletes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = FakePack::with(&[("old.zip", b"OLD")]);
+        run(dir.path(), &first);
+        let pack = FakePack::with(&[("a.zip", b"A"), ("b.zip", b"B")]);
+        let asked = std::cell::Cell::new(0);
+        let report = sync_cancellable(dir.path(), &pack, &mut |_| {}, &|| {
+            asked.set(asked.get() + 1);
+            asked.get() > 1
+        })
+        .unwrap();
+        assert!(report.cancelled);
+        assert_eq!(report.downloaded, ["a.zip"]);
+        assert!(report.deleted.is_empty());
+        assert!(dir.path().join("old.zip").exists(), "nothing is deleted");
+        assert!(!dir.path().join("b.zip").exists());
+        // The earlier claim survives, so a full sync later still removes the dropped file.
+        let again = run(dir.path(), &pack);
+        assert_eq!(again.deleted, ["old.zip"]);
+        assert!(!again.cancelled);
+    }
+
+    #[test]
+    fn status_reports_changes_without_touching_anything() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = FakePack::with(&[("a.zip", b"A"), ("b.zip", b"B")]);
+        let fresh = status(dir.path(), &pack).unwrap();
+        assert_eq!(fresh.total, 2);
+        assert_eq!(fresh.to_download, ["a.zip", "b.zip"]);
+        assert!(!fresh.installed && fresh.has_changes());
+        assert!(pack.downloads.borrow().is_empty());
+        assert!(fs::read_dir(dir.path()).unwrap().next().is_none());
+
+        run(dir.path(), &pack);
+        let current = status(dir.path(), &pack).unwrap();
+        assert!(current.installed && !current.has_changes());
+
+        let newer = FakePack::with(&[("a.zip", b"A2")]);
+        let s = status(dir.path(), &newer).unwrap();
+        assert_eq!(s.to_download, ["a.zip"]);
+        assert_eq!(s.to_delete, ["b.zip"]);
+        // A player's own file is never offered for deletion.
+        fs::write(dir.path().join("mine.zip"), b"M").unwrap();
+        assert!(!status(dir.path(), &newer)
+            .unwrap()
+            .to_delete
+            .contains(&"mine.zip".to_owned()));
+    }
+
+    #[test]
+    fn status_of_an_unusable_listing_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = FakePack {
+            raw_listing: Some(b"{\"message\":\"rate limit\"}".to_vec()),
+            ..FakePack::default()
+        };
+        assert!(status(dir.path(), &pack).is_err());
     }
 
     /// Reads the real listing (network, api.github.com only) and prints it. Changes nothing on disk.

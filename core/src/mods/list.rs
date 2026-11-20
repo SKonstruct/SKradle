@@ -62,7 +62,7 @@ fn read_state(dir: &Path) -> io::Result<State> {
 }
 
 /// A plain file name: one component, not hidden, with a mod extension.
-fn is_mod_file_name(name: &str) -> bool {
+pub(crate) fn is_mod_file_name(name: &str) -> bool {
     !name.is_empty()
         && !name.starts_with('.')
         && !name.contains(['/', '\\', '\0'])
@@ -123,6 +123,29 @@ pub fn set_enabled(dir: &Path, file_name: &str, enabled: bool) -> io::Result<()>
     let mut json = serde_json::to_vec_pretty(&state).map_err(io::Error::other)?;
     json.push(b'\n');
     write_atomic(&dir.join(STATE_FILE), &json)
+}
+
+/// Deletes a mod file and forgets its switch. A link is removed itself, never what it points to; a folder is
+/// refused. A mod a modpack sync wrote comes back at the next sync while the pack still has it.
+pub fn remove(dir: &Path, file_name: &str) -> io::Result<()> {
+    if !is_mod_file_name(file_name) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "not a mod file name",
+        ));
+    }
+    let path = dir.join(file_name);
+    let meta = fs::symlink_metadata(&path)?;
+    if meta.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "a folder is not a mod file",
+        ));
+    }
+    fs::remove_file(&path)?;
+    // A damaged state file must not turn a successful removal into an error.
+    let _ = set_enabled(dir, file_name, true);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -221,5 +244,21 @@ mod tests {
             assert!(set_enabled(dir.path(), bad, false).is_err(), "{bad:?}");
         }
         assert!(!dir.path().join(STATE_FILE).exists());
+    }
+
+    #[test]
+    fn remove_deletes_the_file_and_its_switch() {
+        let dir = mods_dir();
+        set_enabled(dir.path(), "b.zip", false).unwrap();
+        remove(dir.path(), "b.zip").unwrap();
+        assert!(!dir.path().join("b.zip").exists());
+        let json = fs::read_to_string(dir.path().join(STATE_FILE)).unwrap();
+        assert!(!json.contains("b.zip"), "{json}");
+        assert!(remove(dir.path(), "b.zip").is_err(), "already gone");
+        for bad in ["../x.zip", "notes.txt", ".hidden.zip", "sub"] {
+            assert!(remove(dir.path(), bad).is_err(), "{bad:?}");
+        }
+        assert!(dir.path().join("notes.txt").exists());
+        assert!(dir.path().join("sub").exists());
     }
 }
