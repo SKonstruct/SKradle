@@ -178,6 +178,7 @@ fn main() {
             "src/bridge/mods_model.rs",
             "src/bridge/feed_model.rs",
             "src/bridge/tools_model.rs",
+            "src/bridge/servers_model.rs",
         ]);
     if webview {
         builder = builder.qt_module("WebView");

@@ -3,8 +3,9 @@
 
 use std::fs::File;
 use std::io::{self, Read, Write};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use sha2::{Digest, Sha256};
 
@@ -340,6 +341,26 @@ pub fn sha256_file(path: &Path) -> io::Result<String> {
     }
 }
 
+/// A short TCP probe of a game server: resolves `host`, tries each address (at most four) in turn and returns how
+/// long the connection took, or `None` when none accepted within `timeout` (counted over all addresses). Nothing is
+/// sent: the connection is closed at once. Name resolution has no timeout of its own, so call this from a worker
+/// thread, never from the UI.
+pub fn probe_tcp(host: &str, port: u16, timeout: Duration) -> Option<Duration> {
+    let host = host.trim().trim_matches(['[', ']']);
+    let deadline = Instant::now() + timeout;
+    for addr in (host, port).to_socket_addrs().ok()?.take(4) {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return None;
+        }
+        let started = Instant::now();
+        if TcpStream::connect_timeout(&addr, left).is_ok() {
+            return Some(started.elapsed());
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -639,5 +660,19 @@ mod tests {
             "gave up after {:?}",
             started.elapsed()
         );
+    }
+
+    #[test]
+    fn a_tcp_probe_times_a_listening_port_and_gives_up_on_a_closed_one() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let rtt = probe_tcp("127.0.0.1", port, Duration::from_secs(2)).expect("reachable");
+        assert!(rtt < Duration::from_secs(2));
+        drop(listener);
+        assert_eq!(
+            probe_tcp("127.0.0.1", port, Duration::from_millis(500)),
+            None
+        );
+        assert_eq!(probe_tcp("", 80, Duration::from_millis(100)), None);
     }
 }

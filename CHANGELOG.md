@@ -9,23 +9,31 @@ history has the rest.
 
 ### Added
 
-- **Launcher app** (Qt Quick, one look on every OS): Home, Servers, Mods, Graphics and About pages; light and dark
-  theme; reduced-motion setting; English with a translation catalogue and a pseudo-language for layout testing.
+- **Launcher app** (Qt Quick, one look on every OS) with four pages: **Home**, **Servers**, **Mods** and **Settings**;
+  light and dark theme; reduced-motion setting; English with a translation catalogue and a pseudo-language for layout
+  testing.
+- **Home**: the launch card (update, launching and running states), the latest Spiral Knights news and the number of
+  players on Steam right now (both from Steam's public API, kept on disk and shown as offline when Steam is
+  unreachable), and a donation button.
 - **Launching Spiral Knights** from a Steam or standalone install, found automatically; a custom folder can be added.
   A launch checks for an update first (through the game's own updater), then applies mods, writes the server choice
   and starts the game directly on a suitable Java.
-- **Graphics enhancements** (render scale, sharpening, anti-aliasing, sharp HUD, frame generation, frame cap, FPS
-  counter) passed to the game as the skgfx agent, which needs Java 24 or newer.
-- **Mods**: reads `.zip`, `.jar` and `.modpack` mods, applies and removes them against the game's own file checks, all
-  or nothing, and can sync a maintained modpack with hash-checked downloads.
-- **Community servers**: store and edit server entries and point the game at one without touching the game's files by
-  hand.
-- **My server**: download, configure, start, stop and back up a local Tortodrone server after accepting its licence,
-  with its web interface shown inside the window (system web view on macOS and Windows; the browser on Linux).
+- **Settings**: the game install to use, Java, memory (RAM), garbage collector and explicit-GC behaviour, extra JVM
+  arguments; file cleaning, file purging and *Reset game files*; the graphics enhancements (render scale, sharpening,
+  sharp HUD, frame generation, frame cap, FPS counter) passed to the game as the skgfx agent, which needs Java 24 or
+  newer; Discord Rich Presence (off until the project's Discord application id is set); the game's editors; appearance,
+  language, reduced motion, hiding the launcher while playing, update check, crash reports; version and links.
+- **Mods**: the mods in your mods folder with an on/off switch each, tags found automatically with filters and search,
+  drag and drop (or browse) to add mods (only valid ones are copied in), select several mods and enable, disable or
+  remove them with the keyboard, open the mods folder, and a one-button install and update of the maintained modpack
+  (hash-checked, only changed files downloaded, cancellable).
+- **Servers**: your saved servers with live reachability and ping, choose which one the game uses, add and edit servers
+  (name, address, port, public key, getdown URL, content URL), and the **Your server** strip above the list to install,
+  start, stop, restart, back up and update a local Tortodrone server (after accepting its licence), with its web
+  interface shown inside the window while it runs (system web view on macOS and Windows; the browser on Linux).
 - **Updates and reports**: checks GitHub for a newer launcher (can be switched off); optional crash reports, scrubbed
   of personal details, with an off switch.
-- Windows: Steam is found where the registry says it is, so installs on another drive work. The About page shows the
-  launcher's version, and a settings file that had to be reset is announced once.
+- Windows: Steam is found where the registry says it is, so installs on another drive work.
 - **Test builds** from the Actions tab (`Build` workflow): a `.dmg` for macOS (Apple silicon and Intel), a `.zip` for
   Windows (x64 and ARM64) and an AppImage for Linux x64. They are unsigned: on macOS run `xattr -cr SKradle.app` once,
   on Windows choose "More info" then "Run anyway".
@@ -45,6 +53,8 @@ history has the rest.
 
 ### Known gaps
 
-- Servers, Mods and News pages still show sample data in places; the real lists are being wired in.
+- Everything is untested against a real Tortodrone engine, a real game launch and Windows; the first real runs will
+  find problems.
+- Players on the Official servers are shown as Steam's count (the standalone client is not counted).
 - No installer, no code signing, no automatic update of the launcher itself yet.
 - Linux arm64 is not supported (the game ships no Linux arm64 runtime).

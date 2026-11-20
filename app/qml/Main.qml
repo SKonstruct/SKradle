@@ -160,7 +160,9 @@ ApplicationWindow {
         "settings-general", "settings-game", "settings-files", "settings-graphics", "settings-graphics-running", "settings-integrations",
         "settings-tools", "settings-about", "settings-reset", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
         "mods-selected", "mods-focus", "mods-tag", "mods-empty", "mods-nogame", "mods-confirm", "mods-issues", "mods-pack-update",
-        "mods-pack-syncing", "mods-pack-report", "mods-pack-error"]
+        "mods-pack-syncing", "mods-pack-report", "mods-pack-error",
+        "srv-notinstalled", "srv-offline", "srv-install", "srv-busy", "srv-nojava", "srv-stopped", "srv-starting", "srv-running", "srv-running-lan",
+        "srv-failed", "srv-portbusy", "srv-backup", "srv-add", "srv-add-errors", "srv-edit", "srv-info", "srv-delete", "srv-selected-menu"]
     property int shotIndex: 0
     property int shotsFailed: 0
     function nextShot() {
@@ -199,6 +201,9 @@ ApplicationWindow {
         const gp = pageItem(3); if (gp) { gp.closeCombo(); gp.closeReset(); gp.scroller.contentY = 0 }
         HomeFeed.force("ok")
         const md = pageItem(2); if (md) md.resetShot()
+        // The Servers page shows a fixed list and a fixed server state, never this computer's.
+        ServerBook.force("list"); ServerHost.force("stopped")
+        if (name.indexOf("srv-") === 0) { go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.shot(name.substring(4)) }); return }
         switch (name) {
         case "home-ready": go(0); break
         case "home-updating": go(0); LaunchModel.force("updating", 0); break
@@ -231,7 +236,7 @@ ApplicationWindow {
         case "mods-pack-update": case "mods-pack-syncing": case "mods-pack-report": case "mods-pack-error":
             go(2); Qt.callLater(() => { const p = pageItem(2); if (p) p.shotState(name.substring(5)) }); break
         case "mods-nogame": go(2); GameModel.force("notfound"); break
-        case "servers-myserver": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.showHost = true }); break
+        case "servers-myserver": go(1); ServerHost.force("running"); Qt.callLater(() => { const p = pageItem(1); if (p) p.showHost = true }); break
         case "focus": go(1); Qt.callLater(() => side.focusItem(1)); break
         }
     }

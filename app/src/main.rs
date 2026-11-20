@@ -9,6 +9,7 @@ mod presence_driver;
 mod reporter;
 mod selfupdate;
 mod server_host;
+mod servers;
 mod settings;
 mod tools;
 
@@ -100,6 +101,8 @@ fn main() {
         std::process::exit(1);
     }
     let status = app.as_mut().map_or(1, |app| app.exec());
+    // The hosted server (if the player started one) is stopped properly, not killed when the process ends.
+    server_host::shutdown();
     settings::global().flush();
     // Destroy the QML engine (and any web view in it) and then the application object before `exit` runs
     // the C++ static destructors; with them alive Qt crashes on the way out.
