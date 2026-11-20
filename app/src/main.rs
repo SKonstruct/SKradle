@@ -7,6 +7,7 @@ mod options;
 mod reporter;
 mod selfupdate;
 mod server_host;
+mod servers;
 mod settings;
 
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, QUrl};

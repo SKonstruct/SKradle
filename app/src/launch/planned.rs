@@ -6,7 +6,8 @@
 //! which starts it and follows it. All of this happens on the supervisor's thread, so the window never waits.
 //!
 //! Where things live (none of it is created by the launch itself):
-//! - the selected server: `servers.json` in the launcher's config folder (no file means Official),
+//! - the selected server: `servers.json` in the launcher's config folder, written by the Servers page (no file
+//!   means Official),
 //! - the player's mods: `<data dir>/SKradle/mods` (no folder means nothing to apply),
 //! - the graphics agent: `<data dir>/SKradle/skgfx/skgfx-agent.jar` (no file means graphics enhancements are off).
 //!   TODO(graphics): downloading the agent is not built yet (it needs the release pipeline of the `skgfx` repository).
@@ -21,7 +22,7 @@ use skradle_core::launch::direct::{DirectOptions, Inputs, Memory};
 use skradle_core::launch::plan::{self as core_plan, Effects, LaunchKind, PlanInputs, RealEffects};
 use skradle_core::net;
 use skradle_core::runtime::{self, Runtime};
-use skradle_core::servers::{self, Server, ServerList};
+use skradle_core::servers::{self, Server};
 
 use super::plan::{self, Machine};
 use super::supervisor::{self, Prepare, Timing};
@@ -46,9 +47,7 @@ impl Surroundings {
         let data = dirs::data_dir().map(|d| d.join("SKradle"));
         Self {
             arch: std::env::consts::ARCH.to_owned(),
-            server: ServerList::load(&settings::config_dir().join("servers.json"))
-                .selected_server()
-                .cloned(),
+            server: crate::servers::selected_server_from(&settings::config_dir()),
             mods_dir: data.as_ref().map(|d| d.join("mods")).filter(|p| p.is_dir()),
             agent_jar: data
                 .as_ref()
@@ -257,6 +256,8 @@ mod tests {
     struct Recorder {
         calls: Vec<&'static str>,
         fail_connection: bool,
+        /// The server the planner asked `config.jar` to be pointed at.
+        connection: Option<Option<Server>>,
     }
 
     impl Effects for Recorder {
@@ -269,8 +270,9 @@ mod tests {
             self.calls.push("mods");
             Ok(vec![])
         }
-        fn apply_connection(&mut self, _: &Path, _: Option<&Server>) -> Result<(), String> {
+        fn apply_connection(&mut self, _: &Path, server: Option<&Server>) -> Result<(), String> {
             self.calls.push("connection");
+            self.connection = Some(server.cloned());
             if self.fail_connection {
                 Err("config.jar is locked".into())
             } else {
@@ -370,6 +372,52 @@ mod tests {
             "no mods folder, nothing to apply"
         );
         assert!(spec.program.ends_with("bin/java"), "{:?}", spec.program);
+    }
+
+    #[test]
+    fn the_server_chosen_on_the_servers_page_reaches_the_games_connection_settings() {
+        use crate::servers::{self as page, Book, Draft};
+        let w = world();
+        let config = w.dir.path().join("config");
+        let book = Book::new(config.join(page::FILE));
+        let id = page::save(
+            &book,
+            &Draft {
+                name: "Haven".into(),
+                address: "haven.example".into(),
+                port: "9001".into(),
+                ..Draft::default()
+            },
+        )
+        .unwrap();
+        page::select(&book, &id).unwrap();
+
+        // What a launch after a restart reads, then plans with.
+        let around = Surroundings {
+            server: page::selected_server_from(&config),
+            ..around()
+        };
+        let mut fx = Recorder::default();
+        prepare(&w.request, &w.machine, &around, &mut fx).unwrap();
+        let sent = fx
+            .connection
+            .clone()
+            .flatten()
+            .expect("a server was passed on");
+        assert_eq!((sent.host.as_str(), sent.port), ("haven.example", 9001));
+        let props = servers::desired_properties(Some(&sent));
+        assert_eq!(props["server_host"], "haven.example");
+        assert_eq!(props["server_ports"], "9001");
+
+        // Choosing Official again gives the game Official's settings, nothing of the private server.
+        page::select(&book, page::OFFICIAL_ID).unwrap();
+        let around = Surroundings {
+            server: page::selected_server_from(&config),
+            ..around
+        };
+        let mut fx = Recorder::default();
+        prepare(&w.request, &w.machine, &around, &mut fx).unwrap();
+        assert_eq!(fx.connection, Some(None));
     }
 
     #[test]
