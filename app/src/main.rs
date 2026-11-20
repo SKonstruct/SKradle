@@ -3,6 +3,7 @@
 mod bridge;
 mod discovery;
 mod launch;
+mod mods_host;
 mod options;
 mod reporter;
 mod selfupdate;
@@ -35,12 +36,23 @@ fn main() {
 
     // Tests and screenshot runs never touch the player's own settings; their throw-away folder goes at the end.
     let mut run_dir = None;
+    let mut mods_fixture_dir = None;
     if (options.selftest || options.shots.is_some())
         && std::env::var_os("SKRADLE_CONFIG_DIR").is_none()
     {
         let dir = std::env::temp_dir().join(format!("skradle-run-{}", std::process::id()));
         std::env::set_var("SKRADLE_CONFIG_DIR", &dir);
         run_dir = Some(dir);
+    }
+    // The same for the mods folder: a throw-away one with a few real mods in it.
+    if (options.selftest || options.shots.is_some())
+        && std::env::var_os("SKRADLE_MODS_DIR").is_none()
+    {
+        let dir = std::env::temp_dir().join(format!("skradle-mods-{}", std::process::id()));
+        if mods_host::write_fixtures(&dir).is_ok() {
+            std::env::set_var("SKRADLE_MODS_DIR", &dir);
+            mods_fixture_dir = Some(dir);
+        }
     }
     // No reports from the self-test or screenshot runs, which are not a player's session.
     reporter::init(
@@ -82,6 +94,7 @@ fn main() {
         eprintln!("skradle: the interface could not be loaded (see the messages above)");
         settings::global().flush();
         remove_run_dir(&run_dir);
+        remove_run_dir(&mods_fixture_dir);
         std::process::exit(1);
     }
     let status = app.as_mut().map_or(1, |app| app.exec());
@@ -91,6 +104,7 @@ fn main() {
     drop(engine);
     drop(app);
     remove_run_dir(&run_dir);
+    remove_run_dir(&mods_fixture_dir);
     std::process::exit(status);
 }
 
