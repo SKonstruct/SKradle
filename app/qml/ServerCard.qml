@@ -3,9 +3,9 @@ import com.skradle.app
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// One row of the server list. Columns are fixed so every row lines up: choice, name and address, reachability,
-// ping, the Select action, more actions. The selected server is marked three ways: a filled choice circle, a
-// tinted card with an accent edge, and the "Selected" label where the Select button would be.
+// One row of the server list. The whole row chooses the server (one action). The choice is shown once: a 3 px
+// accent bar on the left edge and a ticked circle. Status is shown once, in one right-aligned column: the ping
+// when the server answers, a word only when it does not.
 Control {
     id: root
     required property string sid
@@ -23,49 +23,58 @@ Control {
     signal copyAddress()
 
     hoverEnabled: true
-    padding: Theme.s4
+    focusPolicy: Qt.StrongFocus
+    padding: Theme.padCompact
     leftPadding: Theme.s5
-    rightPadding: Theme.s4
-    property int radius: Theme.rLg
+    property int radius: Theme.rMd
     readonly property bool editable: kind === "saved"
     // The hosted server that is not running cannot answer: say that instead of "unreachable".
     readonly property string live: kind === "local" && ServerHost.state !== "running" ? "stopped" : probeState
     readonly property color statusColor: live === "up" ? Theme.ok : live === "down" ? Theme.danger : Theme.textTertiary
-    readonly property string statusText: live === "up" ? qsTr("Reachable") : live === "down" ? qsTr("Unreachable")
+    // The ping when it answers; a word only for the states that need one.
+    readonly property string statusText: live === "up" ? qsTr("%1 ms").arg(ping) : live === "down" ? qsTr("Unreachable")
         : live === "stopped" ? qsTr("Not running") : live === "checking" ? qsTr("Checking…") : "—"
-    readonly property int pingLevel: live !== "up" ? 0 : ping < 60 ? 4 : ping < 110 ? 3 : ping < 170 ? 2 : 1
-    readonly property color pingColor: pingLevel >= 3 ? Theme.ok : pingLevel === 2 ? Theme.amber : Theme.danger
 
-    Accessible.role: Accessible.ListItem
-    Accessible.name: name + ", " + address + ", " + statusText + (live === "up" ? ", " + ping + " " + qsTr("milliseconds") : "")
-                     + (selected ? ", " + qsTr("selected") : "")
+    Accessible.role: Accessible.RadioButton
+    Accessible.name: name + ", " + address + ", " + (live === "up" ? qsTr("reachable, %1 milliseconds").arg(ping) : statusText)
+    Accessible.checkable: true
+    Accessible.checked: selected
+    Accessible.onPressAction: root.select()
+    Keys.onReturnPressed: root.select()
+    Keys.onSpacePressed: root.select()
 
     background: Item {
         Card {
             anchors.fill: parent
-            raised: root.hovered
-            fill: root.selected ? Theme.accentTint : root.hovered ? Theme.cardHover : Theme.card
+            raised: root.hovered && !root.selected
+            fill: root.hovered ? Theme.cardHover : Theme.card
             radius: root.radius
+            Rectangle {   // the chosen row's cue
+                visible: root.selected
+                x: 0; y: Theme.s3
+                width: 3; height: parent.height - 2 * Theme.s3
+                radius: Theme.rXs
+                color: Theme.accent
+            }
         }
-        Rectangle {   // the selected row's edge
-            visible: root.selected
+        MouseArea {
             anchors.fill: parent
-            radius: root.radius
-            color: "transparent"
-            border.width: 2
-            border.color: Theme.accentFg
+            cursorShape: Qt.PointingHandCursor
+            onClicked: { root.forceActiveFocus(); root.select() }
         }
+        FocusRing { grow: 3 }
     }
 
     contentItem: RowLayout {
         spacing: Theme.s4
 
-        // Choice circle: filled and ticked when this is the server the game will use.
+        // Choice circle: ticked when this is the server the game will use.
         Item {
             Layout.preferredWidth: 22; Layout.preferredHeight: 22
             Layout.alignment: Qt.AlignVCenter
+            Accessible.ignored: true
             Rectangle {
-                anchors.fill: parent; radius: 11
+                anchors.fill: parent; radius: width / 2
                 color: root.selected ? Theme.accent : "transparent"
                 border.width: root.selected ? 0 : 2
                 border.color: Theme.fieldBorder
@@ -76,10 +85,10 @@ Control {
         ColumnLayout {
             Layout.fillWidth: true
             Layout.preferredWidth: 0
-            Layout.minimumWidth: 140
-            spacing: 2
+            Layout.minimumWidth: 120
+            spacing: Theme.s0
             RowLayout {
-                spacing: 8
+                spacing: Theme.gapInline
                 Txt {
                     id: nameTxt
                     Layout.fillWidth: true
@@ -87,58 +96,33 @@ Control {
                     text: root.name; kind: "heading"; maximumLineCount: 1; wrapMode: Text.NoWrap; elide: Text.ElideRight
                     TextMetrics { id: nameMetrics; font: nameTxt.font; text: root.name }
                 }
-                Rectangle {
-                    visible: root.kind === "local"
-                    implicitWidth: kindTxt.implicitWidth + 14; implicitHeight: 20; radius: 10
-                    color: Theme.raised
-                    Txt { id: kindTxt; anchors.centerIn: parent; text: qsTr("This computer"); kind: "micro"; wrapMode: Text.NoWrap; color: Theme.text }
-                }
+                Tag { visible: root.kind === "local"; text: qsTr("This computer") }
             }
-            Txt { Layout.fillWidth: true; text: root.address; kind: "caption"; wrapMode: Text.NoWrap; elide: Text.ElideRight; font.features: { "tnum": 1 } }
-        }
-
-        RowLayout {   // reachability
-            Layout.preferredWidth: 116
-            Layout.alignment: Qt.AlignVCenter
-            spacing: 8
-            StatusDot { color: root.statusColor; pulse: root.live === "up"; Layout.alignment: Qt.AlignVCenter; Accessible.ignored: true }
-            Txt { Layout.fillWidth: true; text: root.statusText; kind: "caption"; color: root.statusColor; font.weight: Font.Medium; wrapMode: Text.NoWrap; elide: Text.ElideRight }
-        }
-
-        RowLayout {   // ping: the time to open a connection to the game port
-            Layout.preferredWidth: 78
-            Layout.alignment: Qt.AlignVCenter
-            spacing: 8
-            SignalBars { level: root.pingLevel; color: root.pingColor; Layout.alignment: Qt.AlignVCenter }
-            Txt { text: root.live === "up" ? root.ping + " ms" : "—"; kind: "caption"; wrapMode: Text.NoWrap; font.features: { "tnum": 1 }
-                  Accessible.ignored: true }
-        }
-
-        Item {   // the action: Select, or the Selected label in its place; same width, so the rows line up
-            Layout.preferredWidth: 104
-            Layout.preferredHeight: 36
-            Layout.alignment: Qt.AlignVCenter
-            SButton {
-                anchors.fill: parent
-                visible: !root.selected
-                text: qsTr("Select")
-                Accessible.name: qsTr("Select %1: use this server when I launch").arg(root.name)
-                leftPadding: 8; rightPadding: 8
-                onClicked: root.select()
+            Txt {
+                id: addrTxt
+                Layout.fillWidth: true
+                text: root.address; kind: "caption"; mono: true; numeric: true
+                wrapMode: Text.NoWrap; elide: Text.ElideMiddle
+                HoverHandler { id: addrHover }
+                Tip { text: root.address; wanted: addrHover.hovered && addrTxt.truncated }
             }
-            Rectangle {
-                anchors.fill: parent
-                visible: root.selected
-                radius: 10
-                color: Theme.accentTint
-                Accessible.role: Accessible.StaticText
-                Accessible.name: qsTr("%1 is selected").arg(root.name)
-                Row {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Icon { name: "check"; size: 16; color: Theme.accentFg; anchors.verticalCenter: parent.verticalCenter }
-                    Txt { text: qsTr("Selected"); font.weight: Font.Medium; color: Theme.accentFg; wrapMode: Text.NoWrap; anchors.verticalCenter: parent.verticalCenter }
-                }
+        }
+
+        // Status: a dot and one value, right aligned so the numbers line up from row to row.
+        RowLayout {
+            Layout.preferredWidth: 112
+            Layout.alignment: Qt.AlignVCenter
+            spacing: Theme.gapInline
+            Accessible.ignored: true
+            Item { Layout.fillWidth: true }
+            StatusDot { color: root.statusColor; pulse: root.live === "up"; Layout.alignment: Qt.AlignVCenter }
+            Txt {
+                text: root.statusText
+                numeric: true; kind: "caption"
+                color: root.live === "up" ? Theme.text : root.live === "down" ? Theme.danger : Theme.textSecondary
+                wrapMode: Text.NoWrap
+                horizontalAlignment: Text.AlignRight
+                Layout.preferredWidth: 80
             }
         }
 
@@ -151,7 +135,7 @@ Control {
     }
 
     function closeMenu() { menu.close() }
-    function openMenu() { menu.popup(moreBtn, moreBtn.width - menu.width, moreBtn.height + 4) }
+    function openMenu() { menu.popup(moreBtn, moreBtn.width - menu.width, moreBtn.height + Theme.s1) }
     function focusAction() { moreBtn.forceActiveFocus() }
     readonly property Item moreButton: moreBtn
 

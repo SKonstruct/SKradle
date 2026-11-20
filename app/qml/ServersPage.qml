@@ -14,13 +14,14 @@ Item {
     function closeAll() {
         page.showHost = false
         dlg.close(); infoDlg.close(); deleteDlg.close()
-        if (lv.headerItem) lv.headerItem.stripItem.closeDialogs()
+        if (lv.footerItem) lv.footerItem.stripItem.closeDialogs()
         const it = lv.itemAtIndex(0); if (it) it.card.closeMenu()
     }
     // Screenshots only: a named state of the page.
     function shot(name) {
         closeAll()
-        const strip = lv.headerItem ? lv.headerItem.stripItem : null
+        const strip = lv.footerItem ? lv.footerItem.stripItem : null
+        strip.manage = false
         lv.positionViewAtBeginning()
         switch (name) {
         case "add": dlg.openAdd(lv); break
@@ -28,10 +29,11 @@ Item {
         case "edit": dlg.openEdit("a", lv); break
         case "info": infoDlg.show(rows.get(1), lv); break
         case "delete": deleteDlg.sid = "c"; deleteDlg.name = rows.get(3).name; deleteDlg.openFrom(lv); break
-        case "install": ServerHost.force("notinstalled"); strip.demo("install"); break
-        case "backup": ServerHost.force("stopped"); strip.demo("backup"); break
+        case "install": ServerHost.force("notinstalled"); lv.positionViewAtEnd(); strip.demo("install"); break
+        case "backup": ServerHost.force("stopped"); lv.positionViewAtEnd(); strip.demo("backup"); break
         case "selected-menu": { const it = lv.itemAtIndex(1); if (it) it.card.openMenu(); break }
-        default: ServerHost.force(name)
+        case "manage": ServerHost.force("running"); lv.positionViewAtEnd(); strip.manage = true; break
+        default: ServerHost.force(name); lv.positionViewAtEnd(); strip.manage = false
         }
     }
     function openMenu() { const it = lv.itemAtIndex(0); if (it) it.card.openMenu() }
@@ -84,7 +86,7 @@ Item {
     }
     onActiveChanged: if (active) ServerBook.reload()
 
-    function toastError() { if (ServerBook.error !== "") Data.toast(qsTr("The list could not be saved. Check that the settings folder is writable.")) }
+    function toastError() { if (ServerBook.error !== "") Data.toast(qsTr("The list could not be saved. Check that the settings folder is writable."), "error") }
     Connections { target: ServerBook; function onErrorChanged() { page.toastError() } }
 
     ListView {
@@ -93,7 +95,7 @@ Item {
         anchors.fill: parent
         model: rows
         clip: true
-        spacing: Theme.s3
+        spacing: Theme.s2
         boundsBehavior: Flickable.StopAtBounds
         ScrollBar.vertical: SScrollBar {}
         topMargin: 0
@@ -102,8 +104,7 @@ Item {
 
         header: Item {
             width: lv.width
-            property alias stripItem: strip
-            height: head.implicitHeight + strip.implicitHeight + sectionHead.implicitHeight + Theme.s8 + Theme.s6 + 2 * Theme.s5
+            height: head.implicitHeight + sectionHead.implicitHeight + Theme.s8 + Theme.s5 + Theme.s3
             PageHeader {
                 id: head
                 x: (parent.width - page.cw) / 2; y: Theme.s8
@@ -111,45 +112,45 @@ Item {
                 title: qsTr("Servers")
                 subtitle: qsTr("Choose the server the game connects to when you launch it.")
                 SButton {
-                    text: qsTr("Check again"); glyph: "refresh"
+                    text: qsTr("Check again"); glyph: "refresh"; variant: "ghost"
                     onClicked: ServerBook.probeAll()
                     Accessible.name: qsTr("Check which servers can be reached again")
                 }
                 SButton {
                     id: addBtn
                     text: qsTr("Add server"); glyph: "plus"
-                    highlighted: true
                     onClicked: dlg.openAdd(addBtn)
                 }
-            }
-            ServerControlStrip {
-                id: strip
-                x: (parent.width - page.cw) / 2
-                y: head.y + head.implicitHeight + Theme.s5
-                width: page.cw
-                onOpenWebUi: page.showHost = true
             }
             ColumnLayout {
                 id: sectionHead
                 x: (parent.width - page.cw) / 2
-                y: strip.y + strip.implicitHeight + Theme.s5
+                y: head.y + head.implicitHeight + Theme.s5
                 width: page.cw
-                spacing: Theme.s2
-                Txt { Layout.fillWidth: true; text: qsTr("Servers you can play on"); kind: "heading"; Accessible.role: Accessible.Heading }
-                RowLayout {
-                    Layout.fillWidth: true
+                spacing: Theme.gapStack
+                Txt { Layout.fillWidth: true; text: qsTr("Play on"); kind: "heading"; Accessible.role: Accessible.Heading }
+                Banner {
                     visible: page.officialDown
-                    spacing: Theme.s2
-                    Icon { name: "warning"; size: 16; color: Theme.amberText }
-                    Txt {
-                        Layout.fillWidth: true
-                        text: qsTr("The official server can't be reached. Check your internet connection. Servers on your own network may still work.")
-                        kind: "caption"; color: Theme.text
-                    }
+                    kind: "warn"
+                    text: qsTr("The official server can't be reached. Check your internet connection. Servers on your own network may still work.")
+                    actionText: qsTr("Check again")
+                    onAction: ServerBook.probeAll()
                 }
             }
         }
-        footer: Item { width: lv.width; height: Theme.s10 }
+        // The hosting summary comes after the list: choosing where to play is the first job.
+        footer: Item {
+            width: lv.width
+            property alias stripItem: strip
+            height: strip.implicitHeight + Theme.s6 + Theme.s10
+            ServerControlStrip {
+                id: strip
+                x: (parent.width - page.cw) / 2
+                y: Theme.s6
+                width: page.cw
+                onOpenWebUi: page.showHost = true
+            }
+        }
 
         delegate: Item {
             id: del
