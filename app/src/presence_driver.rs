@@ -1,8 +1,8 @@
 //! Discord Rich Presence while the game runs: maps the launch phase to what Discord shows and talks to Discord on a
 //! thread of its own (a Discord that is not running, or slow, must never hold up the window).
 //!
-//! The Discord application id is [`skradle_core::presence::DISCORD_APPLICATION_ID`]; while it is empty nothing here
-//! starts a thread or opens a socket, whatever the setting says.
+//! The Discord application id is [`skradle_core::presence::DISCORD_APPLICATION_ID`]; while it is empty or malformed
+//! nothing here starts a thread or opens a socket, whatever the setting says.
 
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Mutex, OnceLock};

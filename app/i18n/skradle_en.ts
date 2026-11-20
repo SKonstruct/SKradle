@@ -2069,11 +2069,11 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Shows in Discord that you are playing Spiral Knights, and for how long.</source>
+        <source>Shows in Discord that you are playing Spiral Knights, and for how long. Off by default; Discord must be running.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Not available in this build: the Discord application it needs has not been set up yet. The switch is saved but does nothing until then.</source>
+        <source>Not available in this build.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

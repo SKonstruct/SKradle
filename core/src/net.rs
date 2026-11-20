@@ -303,6 +303,69 @@ impl Client {
     }
 }
 
+// ---- The one plain-HTTP exception ----------------------------------------------------------------------------------
+//
+// The live-events feed is third-party, cleartext and optional: the service answers plain HTTP on port 6060 only (it
+// has no TLS listener) and is read by other launchers too. Nothing else in SKradle may use it. The app must work
+// normally when it is unreachable, and everything it sends back is untrusted data (see `live_events`).
+
+/// Host of the live-events feed (third-party, cleartext, optional).
+pub const EVENTS_FEED_HOST: &str = "flamingo.knightlauncher.com";
+/// Port of the live-events feed.
+pub const EVENTS_FEED_PORT: u16 = 6060;
+/// Path prefix of the live-events feed.
+pub const EVENTS_FEED_PATH: &str = "/server-list/";
+
+/// Whether `url` is exactly the events feed: `http://<host>:<port><path>` optionally followed by a plain query
+/// (letters, digits, `=`, `&`, `-`, `_`, `.`). No other host, port, scheme, path, user info or fragment passes.
+pub fn is_events_feed_url(url: &str) -> bool {
+    let prefix = format!("http://{EVENTS_FEED_HOST}:{EVENTS_FEED_PORT}{EVENTS_FEED_PATH}");
+    let Some(rest) = url.strip_prefix(&prefix) else {
+        return false;
+    };
+    match rest.strip_prefix('?') {
+        None => rest.is_empty(),
+        Some(query) => query
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'=' | b'&' | b'-' | b'_' | b'.')),
+    }
+}
+
+impl Client {
+    /// Fetches the live-events feed over plain HTTP. This is the only place SKradle speaks cleartext HTTP, and only
+    /// to [`EVENTS_FEED_HOST`]:[`EVENTS_FEED_PORT`][`EVENTS_FEED_PATH`] (anything else is refused before a
+    /// connection is made). It keeps a size cap and short timeouts, refuses every redirect, and sends no cookies or
+    /// credentials (no cookie store, no authorization). The answer is untrusted text.
+    pub fn get_text_insecure_for_events(url: &str, max_bytes: u64) -> Result<String, NetError> {
+        if !is_events_feed_url(url) {
+            return Err(NetError::InsecureUrl(url.to_owned()));
+        }
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .https_only(false)
+            .max_redirects(0)
+            .timeout_connect(Some(Duration::from_secs(4)))
+            .timeout_global(Some(Duration::from_secs(8)))
+            .user_agent(USER_AGENT)
+            .build()
+            .into();
+        let mut response = agent.get(url).call().map_err(|e| match e {
+            ureq::Error::StatusCode(code) => NetError::Status(code),
+            other => NetError::Request(other.to_string()),
+        })?;
+        let mut out = Vec::new();
+        response
+            .body_mut()
+            .as_reader()
+            .take(max_bytes.saturating_add(1))
+            .read_to_end(&mut out)?;
+        if out.len() as u64 > max_bytes {
+            return Err(NetError::TooLarge { limit: max_bytes });
+        }
+        String::from_utf8(out)
+            .map_err(|e| NetError::Io(io::Error::new(io::ErrorKind::InvalidData, e)))
+    }
+}
+
 fn part_path(dest: &Path) -> PathBuf {
     let mut name = dest
         .file_name()
@@ -439,6 +502,41 @@ mod tests {
             sha256_hex(b""),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
+    }
+
+    #[test]
+    fn plain_http_is_allowed_for_the_events_feed_alone() {
+        let feed = "http://flamingo.knightlauncher.com:6060/server-list/?machineId=skradle-desktop";
+        assert!(is_events_feed_url(feed));
+        assert!(is_events_feed_url(
+            "http://flamingo.knightlauncher.com:6060/server-list/"
+        ));
+        for bad in [
+            "https://flamingo.knightlauncher.com:6060/server-list/",
+            "http://flamingo.knightlauncher.com/server-list/",
+            "http://flamingo.knightlauncher.com:6061/server-list/",
+            "http://flamingo.knightlauncher.com:6060/other/",
+            "http://flamingo.knightlauncher.com:6060/server-list",
+            "http://flamingo.knightlauncher.com:6060/server-list/x",
+            "http://flamingo.knightlauncher.com:6060/server-list/#a",
+            "http://flamingo.knightlauncher.com:6060/server-list/?a=b#c",
+            "http://flamingo.knightlauncher.com:6060/server-list/?a=b c",
+            "http://flamingo.knightlauncher.com.evil.example:6060/server-list/",
+            "http://user@flamingo.knightlauncher.com:6060/server-list/",
+            "http://example.org:6060/server-list/",
+            "http://127.0.0.1:6060/server-list/",
+        ] {
+            assert!(!is_events_feed_url(bad), "{bad}");
+            assert!(matches!(
+                Client::get_text_insecure_for_events(bad, 10),
+                Err(NetError::InsecureUrl(_))
+            ));
+        }
+        // The general client still refuses the feed's own address.
+        assert!(matches!(
+            Client::new().get_text(feed, 10),
+            Err(NetError::InsecureUrl(_))
+        ));
     }
 
     #[test]
