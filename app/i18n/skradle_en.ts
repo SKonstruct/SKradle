@@ -295,6 +295,50 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Release notes  ·  v%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Release notes, version %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1d %2h</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1h %2m</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1m</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starts in under a minute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starts in %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ends in %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ends today, under a minute left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ends today, %1 left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ended</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Ready to play</source>
         <translation type="unfinished"></translation>
     </message>
@@ -343,6 +387,26 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Live events</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offline. Showing the events saved on %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Offline. Showing saved events.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Learn more</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Learn more about %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Spiral Knights news</source>
         <translation type="unfinished"></translation>
     </message>
@@ -367,19 +431,23 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1 players on Steam right now</source>
+        <source>About %1 players online right now (estimate)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Players on Steam right now: not available</source>
+        <source>Players online: not available</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>About %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>players online right now (an estimate)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Players online</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>players on Steam right now. Players of the standalone client are not counted.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -388,6 +456,22 @@
     </message>
     <message>
         <source>Asking Steam…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Live</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 on Steam, about %2 in total</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Steam counts only some of the players, so each Steam count is multiplied by %1 to include players of the standalone client.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -983,6 +1067,33 @@
     </message>
     <message>
         <source>Removed %1 (dropped from the modpack)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ReleaseNotesDialog</name>
+    <message>
+        <source>Release notes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>What changed in SKradle. You have version %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expand all</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Collapse all</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There are no release notes in this build.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -2028,6 +2139,10 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Release notes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>SKradle on GitHub</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2060,6 +2175,33 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Collapse sidebar</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>VersionBlock</name>
+    <message>
+        <source>Unreleased</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Version %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, shown. Press to minimise.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, hidden. Press to maximise.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Minimise</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Maximise</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

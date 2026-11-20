@@ -11,6 +11,7 @@ pub mod game_model;
 pub mod glue;
 pub mod launch_model;
 pub mod mods_model;
+pub mod release_notes_model;
 pub mod server_host_model;
 pub mod servers_model;
 pub mod settings_model;

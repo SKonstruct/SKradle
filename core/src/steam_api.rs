@@ -6,8 +6,9 @@
 //!   `date` (Unix seconds), `feedlabel` and `contents` (Steam strips the markup when `maxlength` is given and cuts
 //!   the text there; without it the text is BBCode with `{STEAM_CLAN_IMAGE}` placeholders). [`clean_contents`]
 //!   handles both.
-//! - `ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=99900`: `{"response":{"player_count":N,"result":1}}`.
-//!   The number counts players on Steam only, not those who play through the standalone client.
+//! - `ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=<id>`: `{"response":{"player_count":N,"result":1}}`, for
+//!   Live (99900) and Preview (99920). The number counts players on Steam only, not those who play through the
+//!   standalone client, so the Home page shows an estimate: each count times [`STANDALONE_FACTOR`], summed.
 //!
 //! The network sits behind [`SteamApi`] so tests use a fake. [`load_news`] falls back to the last good answer on
 //! disk (marked offline) when the request fails. All requests go through [`crate::net`]: HTTPS only, size caps,
@@ -23,11 +24,18 @@ use serde::{Deserialize, Serialize};
 use crate::jar::write_atomic;
 use crate::net::Client;
 
-pub const APP_ID: u32 = 99900;
+/// Steam app ids of the two servers: the live game and the Preview server.
+pub const APP_ID_LIVE: u32 = 99900;
+pub const APP_ID_PREVIEW: u32 = 99920;
+/// The app the news comes from.
+pub const APP_ID: u32 = APP_ID_LIVE;
+/// Steam's own count is only part of the player base; the rest play through the standalone client. The shown
+/// estimate multiplies each server's Steam count by this factor (the owner's rule of thumb, not a measurement).
+pub const STANDALONE_FACTOR: f64 = 1.4;
 /// Where an article without a usable address is sent.
 pub const NEWS_HUB_URL: &str = "https://store.steampowered.com/news/app/99900";
 /// Items asked for, and the text length asked of Steam (characters, before cleaning).
-pub const NEWS_COUNT: u32 = 6;
+pub const NEWS_COUNT: u32 = 3;
 pub const NEWS_MAX_LENGTH: u32 = 800;
 /// Longest teaser shown, in characters.
 pub const TEASER_CHARS: usize = 220;
@@ -40,10 +48,48 @@ pub fn news_url(count: u32, max_length: u32) -> String {
     )
 }
 
-pub fn players_url() -> String {
+pub fn players_url(app_id: u32) -> String {
     format!(
-        "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid={APP_ID}"
+        "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid={app_id}"
     )
+}
+
+/// Steam's count scaled by [`STANDALONE_FACTOR`], rounded to the nearest integer.
+pub fn estimate_total(steam: u64) -> u64 {
+    // Counts are far below 2^52, so the float is exact enough; the cast saturates on absurd input.
+    (steam as f64 * STANDALONE_FACTOR).round() as u64
+}
+
+/// The player estimate for both servers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayerEstimate {
+    pub live_steam: u64,
+    pub live_total: u64,
+    pub preview_steam: u64,
+    pub preview_total: u64,
+    /// `live_total + preview_total` (each server rounded first).
+    pub total: u64,
+}
+
+impl PlayerEstimate {
+    pub fn from_steam(live_steam: u64, preview_steam: u64) -> Self {
+        let live_total = estimate_total(live_steam);
+        let preview_total = estimate_total(preview_steam);
+        Self {
+            live_steam,
+            live_total,
+            preview_steam,
+            preview_total,
+            total: live_total.saturating_add(preview_total),
+        }
+    }
+}
+
+/// Asks Steam for both servers; an error in either one is an error (half an estimate would mislead).
+pub fn players_estimate(api: &dyn SteamApi) -> Result<PlayerEstimate, SteamError> {
+    let live = api.players(APP_ID_LIVE)?;
+    let preview = api.players(APP_ID_PREVIEW)?;
+    Ok(PlayerEstimate::from_steam(live, preview))
 }
 
 /// One news item, ready to show.
@@ -81,8 +127,8 @@ impl std::error::Error for SteamError {}
 /// The two requests, so tests (and the screenshot driver) can answer without a network.
 pub trait SteamApi: Send + Sync {
     fn news(&self, count: u32, max_length: u32) -> Result<Vec<NewsItem>, SteamError>;
-    /// Players on Steam now; `Err(Format)` when Steam answered without a count.
-    fn players(&self) -> Result<u64, SteamError>;
+    /// Players on Steam now for one app; `Err(Format)` when Steam answered without a count.
+    fn players(&self, app_id: u32) -> Result<u64, SteamError>;
 }
 
 /// The real Steam Web API.
@@ -113,10 +159,10 @@ impl SteamApi for HttpSteam {
         parse_news(&text)
     }
 
-    fn players(&self) -> Result<u64, SteamError> {
+    fn players(&self, app_id: u32) -> Result<u64, SteamError> {
         let text = self
             .client
-            .get_text(&players_url(), 64 * 1024)
+            .get_text(&players_url(app_id), 64 * 1024)
             .map_err(|e| SteamError::Network(e.to_string()))?;
         parse_players(&text)
     }
@@ -203,17 +249,7 @@ pub fn parse_players(json: &str) -> Result<u64, SteamError> {
 /// The article address, only when it is a plain `https://` address with a host; otherwise the news hub.
 pub fn article_url(url: &str) -> String {
     let url = url.trim();
-    let host_ok = url
-        .strip_prefix("https://")
-        .and_then(|rest| rest.split(['/', '?', '#']).next())
-        .is_some_and(|host| {
-            !host.is_empty()
-                && !host.contains('@')
-                && host
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-' || b == b':')
-        });
-    if host_ok && !url.chars().any(|c| c.is_whitespace() || c.is_control()) {
+    if crate::net::is_plain_https_url(url) {
         url.to_owned()
     } else {
         NEWS_HUB_URL.to_owned()
@@ -360,6 +396,7 @@ pub fn read_cache(path: &Path) -> Option<(Vec<NewsItem>, i64)> {
     let items = cache
         .items
         .into_iter()
+        .take(NEWS_COUNT as usize)
         .map(|mut item| {
             item.url = article_url(&item.url);
             item
@@ -386,7 +423,8 @@ fn write_cache(path: &Path, items: &[NewsItem], now: i64) {
 /// `now` is Unix seconds.
 pub fn load_news(api: &dyn SteamApi, cache: &Path, now: i64) -> NewsFeed {
     match api.news(NEWS_COUNT, NEWS_MAX_LENGTH) {
-        Ok(items) if !items.is_empty() => {
+        Ok(mut items) if !items.is_empty() => {
+            items.truncate(NEWS_COUNT as usize);
             write_cache(cache, &items, now);
             NewsFeed {
                 items,
@@ -471,7 +509,7 @@ mod tests {
             *self.calls.lock().unwrap() += 1;
             self.news.lock().unwrap().clone()
         }
-        fn players(&self) -> Result<u64, SteamError> {
+        fn players(&self, _: u32) -> Result<u64, SteamError> {
             self.players.clone()
         }
     }
@@ -489,12 +527,16 @@ mod tests {
     #[test]
     fn the_urls_are_the_documented_ones() {
         assert_eq!(
-            news_url(6, 800),
-            "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=99900&count=6&maxlength=800"
+            news_url(3, 800),
+            "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=99900&count=3&maxlength=800"
         );
         assert_eq!(
-            players_url(),
+            players_url(APP_ID_LIVE),
             "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=99900"
+        );
+        assert_eq!(
+            players_url(APP_ID_PREVIEW),
+            "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=99920"
         );
     }
 
@@ -692,7 +734,76 @@ mod tests {
     fn the_fake_serves_both_shapes() {
         let fake = Fake::new(Ok(parse_news(NEWS).unwrap()));
         assert_eq!(fake.news(3, 400).unwrap().len(), 3);
-        assert_eq!(fake.players().unwrap(), 7);
+        assert_eq!(fake.players(APP_ID_LIVE).unwrap(), 7);
         assert_eq!(*fake.calls.lock().unwrap(), 1);
+    }
+
+    #[test]
+    fn the_factor_and_the_ids_are_the_agreed_ones() {
+        assert_eq!((APP_ID_LIVE, APP_ID_PREVIEW), (99900, 99920));
+        assert!((STANDALONE_FACTOR - 1.4).abs() < f64::EPSILON);
+        assert_eq!(NEWS_COUNT, 3);
+    }
+
+    #[test]
+    fn each_server_is_scaled_and_rounded_to_the_nearest_whole_player() {
+        assert_eq!(estimate_total(0), 0);
+        assert_eq!(estimate_total(1), 1); // 1.4
+        assert_eq!(estimate_total(2), 3); // 2.8
+        assert_eq!(estimate_total(10), 14);
+        assert_eq!(estimate_total(229), 321); // 320.6
+        assert_eq!(estimate_total(u64::MAX), u64::MAX, "saturates, never wraps");
+    }
+
+    #[test]
+    fn the_total_adds_the_rounded_servers_not_the_rounded_sum() {
+        // 1 -> 1 and 1 -> 1 gives 2, while rounding 2 * 1.4 = 2.8 would give 3.
+        let e = PlayerEstimate::from_steam(1, 1);
+        assert_eq!((e.live_total, e.preview_total, e.total), (1, 1, 2));
+        let e = PlayerEstimate::from_steam(229, 12);
+        assert_eq!(
+            (e.live_steam, e.live_total, e.preview_steam, e.preview_total),
+            (229, 321, 12, 17)
+        );
+        assert_eq!(e.total, 338);
+    }
+
+    #[test]
+    fn both_servers_are_asked_and_a_failure_in_either_is_an_error() {
+        struct Two(Result<u64, SteamError>, Result<u64, SteamError>);
+        impl SteamApi for Two {
+            fn news(&self, _: u32, _: u32) -> Result<Vec<NewsItem>, SteamError> {
+                Ok(vec![])
+            }
+            fn players(&self, app_id: u32) -> Result<u64, SteamError> {
+                if app_id == APP_ID_LIVE {
+                    self.0.clone()
+                } else {
+                    assert_eq!(app_id, APP_ID_PREVIEW);
+                    self.1.clone()
+                }
+            }
+        }
+        let ok = players_estimate(&Two(Ok(100), Ok(10))).unwrap();
+        assert_eq!((ok.live_total, ok.preview_total, ok.total), (140, 14, 154));
+        let down = || Err(SteamError::Network("down".into()));
+        assert!(players_estimate(&Two(down(), Ok(1))).is_err());
+        assert!(players_estimate(&Two(Ok(1), down())).is_err());
+    }
+
+    #[test]
+    fn at_most_three_news_items_are_kept_and_cached() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("steam-news.json");
+        let many: Vec<_> = (0..6).map(|i| item(&format!("n{i}"))).collect();
+        let feed = load_news(&Fake::new(Ok(many.clone())), &cache, 1);
+        assert_eq!(feed.items.len(), 3);
+        // An older cache with six items shows three.
+        let old = CacheFile {
+            fetched_at: 1,
+            items: many,
+        };
+        std::fs::write(&cache, serde_json::to_vec(&old).unwrap()).unwrap();
+        assert_eq!(read_cache(&cache).unwrap().0.len(), 3);
     }
 }

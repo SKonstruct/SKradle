@@ -1,6 +1,7 @@
-//! `HomeFeed` (QML singleton `HomeFeed`): Spiral Knights news and the number of players on Steam, for the Home page.
-//! Requests run on worker threads through `skradle_core::steam_api` and post their result back to the UI thread; a
-//! failed request shows the last good news from disk (marked offline) and never an error.
+//! `HomeFeed` (QML singleton `HomeFeed`): Spiral Knights news, the estimated number of players and the live events,
+//! for the Home page. Requests run on worker threads (`skradle_core::steam_api`, `skradle_core::events`) and post
+//! their result back to the UI thread; a failed request shows the last good answer from disk (marked offline) and
+//! never an error.
 
 #[cxx_qt::bridge]
 pub mod qobject {
@@ -22,8 +23,26 @@ pub mod qobject {
         #[qproperty(f64, news_fetched_at, cxx_name = "newsFetchedAt", READ, WRITE, NOTIFY)]
         /// "unknown" before the first answer, then "ok" or "unavailable".
         #[qproperty(QString, players_state, cxx_name = "playersState", READ, WRITE, NOTIFY)]
-        /// Players on Steam now (meaningful when `playersState` is "ok").
+        /// The estimated players online, both servers (meaningful when `playersState` is "ok").
         #[qproperty(i32, players, READ, WRITE, NOTIFY)]
+        /// The breakdown as JSON `{liveSteam, liveTotal, previewSteam, previewTotal, total, factor}`; "{}" before the
+        /// first answer.
+        #[qproperty(QString, players_json, cxx_name = "playersJson", READ, WRITE, NOTIFY)]
+        /// The live events as a JSON array of `{id, title, description, startsAt, endsAt, url}` (Unix seconds; `startsAt`
+        /// 0 when none; `url` "" when none); "[]" when there are none.
+        #[qproperty(QString, events_json, cxx_name = "eventsJson", READ, WRITE, NOTIFY)]
+        /// "unknown" before the first answer, then "ok", "offline" (the events are from the last good answer) or "none"
+        /// (no events, or the backend has no events yet: the card is hidden).
+        #[qproperty(QString, events_state, cxx_name = "eventsState", READ, WRITE, NOTIFY)]
+        /// When the shown events were fetched, Unix seconds; 0 when unknown.
+        #[qproperty(
+            f64,
+            events_fetched_at,
+            cxx_name = "eventsFetchedAt",
+            READ,
+            WRITE,
+            NOTIFY
+        )]
         type HomeFeed = super::HomeFeedRust;
 
         /// Fetches the news (not more often than every two minutes).
@@ -35,6 +54,26 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "refreshPlayers"]
         fn refresh_players(self: Pin<&mut HomeFeed>);
+
+        /// Fetches the events (not more often than every five minutes).
+        #[qinvokable]
+        #[cxx_name = "refreshEvents"]
+        fn refresh_events(self: Pin<&mut HomeFeed>);
+
+        /// The countdown line of an event as JSON (`{"kind":"ends","days":2,"hours":5,"minutes":0}`, kinds `starts`,
+        /// `ends`, `endsToday`, `ended`), for the clock of this moment. `starts_at` 0 means none.
+        #[qinvokable]
+        fn countdown(self: &HomeFeed, starts_at: f64, ends_at: f64) -> QString;
+
+        /// Screenshots only: "present", "none" or "offline" events.
+        #[qinvokable]
+        #[cxx_name = "forceEvents"]
+        fn force_events(self: Pin<&mut HomeFeed>, state: &QString);
+
+        /// Screenshots only: "ok", "unavailable" or "unknown" player count.
+        #[qinvokable]
+        #[cxx_name = "forcePlayers"]
+        fn force_players(self: Pin<&mut HomeFeed>, state: &QString);
 
         /// Screenshots only: "offline" shows the cached-news note, "empty" the nothing-cached state.
         #[qinvokable]
@@ -50,8 +89,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use cxx_qt::{CxxQtThread, CxxQtType, Threading};
 use cxx_qt_lib::QString;
+use skradle_core::events::{self, Event, EventsApi, EventsError, EventsFeed, HttpEvents};
 use skradle_core::steam_api::{
-    self, HttpSteam, MinInterval, NewsFeed, NewsItem, SteamApi, SteamError,
+    self, HttpSteam, MinInterval, NewsFeed, NewsItem, PlayerEstimate, SteamApi, SteamError,
 };
 
 use crate::settings;
@@ -65,9 +105,108 @@ impl SteamApi for FixtureSteam {
     fn news(&self, _: u32, _: u32) -> Result<Vec<NewsItem>, SteamError> {
         steam_api::parse_news(NEWS_FIXTURE)
     }
-    fn players(&self) -> Result<u64, SteamError> {
-        Ok(229)
+    fn players(&self, app_id: u32) -> Result<u64, SteamError> {
+        Ok(if app_id == steam_api::APP_ID_PREVIEW {
+            12
+        } else {
+            229
+        })
     }
+}
+
+/// Fixture events for the self-test and screenshot runs, relative to now so that their countdowns read the same
+/// every time ("Ends in 2d 5h", "Starts in 3d 2h", "Ends today").
+fn fixture_events(now: i64) -> Vec<Event> {
+    let url = Some("https://example.org/events/winter".to_owned());
+    vec![
+        Event {
+            id: "fixture-today".into(),
+            title: "Double heat day".into(),
+            description: "Heat rewards are doubled until the end of the day.".into(),
+            starts_at: None,
+            ends_at: now + 5 * 3600 + 12 * 60 + 30,
+            url: None,
+        },
+        Event {
+            id: "fixture-winter".into(),
+            title: "Winter Wonderland".into(),
+            description:
+                "Snow falls in the Clockworks. Collect snowflakes, trade them for festive gear and \
+                          meet the other knights at the Haven tree."
+                    .into(),
+            starts_at: None,
+            ends_at: now + 2 * 86_400 + 5 * 3600 + 30,
+            url,
+        },
+        Event {
+            id: "fixture-later".into(),
+            title: "Bomber Weekend".into(),
+            description: "Bomb-themed missions with extra rewards.".into(),
+            starts_at: Some(now + 3 * 86_400 + 2 * 3600 + 30),
+            ends_at: now + 5 * 86_400 + 30,
+            url: Some("https://example.org/events/bomber".to_owned()),
+        },
+    ]
+}
+
+/// Answers from compiled-in fixtures, like [`FixtureSteam`].
+struct FixtureEvents;
+
+impl EventsApi for FixtureEvents {
+    fn events(&self) -> Result<Vec<Event>, EventsError> {
+        Ok(fixture_events(unix_now()))
+    }
+}
+
+fn events_api() -> Arc<dyn EventsApi> {
+    if crate::options::get().is_test_run() {
+        Arc::new(FixtureEvents)
+    } else {
+        Arc::new(HttpEvents::new())
+    }
+}
+
+fn events_cache_path() -> std::path::PathBuf {
+    settings::config_dir().join("events.json")
+}
+
+/// The state name for an events feed.
+pub fn events_state(feed: &EventsFeed) -> &'static str {
+    match (feed.events.is_empty(), feed.offline) {
+        (true, _) => "none",
+        (false, false) => "ok",
+        (false, true) => "offline",
+    }
+}
+
+/// The events as the JSON the page reads.
+fn events_to_json(events: &[Event]) -> String {
+    let list: Vec<serde_json::Value> = events
+        .iter()
+        .map(|e| {
+            serde_json::json!({
+                "id": e.id,
+                "title": e.title,
+                "description": e.description,
+                "startsAt": e.starts_at.unwrap_or(0),
+                "endsAt": e.ends_at,
+                "url": e.url.clone().unwrap_or_default(),
+            })
+        })
+        .collect();
+    serde_json::to_string(&list).unwrap_or_else(|_| "[]".to_owned())
+}
+
+fn players_to_json(e: &PlayerEstimate) -> String {
+    serde_json::json!({
+        "liveSteam": e.live_steam,
+        "liveTotal": e.live_total,
+        "previewSteam": e.preview_steam,
+        "previewTotal": e.preview_total,
+        "total": e.total,
+        "factor": steam_api::STANDALONE_FACTOR,
+    })
+    .to_string()
 }
 
 fn api() -> Arc<dyn SteamApi> {
@@ -104,6 +243,12 @@ pub struct HomeFeedRust {
     news_fetched_at: f64,
     players_state: QString,
     players: i32,
+    players_json: QString,
+    events_json: QString,
+    events_state: QString,
+    events_fetched_at: f64,
+    events_busy: bool,
+    events_gate: MinInterval,
     news_busy: bool,
     news_last: Option<Instant>,
     players_busy: bool,
@@ -118,6 +263,12 @@ impl Default for HomeFeedRust {
             news_fetched_at: 0.0,
             players_state: QString::from("unknown"),
             players: 0,
+            players_json: QString::from("{}"),
+            events_json: QString::from("[]"),
+            events_state: QString::from("unknown"),
+            events_fetched_at: 0.0,
+            events_busy: false,
+            events_gate: MinInterval::new(Duration::from_secs(300)),
             news_busy: false,
             news_last: None,
             players_busy: false,
@@ -132,6 +283,79 @@ impl qobject::HomeFeed {
         self.as_mut().set_news_json(QString::from(json.as_str()));
         self.as_mut().set_news_fetched_at(feed.fetched_at as f64);
         self.set_news_state(QString::from(news_state(feed)));
+    }
+
+    fn show_players(mut self: Pin<&mut Self>, estimate: &PlayerEstimate) {
+        let json = players_to_json(estimate);
+        self.as_mut()
+            .set_players(i32::try_from(estimate.total).unwrap_or(i32::MAX));
+        self.as_mut().set_players_json(QString::from(json.as_str()));
+        self.set_players_state(QString::from("ok"));
+    }
+
+    fn show_events(mut self: Pin<&mut Self>, feed: &EventsFeed) {
+        let json = events_to_json(&feed.events);
+        self.as_mut().set_events_json(QString::from(json.as_str()));
+        self.as_mut().set_events_fetched_at(feed.fetched_at as f64);
+        self.set_events_state(QString::from(events_state(feed)));
+    }
+
+    pub fn refresh_events(mut self: Pin<&mut Self>) {
+        if self.events_busy || !self.as_mut().rust_mut().events_gate.ready(Instant::now()) {
+            return;
+        }
+        self.as_mut().rust_mut().events_busy = true;
+        let thread: CxxQtThread<qobject::HomeFeed> = self.qt_thread();
+        let spawned = std::thread::Builder::new()
+            .name("skradle-events".into())
+            .spawn(move || {
+                let feed =
+                    events::load_events(events_api().as_ref(), &events_cache_path(), unix_now());
+                let _ = thread.queue(move |mut model| {
+                    model.as_mut().rust_mut().events_busy = false;
+                    model.show_events(&feed);
+                });
+            });
+        if spawned.is_err() {
+            self.as_mut().rust_mut().events_busy = false;
+            self.set_events_state(QString::from("none"));
+        }
+    }
+
+    pub fn countdown(&self, starts_at: f64, ends_at: f64) -> QString {
+        let starts = (starts_at > 0.0).then_some(starts_at as i64);
+        let c = events::countdown(starts, ends_at as i64, unix_now());
+        QString::from(serde_json::to_string(&c).unwrap_or_default().as_str())
+    }
+
+    pub fn force_events(mut self: Pin<&mut Self>, state: &QString) {
+        let now = unix_now();
+        let feed = match state.to_string().as_str() {
+            "none" => EventsFeed {
+                events: vec![],
+                offline: false,
+                fetched_at: now,
+            },
+            "offline" => EventsFeed {
+                events: fixture_events(now),
+                offline: true,
+                fetched_at: now - 5 * 3600,
+            },
+            _ => EventsFeed {
+                events: fixture_events(now),
+                offline: false,
+                fetched_at: now,
+            },
+        };
+        self.as_mut().show_events(&feed);
+    }
+
+    pub fn force_players(self: Pin<&mut Self>, state: &QString) {
+        match state.to_string().as_str() {
+            "unavailable" => self.set_players_state(QString::from("unavailable")),
+            "unknown" => self.set_players_state(QString::from("unknown")),
+            _ => self.show_players(&PlayerEstimate::from_steam(229, 12)),
+        }
     }
 
     pub fn refresh_news(mut self: Pin<&mut Self>) {
@@ -168,16 +392,11 @@ impl qobject::HomeFeed {
         let spawned = std::thread::Builder::new()
             .name("skradle-players".into())
             .spawn(move || {
-                let answer = api().players();
+                let answer = steam_api::players_estimate(api().as_ref());
                 let _ = thread.queue(move |mut model| {
                     model.as_mut().rust_mut().players_busy = false;
                     match answer {
-                        Ok(count) => {
-                            model
-                                .as_mut()
-                                .set_players(i32::try_from(count).unwrap_or(i32::MAX));
-                            model.set_players_state(QString::from("ok"));
-                        }
+                        Ok(estimate) => model.show_players(&estimate),
                         // Keep the last good number visible but say it is not current.
                         Err(_) => model.set_players_state(QString::from("unavailable")),
                     }
@@ -235,6 +454,69 @@ mod tests {
     fn the_fixture_serves_both_shapes_without_a_network() {
         let fixture = FixtureSteam;
         assert_eq!(fixture.news(6, 800).unwrap().len(), 3);
-        assert_eq!(fixture.players().unwrap(), 229);
+        assert_eq!(fixture.players(steam_api::APP_ID_LIVE).unwrap(), 229);
+        assert_eq!(fixture.players(steam_api::APP_ID_PREVIEW).unwrap(), 12);
+        assert_eq!(FixtureEvents.events().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn the_fixture_events_read_as_planned_and_serialise_for_the_page() {
+        use skradle_core::events::{countdown, Countdown};
+        let now = 1_800_000_000;
+        let events = fixture_events(now);
+        assert_eq!(
+            countdown(events[1].starts_at, events[1].ends_at, now),
+            Countdown::Ends {
+                days: 2,
+                hours: 5,
+                minutes: 0
+            }
+        );
+        assert!(matches!(
+            countdown(events[2].starts_at, events[2].ends_at, now),
+            Countdown::Starts {
+                days: 3,
+                hours: 2,
+                ..
+            }
+        ));
+        assert!(matches!(
+            countdown(events[0].starts_at, events[0].ends_at, now),
+            Countdown::EndsToday {
+                hours: 5,
+                minutes: 12,
+                ..
+            }
+        ));
+        let json: serde_json::Value = serde_json::from_str(&events_to_json(&events)).unwrap();
+        assert_eq!(json[0]["url"], "");
+        assert_eq!(json[0]["startsAt"], 0);
+        assert_eq!(json[2]["url"], "https://example.org/events/bomber");
+    }
+
+    #[test]
+    fn the_events_state_hides_an_empty_card_and_marks_cached_ones() {
+        let feed = |events, offline| EventsFeed {
+            events,
+            offline,
+            fetched_at: 0,
+        };
+        let some = fixture_events(0);
+        assert_eq!(events_state(&feed(some.clone(), false)), "ok");
+        assert_eq!(events_state(&feed(some, true)), "offline");
+        assert_eq!(events_state(&feed(vec![], true)), "none");
+        assert_eq!(events_state(&feed(vec![], false)), "none");
+    }
+
+    #[test]
+    fn the_players_breakdown_carries_both_servers_and_the_factor() {
+        let json: serde_json::Value =
+            serde_json::from_str(&players_to_json(&PlayerEstimate::from_steam(229, 12))).unwrap();
+        assert_eq!(json["liveSteam"], 229);
+        assert_eq!(json["liveTotal"], 321);
+        assert_eq!(json["previewSteam"], 12);
+        assert_eq!(json["previewTotal"], 17);
+        assert_eq!(json["total"], 338);
+        assert_eq!(json["factor"], 1.4);
     }
 }

@@ -599,6 +599,7 @@ Item {
                         Layout.fillWidth: true
                         Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5; Layout.bottomMargin: Theme.s3
                         spacing: Theme.s2
+                        SButton { text: qsTr("Release notes"); glyph: "info"; onClicked: Data.releaseNotes() }
                         SButton { text: qsTr("SKradle on GitHub"); glyph: "globe"; onClicked: Qt.openUrlExternally("https://github.com/SKonstruct/SKradle") }
                         SButton { text: qsTr("Buy the developer a coffee"); glyph: "star"; onClicked: Qt.openUrlExternally("https://buymeacoffee.com/sirdankk") }
                         Item { Layout.fillWidth: true }

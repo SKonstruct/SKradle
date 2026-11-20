@@ -126,7 +126,9 @@ ApplicationWindow {
         target: Data
         function onToast(text) { toast.show(text) }
         function onNavigate(page) { win.go(page) }
+        function onReleaseNotes() { notes.show(null) }
     }
+    ReleaseNotesDialog { id: notes }
 
     // ---- minimise while the game runs, restore when it ends ------------------------------------------------
     property bool minimizedByUs: false
@@ -156,7 +158,8 @@ ApplicationWindow {
 
     // ---- screenshot driver (skradle --shots <dir> [--prefix name]) -----------------------------------------------
     readonly property var shotNames: ["home-ready", "home-updating", "home-launching", "home-running", "home-error", "home-firstrun",
-        "home-collapsed", "home-scrolled", "home-offline", "home-nonews", "servers", "servers-dialog", "mods", "mods-search", "mods-drop",
+        "home-collapsed", "home-scrolled", "home-offline", "home-nonews", "home-noevents", "home-events-offline", "home-players-down",
+        "home-notes", "home-notes-all", "home-notes-min", "servers", "servers-dialog", "mods", "mods-search", "mods-drop",
         "settings-general", "settings-game", "settings-files", "settings-graphics", "settings-graphics-running", "settings-integrations",
         "settings-tools", "settings-about", "settings-reset", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
         "mods-selected", "mods-focus", "mods-tag", "mods-empty", "mods-nogame", "mods-confirm", "mods-issues", "mods-pack-update",
@@ -199,7 +202,8 @@ ApplicationWindow {
         const hp = pageItem(0); if (hp) hp.scroller.contentY = 0
         const sv = pageItem(1); if (sv) sv.closeAll()
         const gp = pageItem(3); if (gp) { gp.closeCombo(); gp.closeReset(); gp.scroller.contentY = 0 }
-        HomeFeed.force("ok")
+        HomeFeed.force("ok"); HomeFeed.forceEvents("present"); HomeFeed.forcePlayers("ok")
+        notes.close()
         const md = pageItem(2); if (md) md.resetShot()
         // The Servers page shows a fixed list and a fixed server state, never this computer's.
         ServerBook.force("list"); ServerHost.force("stopped")
@@ -220,6 +224,12 @@ ApplicationWindow {
         case "mods-drop": go(2); Qt.callLater(() => { const p = pageItem(2); if (p) p.dropForced = true }); break
         case "home-offline": go(0); HomeFeed.force("offline"); break
         case "home-nonews": go(0); HomeFeed.force("empty"); break
+        case "home-noevents": go(0); HomeFeed.forceEvents("none"); break
+        case "home-events-offline": go(0); HomeFeed.forceEvents("offline"); break
+        case "home-players-down": go(0); HomeFeed.forcePlayers("unavailable"); break
+        case "home-notes": go(0); Qt.callLater(() => notes.show(null)); break
+        case "home-notes-all": go(0); Qt.callLater(() => { notes.show(null); notes.setAll(true, false) }); break
+        case "home-notes-min": go(0); Qt.callLater(() => { notes.show(null); notes.setAll(false, false) }); break
         case "settings-general": go(3); break
         case "settings-game": go(3); Qt.callLater(() => pageItem(3).scrollTo(1)); break
         case "settings-files": go(3); Qt.callLater(() => pageItem(3).scrollTo(2)); break
@@ -244,6 +254,7 @@ ApplicationWindow {
     // ---- self-test driver (skradle --selftest): visit every page, check each one loaded, report, exit ------------
     property int selftestStep: 0
     property int selftestWait: 0
+    property int notesStep: 0
     Timer {
         interval: 250
         repeat: true
@@ -263,6 +274,15 @@ ApplicationWindow {
                 return
             }
             if (i >= win.navItems.length) {
+                // The bundled release notes open and have at least one version.
+                if (win.notesStep === 0) { win.notesStep = 1; notes.show(null); return }
+                if (win.notesStep === 1) {
+                    win.notesStep = 2
+                    const ok = notes.versions.length > 0 && notes.visible
+                    notes.close()
+                    if (!ok) { AppEnv.finishSelftest(false, "the release notes did not open or are empty"); return }
+                    return
+                }
                 // Last: open "My server" and see whether it embeds a web view or falls back to the browser.
                 const servers = win.pageItem(1)
                 win.go(1)

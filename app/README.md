@@ -25,7 +25,7 @@ build still works and the UI stays English (a build warning says so).
 | Flag | Effect |
 | --- | --- |
 | `--selftest` | Starts the QML engine, visits every page, opens "My server", checks that no QML binding or type warning was raised, prints one line and exits 0 (1 on failure, also after 60 s). Use `QT_QPA_PLATFORM=offscreen` on Linux. Uses a temporary settings folder and never starts the game. |
-| `--shots <dir> [--prefix name]` | Saves a screenshot of each state (30 of them) into `<dir>` as `<prefix>-<state>.png`, then exits. Uses a temporary settings folder. |
+| `--shots <dir> [--prefix name]` | Saves a screenshot of each state (about 60) into `<dir>` as `<prefix>-<state>.png`, then exits. Uses a temporary settings folder. |
 | `--scheme light\|dark` | Forces the colour scheme (the Appearance setting otherwise). |
 | `--pseudo` | Pseudo-localisation: every word is lengthened and accented to find clipping. |
 | `--style <Name>`, `--page <0-3>`, `--collapsed`, `--size WxH` | Qt Quick Controls style (default Basic), first page, sidebar collapsed, window size. |
@@ -72,7 +72,8 @@ result back with cxx-qt's `CxxQtThread::queue`.
 | `GameModel` | `state` (`searching` `ready` `notfound`) `installPaths installKinds selectedPath selectedKind gameVersion detectedMemoryMb error` | `refresh() select(path) addCustomFolder(url) forgetCustom() force(state)` |
 | `LaunchModel` | `state` (`ready` `updating` `launching` `running` `error`) `step` (`checking` `downloading`) `message progress determinate` | `start(path) stop() cancel() dismiss() force(state, progress)` |
 | `UpdateModel` | `state` (`idle checking uptodate available downloading ready error`) `version progress message` | `check() download() install() skip()` |
-| `HomeFeed` | `newsJson newsState newsFetchedAt playersState players` | `refreshNews() refreshPlayers() force(state)` |
+| `HomeFeed` | `newsJson newsState newsFetchedAt playersState players playersJson eventsJson eventsState eventsFetchedAt` | `refreshNews() refreshPlayers() refreshEvents() countdown(startsAt, endsAt) force(state) forceEvents(state) forcePlayers(state)` |
+| `ReleaseNotes` | `json` (constant: the parsed changelog) | |
 | `GameTools` | `javaVersion javaSource javaProblem javaFound javaNeeded agentJavaOk agentInstalled totalMemoryMb memoryMinMb memoryMaxMb editorBlockers busy notice noticeDetail noticeSerial` | `refresh(path) openFolder(path) launchEditor(i, path) resetGameFiles(path)` |
 | `ModsModel` | `items tags folder folderUrl error busy loaded result packState packMessage packCurrent packTotal packName packChanges packReport` (JSON strings for lists) | `refresh(version) setEnabled(json, on) remove(json) add(json) ensureFolder() checkPack() syncPack() cancelSync() dismissReport() forcePack(state)` |
 | `ServerHost` | `state url status` (JSON snapshot) | `refresh() install(accepted) updateEngine() start() stop() restart() backup() restore(name) backupsJson() setLan(on) setPorts(game, web) resetAdminPassword() adminPassword() dismiss() termsJson() force(name)` |
@@ -80,6 +81,30 @@ result back with cxx-qt's `CxxQtThread::queue`.
 
 `force(...)` exists for screenshots and does nothing else. The state properties have a `WRITE` only because cxx-qt
 generates its Rust setter from it; nothing in QML assigns them.
+
+### Home: players, events and release notes
+
+**Players online** is an estimate: `core::steam_api` asks Steam for Live (app 99900) and Preview (99920), multiplies each
+count by `STANDALONE_FACTOR` (1.4, because Steam counts only part of the player base), rounds each to the nearest whole
+player and sums them. Either request failing means "not available" (never half an estimate). Refreshed at most once a
+minute while Home is visible. The news shows the 3 newest items.
+
+**Live events** (`core::events`, `HomeFeed.eventsJson`): `GET <BACKEND_BASE_URL>/launcher/v1/events`, unsigned JSON over
+HTTPS, schema 1 (`id`, `title`, `description`, `starts_at`, `ends_at`, `url`). Invalid items are skipped, sizes are
+bounded, times must be RFC 3339, links must be plain `https://` (a bad link only drops the Learn more button). The last
+good answer is cached in `events.json` in the config folder; a failed request shows it with an offline note, a 404
+(endpoint not deployed) or an empty list hides the card. `BACKEND_BASE_URL` in `core/src/events.rs` is the one place for
+the host. Countdowns ("Ends in 2d 5h", "Ends today, 5h 12m left", "Starts in ...", "Ended") come from
+`events::countdown` (numbers) and are worded in `HomePage.qml`, refreshed every minute. Self-test and screenshot runs
+use fixture events relative to now.
+
+**Release notes** (`core::changelog`, `ReleaseNotes.json`): `CHANGELOG.md` is embedded with `include_str!` (cargo rebuilds
+when it changes) and parsed in Rust into versions, sections and items; inline `**bold**`, `*italic*`, `` `code` `` and
+`[text](https://...)` become escaped Qt rich text (anything else is shown as text, non-https links lose the link). The
+viewer (`ReleaseNotesDialog.qml`, one `VersionBlock.qml` per version) needs no network: the newest version starts open, each
+block has its own minimise/maximise header and the dialog has Expand all and Collapse all. Opened from the Home header
+button (which shows the version) and from Settings, About, through `Data.releaseNotes()`. Links open in the system
+browser.
 
 ### Settings
 
