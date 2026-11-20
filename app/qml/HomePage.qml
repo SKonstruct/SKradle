@@ -146,7 +146,7 @@ PageScaffold {
                     // The state is the headline (display); what it means is one quiet line below it.
                     FadeText {
                         Layout.fillWidth: true
-                        kind: "display"
+                        kind: page.wide ? "display" : "title"   // the narrow column would wrap the headline
                         maximumLineCount: 2
                         text: page.st === "ready" ? qsTr("Ready to play")
                             : page.st === "error" ? qsTr("Could not start the game")

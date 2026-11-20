@@ -216,6 +216,13 @@
     </message>
 </context>
 <context>
+    <name>Banner</name>
+    <message>
+        <source>Dismiss</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>ConfirmDialog</name>
     <message>
         <source>Confirm</source>
@@ -287,18 +294,6 @@
 <context>
     <name>HomePage</name>
     <message>
-        <source>Home</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Spiral Knights</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Release notes  ·  v%1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Release notes, version %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -363,7 +358,22 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Game files are checked each time you launch.</source>
+        <source>Release notes (v%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Official server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n mod(s) on</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Java %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -380,6 +390,10 @@
     </message>
     <message>
         <source>The launcher stays open in the background.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Java settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -443,11 +457,15 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>players online right now (an estimate)</source>
+        <source>SKradle is free and open source.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Players online</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>players online now</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -472,14 +490,6 @@
     </message>
     <message>
         <source>Steam counts only some of the players, so each Steam count is multiplied by %1 to include players of the standalone client.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Support SKradle</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>SKradle is free and open source. If it makes playing easier, you can buy the developer a coffee.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -541,6 +551,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Try again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Launching</source>
         <translation type="unfinished"></translation>
     </message>
@@ -569,6 +583,14 @@
     </message>
     <message>
         <source>Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open the folder. Check that it still exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Address copied</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1108,6 +1130,13 @@
     </message>
     <message>
         <source>Close</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>SButton</name>
+    <message>
+        <source>Working</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1673,18 +1702,6 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Could not reset the game files: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not start the editor: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not open the folder: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Steam</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1873,18 +1890,6 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>In use: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>This computer has a Java that supports the graphics agent (Java 24 or newer).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The graphics agent needs Java 24 or newer; none was found.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Memory</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1898,6 +1903,26 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Memory in megabytes, exact value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not reset the game files. Close the game and anything using its folder, then try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not start the editor. Check the Java setting in Settings &gt; Game.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open the folder. Check that it still exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1. Supports the graphics agent.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1. Too old for the graphics agent, which needs Java 24 or newer.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2145,7 +2170,11 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Could not check: %1</source>
+        <source>Could not check for updates. Check your internet connection and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Buy me a coffee</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2158,10 +2187,6 @@ Content URL: %4</source>
     </message>
     <message>
         <source>SKradle on GitHub</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Buy the developer a coffee</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2189,6 +2214,13 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Collapse sidebar</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Toast</name>
+    <message>
+        <source>Dismiss</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
