@@ -555,6 +555,8 @@ mod tests {
         assert_eq!(list.servers[0].name, "A2");
         assert_eq!(list.servers[0].port, 1001);
         d.id = "nope".into();
+        d.name = "A3".into();
+        d.port = "1002".into();
         assert_eq!(code(&save(&book, &d).unwrap_err(), "form"), Some("missing"));
         assert!(save(&book, &draft("", "", "")).is_err());
         assert!(remove(&book, &id).unwrap());
