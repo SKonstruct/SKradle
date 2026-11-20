@@ -20,7 +20,7 @@ ServerDialog {
 
     title: editing ? qsTr("Edit server") : qsTr("Add server")
     subtitle: qsTr("Enter the details the server's owner gave you. Only the name and the address are required.")
-    preferredWidth: 540
+    size: "form"
     onFocusFirst: nameField.field.forceActiveFocus()
 
     function draft() {
@@ -79,9 +79,9 @@ ServerDialog {
         case "port_required": return qsTr("Enter a port from 1 to 65535.")
         case "port_range": return qsTr("The port must be a number from 1 to 65535.")
         case "port_mismatch": return qsTr("The address says port %1. Make the two match or leave one out.").arg(e.detail)
-        case "key_invalid": return qsTr("A public key looks like 1a2b3c…#10001: hexadecimal digits, a #, more digits.")
+        case "key_invalid": return qsTr("Enter the key as the owner gave it, for example a5ed0dc3892b9472#10001.")
         case "url_invalid": return qsTr("Use a web address that starts with http:// or https://.")
-        case "managed": return qsTr("This server is managed from the controls above the list.")
+        case "managed": return qsTr("This server is managed from Your server, below the list.")
         case "missing": return qsTr("This server no longer exists.")
         case "write": return qsTr("The list could not be saved. Check that the settings folder is writable.")
         }
@@ -135,6 +135,7 @@ ServerDialog {
         id: f
         property string label
         property string name
+        property bool showMessage: true
         property alias field: input
         property alias text: input.text
         property alias placeholder: input.placeholderText
@@ -142,31 +143,26 @@ ServerDialog {
         property alias inputHint: input.inputMethodHints
         signal textEdited()
         Layout.fillWidth: true
-        spacing: 4
+        spacing: Theme.s1
         readonly property string message: dlg.messageOf(name)
         Txt { text: f.label; kind: "caption"; font.weight: Font.Medium; Layout.fillWidth: true }
         STextField {
             id: input
             Layout.fillWidth: true
-            Accessible.name: f.label
+            label: f.label
+            invalid: f.message.length > 0
             Accessible.description: f.message
             onTextChanged: dlg.recheck()
             onTextEdited: f.textEdited()
             onEditingFinished: dlg.touch(f.name)
             onActiveFocusChanged: if (activeFocus) dlg.reveal(f)
             onAccepted: dlg.submit()
-            background: Rectangle {
-                implicitWidth: 200; implicitHeight: 38; radius: 10
-                color: Theme.field
-                border.width: input.activeFocus || f.message.length > 0 ? 2 : 1
-                border.color: f.message.length > 0 ? Theme.danger : input.activeFocus ? Theme.accentFg : (input.hovered ? Theme.borderStrong : Theme.fieldBorder)
-            }
         }
         RowLayout {
             Layout.fillWidth: true
-            visible: f.message.length > 0
-            spacing: 6
-            Icon { name: "warning"; size: 14; color: Theme.danger; Layout.alignment: Qt.AlignTop; Layout.topMargin: 2 }
+            visible: f.showMessage && f.message.length > 0
+            spacing: Theme.gapInline
+            Icon { name: "warning"; size: 14; color: Theme.danger; Layout.alignment: Qt.AlignTop; Layout.topMargin: Theme.s0 }
             Txt { Layout.fillWidth: true; text: f.message; kind: "caption"; color: Theme.danger }
         }
     }
@@ -174,9 +170,10 @@ ServerDialog {
     Field { id: nameField; label: qsTr("Server name"); name: "name"; placeholder: qsTr("My friends' server") }
     RowLayout {
         Layout.fillWidth: true
-        spacing: Theme.s3
+        spacing: Theme.gapStack
         Field {
             id: addrField; label: qsTr("Server address"); name: "address"; placeholder: "play.example.com"
+            showMessage: false
             Layout.alignment: Qt.AlignTop
             onTextEdited: {
                 const p = ServerBook.portOf(text)
@@ -185,29 +182,37 @@ ServerDialog {
         }
         Field {
             id: portField; label: qsTr("Port"); name: "port"; placeholder: "47624"
+            showMessage: false
             Layout.fillWidth: false; Layout.preferredWidth: 120; Layout.alignment: Qt.AlignTop
             validator: IntValidator { bottom: 0; top: 99999 }
             inputHint: Qt.ImhDigitsOnly
             onTextEdited: dlg.portEdited = true
         }
     }
+    // Address and port share one full-width line for their message.
+    RowLayout {
+        Layout.fillWidth: true
+        visible: addrField.message.length > 0 || portField.message.length > 0
+        spacing: Theme.gapInline
+        Icon { name: "warning"; size: 14; color: Theme.danger; Layout.alignment: Qt.AlignTop; Layout.topMargin: Theme.s0 }
+        Txt { Layout.fillWidth: true; text: addrField.message || portField.message; kind: "caption"; color: Theme.danger }
+    }
     Field { id: keyField; label: qsTr("Public key (optional)"); name: "key"; placeholder: qsTr("Leave empty to use the official key") }
     Field { id: getdownField; label: qsTr("Getdown URL (optional)"); name: "getdown"; placeholder: "https://files.example.com/client" }
     Field { id: contentField; label: qsTr("Content URL (optional)"); name: "content"; placeholder: "https://content.example.com/" }
 
-    Txt {
+    Banner {
         id: formMsg
-        Layout.fillWidth: true
         visible: false
+        kind: "danger"
         text: dlg.messageOf("form") || (dlg.report.errors && dlg.report.errors.form ? qsTr("This server can't be saved.") : "")
-        color: Theme.danger; kind: "caption"
     }
 
     // What launching with this server does to the game's configuration.
     ColumnLayout {
         Layout.fillWidth: true
         Layout.topMargin: Theme.s2
-        spacing: 4
+        spacing: Theme.s1
         Txt { text: qsTr("What changes in the game"); kind: "caption"; font.weight: Font.Medium }
         Txt {
             Layout.fillWidth: true
@@ -220,40 +225,38 @@ ServerDialog {
             RowLayout {
                 required property var modelData
                 Layout.fillWidth: true
-                spacing: Theme.s3
+                spacing: Theme.gapStack
                 Txt { Layout.preferredWidth: 110; Layout.alignment: Qt.AlignTop; text: dlg.labelOf(modelData.key); kind: "caption" }
                 Txt {
                     Layout.fillWidth: true
                     text: dlg.shown(modelData)
                     kind: "caption"; color: Theme.text
-                    wrapMode: Text.WrapAnywhere; maximumLineCount: 2; elide: Text.ElideRight
+                    wrapMode: Text.WrapAnywhere; maximumLineCount: 2; elide: Text.ElideRight; mono: true
                 }
             }
         }
     }
 
-    Rectangle {
-        Layout.fillWidth: true
+    Banner {
         Layout.topMargin: Theme.s2
-        implicitHeight: trust.implicitHeight + 2 * Theme.s3
-        radius: Theme.rMd
-        color: Theme.amberTint
-        RowLayout {
-            id: trust
-            anchors.fill: parent; anchors.margins: Theme.s3
-            spacing: Theme.s3
-            Icon { name: "warning"; size: 18; color: Theme.amberText; Layout.alignment: Qt.AlignTop }
-            Txt {
-                Layout.fillWidth: true
-                text: qsTr("Only add servers you trust. A server receives your sign-in, and these addresses decide where the game's files and content are loaded from.")
-                kind: "caption"; color: Theme.text
-            }
-        }
+        kind: "warn"
+        text: qsTr("Only add servers you trust. A server receives your sign-in, and these addresses decide where the game's files and content are loaded from.")
     }
 
     buttons: [
-        Item { Layout.fillWidth: true },
+        Txt {
+            Layout.fillWidth: true
+            visible: !dlg.report.ok
+            text: qsTr("Enter a name and an address to continue.")
+            kind: "caption"; wrapMode: Text.NoWrap; elide: Text.ElideRight
+        },
+        Item { Layout.fillWidth: true; visible: dlg.report.ok },
         SButton { text: qsTr("Cancel"); onClicked: dlg.close() },
-        SButton { text: dlg.editing ? qsTr("Save changes") : qsTr("Add server"); highlighted: true; onClicked: dlg.submit() }
+        SButton {
+            text: dlg.editing ? qsTr("Save changes") : qsTr("Add server")
+            highlighted: true
+            enabled: dlg.report.ok
+            onClicked: dlg.submit()
+        }
     ]
 }

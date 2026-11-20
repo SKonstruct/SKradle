@@ -9,7 +9,7 @@ ServerDialog {
     property var terms: ({})
     property bool update: false
     signal accepted()
-    preferredWidth: 520
+    size: "reading"
     title: update ? qsTr("Update the server engine") : qsTr("Install the server")
     subtitle: qsTr("The server is a separate program by its own author. SKradle downloads it for you.")
     onFocusFirst: accept.forceActiveFocus()

@@ -181,7 +181,7 @@ ApplicationWindow {
         "mods-pack-syncing", "mods-pack-report", "mods-pack-error",
         "mods-enabled", "mods-disabled", "mods-warning", "mods-combo", "mods-long", "mods-nomatch", "mods-scroll1", "mods-scroll2",
         "srv-notinstalled", "srv-offline", "srv-install", "srv-busy", "srv-nojava", "srv-stopped", "srv-starting", "srv-running", "srv-running-lan",
-        "srv-failed", "srv-portbusy", "srv-backup", "srv-add", "srv-add-errors", "srv-edit", "srv-info", "srv-delete", "srv-selected-menu"]
+        "srv-failed", "srv-manage", "srv-portbusy", "srv-backup", "srv-add", "srv-add-errors", "srv-edit", "srv-info", "srv-delete", "srv-selected-menu"]
     property int shotIndex: 0
     property int shotsFailed: 0
     function nextShot() {

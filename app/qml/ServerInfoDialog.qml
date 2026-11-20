@@ -7,10 +7,10 @@ ServerDialog {
     id: dlg
     property var entry: ({})
     property var summary: []
-    preferredWidth: 520
+    size: "form"
     title: entry.name ? entry.name : qsTr("Server")
     subtitle: entry.kind === "official" ? qsTr("The official service. It is always in the list and cannot be changed.")
-            : entry.kind === "local" ? qsTr("Your own server. It is managed from the controls above the list.")
+            : entry.kind === "local" ? qsTr("Your own server. It is managed from Your server, below the list.")
             : qsTr("A server you saved.")
     ClipboardHelper { id: clip }
     onFocusFirst: closeBtn.forceActiveFocus()
@@ -38,14 +38,14 @@ ServerDialog {
         RowLayout {
             required property var modelData
             Layout.fillWidth: true
-            spacing: Theme.s3
+            spacing: Theme.gapStack
             Txt { Layout.preferredWidth: 120; Layout.alignment: Qt.AlignTop; text: dlg.labelOf(modelData.key); kind: "caption" }
             Txt {
                 Layout.fillWidth: true
                 text: modelData.value
                 wrapMode: Text.WrapAnywhere
                 maximumLineCount: 3; elide: Text.ElideRight
-                font.features: { "tnum": 1 }
+                mono: true; numeric: true
             }
         }
     }

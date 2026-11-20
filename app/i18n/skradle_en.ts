@@ -60,15 +60,15 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>A public key looks like 1a2b3c…#10001: hexadecimal digits, a #, more digits.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Use a web address that starts with http:// or https://.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>This server is managed from the controls above the list.</source>
+        <source>Enter the key as the owner gave it, for example a5ed0dc3892b9472#10001.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This server is managed from Your server, below the list.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -164,6 +164,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Enter a name and an address to continue.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Save changes</source>
         <translation type="unfinished"></translation>
     </message>
@@ -187,7 +191,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>No backups yet.</source>
+        <source>No backups yet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back up now saves the server&apos;s data and settings so you can come back to them.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1143,11 +1151,11 @@
 <context>
     <name>ServerCard</name>
     <message>
-        <source>Reachable</source>
+        <source>Unreachable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Unreachable</source>
+        <source>%1 ms</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1159,31 +1167,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>milliseconds</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>selected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>This computer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Select</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Select %1: use this server when I launch</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is selected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Selected</source>
+        <source>reachable, %1 milliseconds</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1210,15 +1198,7 @@
 <context>
     <name>ServerControlStrip</name>
     <message>
-        <source>The server engine isn&apos;t installed. Choose Install first.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The server needs Java 25 or newer to run, and none was found on this computer. Install it, then try again.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The server&apos;s settings file isn&apos;t in the form SKradle uses. Apply the ports below, then start again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1246,14 +1226,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The server process couldn&apos;t be started: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The server stopped while starting. %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The server didn&apos;t finish starting in time. Try again; its log is in the server folder under data/logs.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1262,27 +1234,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The server didn&apos;t accept the request: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The server&apos;s settings couldn&apos;t be saved: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A file operation failed: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Another server is already using this server&apos;s data folder. Close it and try again.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The server failed to start: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Problem: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1303,10 +1255,6 @@
     </message>
     <message>
         <source>The download didn&apos;t match its checksum, so it was thrown away. Try again.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The download wasn&apos;t a usable server release. %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1346,10 +1294,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Your server couldn&apos;t be added to the list: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Checking the server&apos;s files…</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1363,10 +1307,6 @@
     </message>
     <message>
         <source>Starting…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Running. The game connects to 127.0.0.1:%1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1422,10 +1362,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Dismiss</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Java 25 or newer wasn&apos;t found on this computer. The server can&apos;t start without it.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1446,6 +1382,62 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>The server engine isn&apos;t installed yet. Choose Install server first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The server&apos;s settings file isn&apos;t in the form SKradle uses. Apply the ports under Manage, then start again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The server couldn&apos;t be started. Check that Java 25 or newer is installed, then try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The server stopped while starting. Try again; its log is in the server folder under data/logs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The server didn&apos;t accept the request. Try again in a moment.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The server&apos;s settings couldn&apos;t be saved. Check that the server folder is writable.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A file couldn&apos;t be read or written. Check that the server folder is writable and the disk isn&apos;t full.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The server failed to start. Try again; its log is in the server folder under data/logs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The server stopped unexpectedly. Start it again; its log is in the server folder under data/logs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The download failed. Check your internet connection and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The download wasn&apos;t a usable server release. Try again later.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Your server couldn&apos;t be added to the list. Check that the settings folder is writable.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Something went wrong with the server. Try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Running on 127.0.0.1:%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Start</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1458,11 +1450,27 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Hide options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide the server options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage the server: backups, ports, network access</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Restart</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Back up / restore</source>
+        <source>Back up and restore</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1513,6 +1521,14 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Hide the web interface password</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the web interface password</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Copy password</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1549,6 +1565,10 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Use ports from 1 to 65535.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Network access also opens the server&apos;s web page to your network, protected only by its sign-in. Turn it on only on a network you trust.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1568,7 +1588,7 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Your own server. It is managed from the controls above the list.</source>
+        <source>Your own server. It is managed from Your server, below the list.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1631,7 +1651,7 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Servers you can play on</source>
+        <source>Play on</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

@@ -55,6 +55,40 @@ fn notice(kind: &'static str, code: &'static str, detail: impl Into<String>) -> 
     }
 }
 
+/// Notices whose `detail` is raw engine, OS or Rust text. The page never shows it: it says a plain sentence and the
+/// raw text goes to the log (stderr) only. `download_failed` keeps a short `HTTP nnn` status, which is readable.
+fn detail_is_raw(code: &str, detail: &str) -> bool {
+    match code {
+        "spawn" | "early_exit" | "console" | "config" | "io" | "startup_failed" | "ended"
+        | "bad_archive" | "no_release" | "offline" | "register_failed" | "data_locked"
+        | "port_game_busy" | "port_web_busy" => true,
+        "download_failed" => !detail.starts_with("HTTP "),
+        _ => false,
+    }
+}
+
+/// The notice as the page may see it: raw text removed.
+fn plain(mut n: Notice) -> Notice {
+    if detail_is_raw(n.code, &n.detail) {
+        n.detail.clear();
+    }
+    n
+}
+
+/// Writes the raw text of a notice to the log, once per distinct text.
+fn log_raw(n: &Notice) {
+    static LAST: Mutex<String> = Mutex::new(String::new());
+    if n.detail.is_empty() || !detail_is_raw(n.code, &n.detail) {
+        return;
+    }
+    let line = format!("{}: {}", n.code, n.detail);
+    let mut last = lock(&LAST);
+    if *last != line {
+        eprintln!("skradle: server host: {line}");
+        *last = line;
+    }
+}
+
 /// What the other players need, once the server has a key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Join {
@@ -351,7 +385,10 @@ impl Inner {
     }
 
     fn set_notice(&self, n: Option<Notice>) {
-        *lock(&self.notice) = n;
+        *lock(&self.notice) = n.map(|n| {
+            log_raw(&n);
+            plain(n)
+        });
     }
 
     /// Takes the one task slot. `Stop` may join a `Start` that is waiting (it cancels it).
@@ -673,7 +710,9 @@ impl ServerHost for RealHost {
         let mut shown = lock(&i.notice).clone();
         if shown.is_none() {
             if let Phase::Failed(why) = &phase {
-                shown = Some(notice("error", "ended", why.clone()));
+                let raw = notice("error", "ended", why.clone());
+                log_raw(&raw);
+                shown = Some(plain(raw));
             }
         }
         let admin_state = status.as_ref().map_or("", |s| match s.admin {
@@ -958,11 +997,11 @@ impl ServerHost for FixtureHost {
             }
             "failed" => {
                 s.state = "failed";
-                s.notice = Some(notice(
+                s.notice = Some(plain(notice(
                     "error",
                     "ended",
                     "the server ended unexpectedly (exit code 1)",
-                ));
+                )));
             }
             "portbusy" => {
                 s.notice = Some(Notice {
@@ -974,7 +1013,7 @@ impl ServerHost for FixtureHost {
             "offline" => {
                 s.engine_version.clear();
                 s.state = "notinstalled";
-                s.notice = Some(notice("error", "offline", "dns error"));
+                s.notice = Some(plain(notice("error", "offline", "dns error")));
             }
             _ => {
                 s.state = "running";
@@ -1138,6 +1177,59 @@ mod tests {
         );
         assert_eq!(code(EngineError::ChecksumMismatch), "checksum");
         assert_eq!(code(EngineError::TermsNotAccepted), "terms");
+    }
+
+    #[test]
+    fn raw_engine_and_system_text_never_reaches_the_page() {
+        let raw = "os error 2: No such file /Users/x/java";
+        for code in [
+            "spawn",
+            "early_exit",
+            "console",
+            "config",
+            "io",
+            "startup_failed",
+            "ended",
+            "bad_archive",
+            "no_release",
+            "offline",
+            "register_failed",
+            "data_locked",
+            "port_game_busy",
+        ] {
+            let n = plain(notice("error", code, raw));
+            assert!(n.detail.is_empty(), "{code} leaked its detail");
+        }
+        // Values the sentence builds on stay.
+        for code in [
+            "installed",
+            "up_to_date",
+            "backup_done",
+            "restored",
+            "rate_limited",
+        ] {
+            assert_eq!(plain(notice("info", code, "1.2.3")).detail, "1.2.3");
+        }
+        assert_eq!(
+            plain(notice("error", "download_failed", "HTTP 404")).detail,
+            "HTTP 404"
+        );
+        assert!(
+            plain(notice("error", "download_failed", "connection reset"))
+                .detail
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_failed_start_shows_a_plain_notice() {
+        let e = HostError::EarlyExit {
+            code: Some(1),
+            tail: vec!["Exception in thread main".into()],
+        };
+        let shown = plain(describe(&e, &cfg()).unwrap());
+        assert_eq!(shown.code, "early_exit");
+        assert!(shown.detail.is_empty());
     }
 
     fn real() -> (tempfile::TempDir, RealHost) {

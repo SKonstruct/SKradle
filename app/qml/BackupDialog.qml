@@ -9,7 +9,7 @@ ServerDialog {
     id: dlg
     property var items: []
     property string pending: ""
-    preferredWidth: 540
+    size: "form"
     title: qsTr("Back up and restore")
     subtitle: qsTr("A backup holds the server's data and settings. The server stops while a backup or a restore runs, and starts again afterwards if it was running.")
     onFocusFirst: backupBtn.forceActiveFocus()
@@ -23,20 +23,22 @@ ServerDialog {
     function whenText(secs) { return new Date(secs * 1000).toLocaleString(Qt.locale(), Locale.ShortFormat) }
     function sizeText(bytes) { return qsTr("%1 MB").arg(Math.max(1, Math.round(bytes / 1048576))) }
 
-    Txt {
-        Layout.fillWidth: true; visible: dlg.items.length === 0
-        text: qsTr("No backups yet."); color: Theme.textSecondary
+    EmptyState {
+        visible: dlg.items.length === 0
+        glyph: "folder"
+        title: qsTr("No backups yet")
+        text: qsTr("Back up now saves the server's data and settings so you can come back to them.")
     }
     Repeater {
         model: dlg.items
         RowLayout {
             required property var modelData
             Layout.fillWidth: true
-            spacing: Theme.s3
+            spacing: Theme.gapStack
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 0
                 Txt { Layout.fillWidth: true; text: dlg.whenText(modelData.createdAt) + (modelData.label ? "  ·  " + modelData.label : ""); elide: Text.ElideRight; wrapMode: Text.NoWrap }
-                Txt { text: dlg.sizeText(modelData.bytes); kind: "caption" }
+                Txt { text: dlg.sizeText(modelData.bytes); kind: "caption"; numeric: true }
             }
             SButton {
                 text: qsTr("Restore")
@@ -55,13 +57,13 @@ ServerDialog {
         onConfirmed: { ServerHost.restore(dlg.pending); dlg.close() }
     }
     buttons: [
+        Item { Layout.fillWidth: true },
+        SButton { text: qsTr("Close"); onClicked: dlg.close() },
         SButton {
             id: backupBtn
             text: qsTr("Back up now"); glyph: "download"; highlighted: true
             enabled: ServerHost.state === "stopped" || ServerHost.state === "running" || ServerHost.state === "failed"
             onClicked: { ServerHost.backup(); dlg.close() }
-        },
-        Item { Layout.fillWidth: true },
-        SButton { text: qsTr("Close"); onClicked: dlg.close() }
+        }
     ]
 }
