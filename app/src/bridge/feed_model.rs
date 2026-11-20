@@ -1,5 +1,5 @@
 //! `HomeFeed` (QML singleton `HomeFeed`): Spiral Knights news, the estimated number of players and the live events,
-//! for the Home page. Requests run on worker threads (`skradle_core::steam_api`, `skradle_core::events`) and post
+//! for the Home page. Requests run on worker threads (`skradle_core::steam_api`, `skradle_core::live_events`) and post
 //! their result back to the UI thread; a failed request shows the last good answer from disk (marked offline) and
 //! never an error.
 
@@ -28,11 +28,12 @@ pub mod qobject {
         /// The breakdown as JSON `{liveSteam, liveTotal, previewSteam, previewTotal, total, factor}`; "{}" before the
         /// first answer.
         #[qproperty(QString, players_json, cxx_name = "playersJson", READ, WRITE, NOTIFY)]
-        /// The live events as a JSON array of `{id, title, description, startsAt, endsAt, url}` (Unix seconds; `startsAt`
-        /// 0 when none; `url` "" when none); "[]" when there are none.
+        /// The live events as a JSON array of `{title, description, image, link, startsAt, endsAt}` (Unix seconds, 0
+        /// when none; `image` a file URL of the cached banner and `link` an https address, "" when none); "[]" when
+        /// there are none.
         #[qproperty(QString, events_json, cxx_name = "eventsJson", READ, WRITE, NOTIFY)]
         /// "unknown" before the first answer, then "ok", "offline" (the events are from the last good answer) or "none"
-        /// (no events, or the backend has no events yet: the card is hidden).
+        /// (no events: the card is hidden).
         #[qproperty(QString, events_state, cxx_name = "eventsState", READ, WRITE, NOTIFY)]
         /// When the shown events were fetched, Unix seconds; 0 when unknown.
         #[qproperty(
@@ -89,7 +90,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use cxx_qt::{CxxQtThread, CxxQtType, Threading};
 use cxx_qt_lib::QString;
-use skradle_core::events::{self, Event, EventsApi, EventsError, EventsFeed, HttpEvents};
+use skradle_core::live_events::{self, Event, EventsApi, EventsError, EventsFeed, HttpEvents};
 use skradle_core::steam_api::{
     self, HttpSteam, MinInterval, NewsFeed, NewsItem, PlayerEstimate, SteamApi, SteamError,
 };
@@ -114,47 +115,69 @@ impl SteamApi for FixtureSteam {
     }
 }
 
+/// A small real picture for the fixture events' banner.
+const FIXTURE_BANNER: &[u8] = include_bytes!("../../../core/tests/fixtures/event_banner.png");
+const FIXTURE_BANNER_URL: &str = "https://example.org/banner.png";
+
 /// Fixture events for the self-test and screenshot runs, relative to now so that their countdowns read the same
 /// every time ("Ends in 2d 5h", "Starts in 3d 2h", "Ends today").
 fn fixture_events(now: i64) -> Vec<Event> {
-    let url = Some("https://example.org/events/winter".to_owned());
     vec![
         Event {
-            id: "fixture-today".into(),
             title: "Double heat day".into(),
             description: "Heat rewards are doubled until the end of the day.".into(),
+            image_url: None,
+            link: None,
             starts_at: None,
-            ends_at: now + 5 * 3600 + 12 * 60 + 30,
-            url: None,
+            ends_at: Some(now + 5 * 3600 + 12 * 60 + 30),
         },
         Event {
-            id: "fixture-winter".into(),
             title: "Winter Wonderland".into(),
             description:
-                "Snow falls in the Clockworks. Collect snowflakes, trade them for festive gear and \
+                "Snow falls in the Clockworks.\nCollect snowflakes, trade them for festive gear and \
                           meet the other knights at the Haven tree."
                     .into(),
+            image_url: Some(FIXTURE_BANNER_URL.into()),
+            link: Some("https://example.org/events/winter".into()),
             starts_at: None,
-            ends_at: now + 2 * 86_400 + 5 * 3600 + 30,
-            url,
+            ends_at: Some(now + 2 * 86_400 + 5 * 3600 + 30),
         },
         Event {
-            id: "fixture-later".into(),
             title: "Bomber Weekend".into(),
             description: "Bomb-themed missions with extra rewards.".into(),
+            image_url: None,
+            link: Some("https://example.org/events/bomber".into()),
             starts_at: Some(now + 3 * 86_400 + 2 * 3600 + 30),
-            ends_at: now + 5 * 86_400 + 30,
-            url: Some("https://example.org/events/bomber".to_owned()),
+            ends_at: Some(now + 5 * 86_400 + 30),
         },
     ]
 }
 
-/// Answers from compiled-in fixtures, like [`FixtureSteam`].
+/// Answers from compiled-in fixtures, like [`FixtureSteam`]: the raw feed text, as the service would send it.
 struct FixtureEvents;
 
 impl EventsApi for FixtureEvents {
-    fn events(&self) -> Result<Vec<Event>, EventsError> {
-        Ok(fixture_events(unix_now()))
+    fn fetch(&self) -> Result<String, EventsError> {
+        let ms = |secs: i64| (secs * 1000).to_string();
+        let events: Vec<String> = fixture_events(unix_now())
+            .iter()
+            .map(|e| {
+                // Written the way the service writes it, with the trailing comma.
+                format!(
+                    r#"{{"banner":"{}|0.0","content":"{}|{}","link":"{}","startsAt":"{}","endsAt":"{}",}}"#,
+                    e.image_url.clone().unwrap_or_default(),
+                    e.title,
+                    e.description.replace('\n', "\\n"),
+                    e.link.clone().unwrap_or_default(),
+                    ms(e.starts_at.unwrap_or(0)),
+                    ms(e.ends_at.unwrap_or(0)),
+                )
+            })
+            .collect();
+        Ok(format!(
+            r#"{{"serverlist":[{{"name":"Official","events":[{}]}}]}}"#,
+            events.join(",")
+        ))
     }
 }
 
@@ -162,12 +185,51 @@ fn events_api() -> Arc<dyn EventsApi> {
     if crate::options::get().is_test_run() {
         Arc::new(FixtureEvents)
     } else {
-        Arc::new(HttpEvents::new())
+        Arc::new(HttpEvents)
+    }
+}
+
+/// The banner of the fixtures, or the real download.
+fn download_banner(url: &str) -> Option<Vec<u8>> {
+    if crate::options::get().is_test_run() {
+        (url == FIXTURE_BANNER_URL).then(|| FIXTURE_BANNER.to_vec())
+    } else {
+        live_events::download_image(url)
     }
 }
 
 fn events_cache_path() -> std::path::PathBuf {
-    settings::config_dir().join("events.json")
+    settings::config_dir().join("live-events.json")
+}
+
+fn events_image_dir() -> std::path::PathBuf {
+    settings::config_dir().join("event-images")
+}
+
+/// The file URL of each event's cached banner (downloaded now when needed), "" when it has none. Banners no event
+/// refers to any more are removed, unless the feed is offline (then the list may be a stale one).
+fn banner_urls(feed: &EventsFeed, dir: &std::path::Path) -> Vec<String> {
+    let paths: Vec<Option<std::path::PathBuf>> = feed
+        .events
+        .iter()
+        .map(|e| {
+            e.image_url
+                .as_deref()
+                .and_then(|url| live_events::cached_image(dir, url, &download_banner))
+        })
+        .collect();
+    if !feed.offline {
+        let keep: Vec<_> = paths.iter().flatten().cloned().collect();
+        live_events::prune_images(dir, &keep);
+    }
+    paths
+        .iter()
+        .map(|p| {
+            p.as_deref()
+                .map(crate::mods_host::file_url)
+                .unwrap_or_default()
+        })
+        .collect()
 }
 
 /// The state name for an events feed.
@@ -179,18 +241,19 @@ pub fn events_state(feed: &EventsFeed) -> &'static str {
     }
 }
 
-/// The events as the JSON the page reads.
-fn events_to_json(events: &[Event]) -> String {
+/// The events as the JSON the page reads; `images` holds one file URL (or "") per event.
+fn events_to_json(events: &[Event], images: &[String]) -> String {
     let list: Vec<serde_json::Value> = events
         .iter()
-        .map(|e| {
+        .enumerate()
+        .map(|(i, e)| {
             serde_json::json!({
-                "id": e.id,
                 "title": e.title,
                 "description": e.description,
+                "image": images.get(i).cloned().unwrap_or_default(),
+                "link": e.link.clone().unwrap_or_default(),
                 "startsAt": e.starts_at.unwrap_or(0),
-                "endsAt": e.ends_at,
-                "url": e.url.clone().unwrap_or_default(),
+                "endsAt": e.ends_at.unwrap_or(0),
             })
         })
         .collect();
@@ -293,8 +356,8 @@ impl qobject::HomeFeed {
         self.set_players_state(QString::from("ok"));
     }
 
-    fn show_events(mut self: Pin<&mut Self>, feed: &EventsFeed) {
-        let json = events_to_json(&feed.events);
+    fn show_events(mut self: Pin<&mut Self>, feed: &EventsFeed, images: &[String]) {
+        let json = events_to_json(&feed.events, images);
         self.as_mut().set_events_json(QString::from(json.as_str()));
         self.as_mut().set_events_fetched_at(feed.fetched_at as f64);
         self.set_events_state(QString::from(events_state(feed)));
@@ -309,11 +372,15 @@ impl qobject::HomeFeed {
         let spawned = std::thread::Builder::new()
             .name("skradle-events".into())
             .spawn(move || {
-                let feed =
-                    events::load_events(events_api().as_ref(), &events_cache_path(), unix_now());
+                let feed = live_events::load_events(
+                    events_api().as_ref(),
+                    &events_cache_path(),
+                    unix_now(),
+                );
+                let images = banner_urls(&feed, &events_image_dir());
                 let _ = thread.queue(move |mut model| {
                     model.as_mut().rust_mut().events_busy = false;
-                    model.show_events(&feed);
+                    model.show_events(&feed, &images);
                 });
             });
         if spawned.is_err() {
@@ -324,7 +391,8 @@ impl qobject::HomeFeed {
 
     pub fn countdown(&self, starts_at: f64, ends_at: f64) -> QString {
         let starts = (starts_at > 0.0).then_some(starts_at as i64);
-        let c = events::countdown(starts, ends_at as i64, unix_now());
+        let ends = (ends_at > 0.0).then_some(ends_at as i64);
+        let c = live_events::countdown(starts, ends, unix_now());
         QString::from(serde_json::to_string(&c).unwrap_or_default().as_str())
     }
 
@@ -347,7 +415,8 @@ impl qobject::HomeFeed {
                 fetched_at: now,
             },
         };
-        self.as_mut().show_events(&feed);
+        let images = banner_urls(&feed, &events_image_dir());
+        self.as_mut().show_events(&feed, &images);
     }
 
     pub fn force_players(self: Pin<&mut Self>, state: &QString) {
@@ -456,12 +525,31 @@ mod tests {
         assert_eq!(fixture.news(6, 800).unwrap().len(), 3);
         assert_eq!(fixture.players(steam_api::APP_ID_LIVE).unwrap(), 229);
         assert_eq!(fixture.players(steam_api::APP_ID_PREVIEW).unwrap(), 12);
-        assert_eq!(FixtureEvents.events().unwrap().len(), 3);
+        let feed = FixtureEvents.fetch().unwrap();
+        assert_eq!(live_events::parse_feed(&feed, unix_now()).unwrap().len(), 3);
+    }
+
+    #[test]
+    fn the_fixture_feed_parses_back_into_the_fixture_events() {
+        let now = unix_now();
+        let parsed = live_events::parse_feed(&FixtureEvents.fetch().unwrap(), now).unwrap();
+        let expected = fixture_events(now);
+        let times = |events: &[Event]| -> Vec<(Option<i64>, Option<i64>)> {
+            events.iter().map(|e| (e.starts_at, e.ends_at)).collect()
+        };
+        // The fixture clock moves between the two calls: compare the text, and the times to the second.
+        for (a, b) in parsed.iter().zip(&expected) {
+            assert_eq!((&a.title, &a.description), (&b.title, &b.description));
+            assert_eq!((&a.image_url, &a.link), (&b.image_url, &b.link));
+        }
+        for (a, b) in times(&parsed).iter().zip(times(&expected)) {
+            assert!((a.1.unwrap() - b.1.unwrap()).abs() <= 2);
+        }
     }
 
     #[test]
     fn the_fixture_events_read_as_planned_and_serialise_for_the_page() {
-        use skradle_core::events::{countdown, Countdown};
+        use skradle_core::live_events::{countdown, Countdown};
         let now = 1_800_000_000;
         let events = fixture_events(now);
         assert_eq!(
@@ -488,10 +576,18 @@ mod tests {
                 ..
             }
         ));
-        let json: serde_json::Value = serde_json::from_str(&events_to_json(&events)).unwrap();
-        assert_eq!(json[0]["url"], "");
+        let images = vec![String::new(), "file:///x.img".to_owned(), String::new()];
+        let json: serde_json::Value =
+            serde_json::from_str(&events_to_json(&events, &images)).unwrap();
+        assert_eq!(json[0]["link"], "");
         assert_eq!(json[0]["startsAt"], 0);
-        assert_eq!(json[2]["url"], "https://example.org/events/bomber");
+        assert_eq!(json[1]["image"], "file:///x.img");
+        assert_eq!(json[2]["link"], "https://example.org/events/bomber");
+    }
+
+    #[test]
+    fn the_fixture_banner_is_a_picture_the_cache_accepts() {
+        assert!(live_events::is_acceptable_image(FIXTURE_BANNER));
     }
 
     #[test]

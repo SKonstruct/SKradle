@@ -498,8 +498,8 @@ Item {
                     title: qsTr("Integrations")
                     SettingRow {
                         label: qsTr("Discord Rich Presence")
-                        hint: AppEnv.discordConfigured ? qsTr("Shows in Discord that you are playing Spiral Knights, and for how long.")
-                            : qsTr("Not available in this build: the Discord application it needs has not been set up yet. The switch is saved but does nothing until then.")
+                        hint: AppEnv.discordConfigured ? qsTr("Shows in Discord that you are playing Spiral Knights, and for how long. Off by default; Discord must be running.")
+                            : qsTr("Not available in this build.")
                         Item { Layout.fillWidth: true }
                         SSwitch {
                             checked: Settings.discordPresence

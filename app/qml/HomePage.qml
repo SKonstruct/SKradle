@@ -47,6 +47,7 @@ PageScaffold {
         const none = c.days === 0 && c.hours === 0 && c.minutes === 0
         switch (c.kind) {
         case "starts": return none ? qsTr("Starts in under a minute") : qsTr("Starts in %1").arg(span(c.days, c.hours, c.minutes))
+        case "none": return ""
         case "ends": return qsTr("Ends in %1").arg(span(c.days, c.hours, c.minutes))
         case "endsToday": return none ? qsTr("Ends today, under a minute left") : qsTr("Ends today, %1 left").arg(span(c.days, c.hours, c.minutes))
         }
@@ -214,7 +215,7 @@ PageScaffold {
                         readonly property string when: page.countdownText(modelData)
                         readonly property bool upcoming: { page.tick; return modelData.startsAt * 1000 > Date.now() }
                         Accessible.role: Accessible.Grouping
-                        Accessible.name: modelData.title + ", " + when
+                        Accessible.name: when !== "" ? modelData.title + ", " + when : modelData.title
                         ColumnLayout {
                             id: evCol
                             anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
@@ -225,6 +226,7 @@ PageScaffold {
                                 spacing: Theme.s3
                                 Txt { Layout.fillWidth: true; text: ev.modelData.title; font.weight: Font.DemiBold; maximumLineCount: 2; elide: Text.ElideRight }
                                 Rectangle {
+                                    visible: ev.when !== ""
                                     Layout.alignment: Qt.AlignTop
                                     implicitWidth: whenText.implicitWidth + 2 * Theme.s3
                                     implicitHeight: whenText.implicitHeight + Theme.s2
@@ -241,13 +243,18 @@ PageScaffold {
                                     }
                                 }
                             }
+                            EventBanner {
+                                Layout.fillWidth: true
+                                source: ev.modelData.image
+                                Accessible.ignored: true
+                            }
                             Txt { Layout.fillWidth: true; visible: text !== ""; text: ev.modelData.description; kind: "caption" }
                             SButton {
-                                visible: ev.modelData.url !== ""
+                                visible: ev.modelData.link !== ""
                                 text: qsTr("Learn more")
                                 glyph: "globe"
                                 Accessible.name: qsTr("Learn more about %1").arg(ev.modelData.title)
-                                onClicked: page.openArticle(ev.modelData.url)
+                                onClicked: page.openArticle(ev.modelData.link)
                             }
                         }
                     }

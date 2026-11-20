@@ -98,14 +98,15 @@ count by `STANDALONE_FACTOR` (1.4, because Steam counts only part of the player 
 player and sums them. Either request failing means "not available" (never half an estimate). Refreshed at most once a
 minute while Home is visible. The news shows the 3 newest items.
 
-**Live events** (`core::events`, `HomeFeed.eventsJson`): `GET <BACKEND_BASE_URL>/launcher/v1/events`, unsigned JSON over
-HTTPS, schema 1 (`id`, `title`, `description`, `starts_at`, `ends_at`, `url`). Invalid items are skipped, sizes are
-bounded, times must be RFC 3339, links must be plain `https://` (a bad link only drops the Learn more button). The last
-good answer is cached in `events.json` in the config folder; a failed request shows it with an offline note, a 404
-(endpoint not deployed) or an empty list hides the card. `BACKEND_BASE_URL` in `core/src/events.rs` is the one place for
-the host. Countdowns ("Ends in 2d 5h", "Ends today, 5h 12m left", "Starts in ...", "Ended") come from
-`events::countdown` (numbers) and are worded in `HomePage.qml`, refreshed every minute. Self-test and screenshot runs
-use fixture events relative to now.
+**Live events** (`core::live_events`, `HomeFeed.eventsJson`): read from a third-party feed that is cleartext and
+optional, see `docs/live-events.md`. The Official server's events that have not ended (upcoming ones stay) are shown;
+the default event only when nothing else is left. Each shows its title and description, a countdown chip ("Ends in
+2d 5h", "Ends today, 5h 12m left", "Starts in ...", "Ended"; `live_events::countdown` gives numbers, `HomePage.qml`
+words them, refreshed every minute), a rounded banner (`EventBanner.qml`, HTTPS PNG or JPEG only) and a **Learn more**
+button (HTTPS only). The last good answer is cached in `live-events.json` and banners in `event-images/` in the config
+folder; a failed request shows the cache with an offline note, and no events at all hides the card. Plain HTTP is
+allowed for this one host only (`Client::get_text_insecure_for_events` in `core/src/net.rs`); the app works the same
+when the feed is unreachable. Self-test and screenshot runs use fixture events relative to now.
 
 **Release notes** (`core::changelog`, `ReleaseNotes.json`): `CHANGELOG.md` is embedded with `include_str!` (cargo rebuilds
 when it changes) and parsed in Rust into versions, sections and items; inline `**bold**`, `*italic*`, `` `code` `` and
@@ -223,4 +224,4 @@ update check, crash reports, theme, motion, language). Self-test and screenshot 
 
 Notes: memory, collector, explicit GC and extra arguments reach the game on a direct launch; a launch that first runs the
 game's updater only passes the memory limit (through `extra.txt`). Anti-aliasing has no agent property and is not offered.
-Discord presence stays off until `core::presence::DISCORD_APPLICATION_ID` is set. Reset game files uses `core::reset`.
+Discord presence uses the application id in `core::presence::DISCORD_APPLICATION_ID` and stays opt-in (the Settings switch, off by default); it does nothing while that constant is empty. Reset game files uses `core::reset`.
