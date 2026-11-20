@@ -18,7 +18,7 @@ use crate::jar::write_atomic;
 use crate::net::{is_plain_https_url, Client, NetError};
 
 /// The launcher's backend (the same host that serves the signed runtime index). One place to change it.
-pub const BACKEND_BASE_URL: &str = "https://dank.site";
+pub const BACKEND_BASE_URL: &str = "https://dankware.alwaysdata.net";
 pub const EVENTS_PATH: &str = "/launcher/v1/events";
 /// The only response schema this client understands.
 pub const SCHEMA: i64 = 1;
