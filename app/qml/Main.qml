@@ -24,7 +24,7 @@ ApplicationWindow {
     palette.placeholderText: Theme.textTertiary
 
     // The settings file was unreadable and reset to the defaults: say so once, instead of silently forgetting choices.
-    Component.onCompleted: if (Settings.loadWarning.length > 0) Qt.callLater(() => Data.toast(Settings.loadWarning))
+    Component.onCompleted: if (Settings.loadWarning.length > 0) Qt.callLater(() => Data.toast(Settings.loadWarning, "error"))
 
     property int current: AppEnv.initialPage
     property int dir: 1
@@ -39,6 +39,20 @@ ApplicationWindow {
         if (i === current || i < 0 || i >= navItems.length) return
         dir = i > current ? 1 : -1
         current = i
+    }
+    // Go to a page section (Settings): the page may still be loading, so scrolling waits until it exists.
+    property int pendingSection: -1
+    Timer {
+        id: sectionTimer
+        interval: 60
+        repeat: true
+        onTriggered: {
+            const p = win.pageItem(win.current)
+            if (p && p.scrollTo && win.pendingSection >= 0) { p.scrollTo(win.pendingSection); win.pendingSection = -1; stop() }
+            else if (++count > 30) { win.pendingSection = -1; stop() }
+        }
+        property int count: 0
+        onRunningChanged: if (running) count = 0
     }
     function pageItem(i) { return pages.itemAt(i) ? pages.itemAt(i).item : null }
 
@@ -120,12 +134,13 @@ ApplicationWindow {
         id: toast
         z: 5
         x: content.x + (content.width - width) / 2
-        y: win.height - height - 28
+        y: win.height - height - Theme.s6
     }
     Connections {
         target: Data
-        function onToast(text) { toast.show(text) }
+        function onToastRequested(text, kind) { toast.show(text, kind) }
         function onNavigate(page) { win.go(page) }
+        function onNavigateSection(page, section) { win.go(page); win.pendingSection = section; sectionTimer.restart() }
         function onReleaseNotes() { notes.show(null) }
     }
     ReleaseNotesDialog { id: notes }
@@ -153,7 +168,7 @@ ApplicationWindow {
     }
     Connections {
         target: GameModel
-        function onErrorChanged() { if (GameModel.error !== "") toast.show(GameModel.error) }
+        function onErrorChanged() { if (GameModel.error !== "") toast.show(GameModel.error, "error") }
     }
 
     // ---- screenshot driver (skradle --shots <dir> [--prefix name]) -----------------------------------------------
@@ -161,7 +176,7 @@ ApplicationWindow {
         "home-collapsed", "home-scrolled", "home-offline", "home-nonews", "home-noevents", "home-events-offline", "home-players-down",
         "home-notes", "home-notes-all", "home-notes-min", "servers", "servers-dialog", "mods", "mods-search", "mods-drop",
         "settings-general", "settings-game", "settings-files", "settings-graphics", "settings-graphics-running", "settings-integrations",
-        "settings-tools", "settings-about", "settings-reset", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
+        "settings-tools", "settings-about", "settings-reset", "toast-error", "toast-info", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
         "mods-selected", "mods-focus", "mods-tag", "mods-empty", "mods-nogame", "mods-confirm", "mods-issues", "mods-pack-update",
         "mods-pack-syncing", "mods-pack-report", "mods-pack-error",
         "mods-enabled", "mods-disabled", "mods-warning", "mods-combo", "mods-long", "mods-nomatch", "mods-scroll1", "mods-scroll2",
@@ -239,6 +254,8 @@ ApplicationWindow {
         case "settings-integrations": go(3); Qt.callLater(() => pageItem(3).scrollTo(4)); break
         case "settings-tools": go(3); Qt.callLater(() => pageItem(3).scrollTo(5)); break
         case "settings-about": go(3); Qt.callLater(() => pageItem(3).scrollTo(6)); break
+        case "toast-error": go(3); Qt.callLater(() => Data.toast(qsTr("Could not open the folder. Check that it still exists."), "error")); break
+        case "toast-info": go(0); Qt.callLater(() => Data.toast(qsTr("Address copied"))); break
         case "settings-reset": go(3); Qt.callLater(() => pageItem(3).scrollTo(2)); Qt.callLater(() => pageItem(3).openReset()); break
         case "servers-menu": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.openMenu() }); break
         case "settings-combo": go(3); Qt.callLater(() => pageItem(3).scrollTo(1)); Qt.callLater(() => { const p = pageItem(3); if (p) p.openCombo() }); break

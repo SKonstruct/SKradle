@@ -3,11 +3,12 @@ import com.skradle.app
 import QtQuick.Layouts
 import QtQuick.Shapes
 import QtQuick.Dialogs
+import QtQuick.Controls
 
 // First-run empty state: nothing to launch yet, two clear ways forward.
 Card {
     id: root
-    radius: Theme.rXl
+    radius: Theme.rLg
     implicitHeight: col.implicitHeight + 2 * Theme.s10
     signal steam()
     signal downloadPage()
@@ -36,9 +37,9 @@ Card {
             }
             Logo { anchors.centerIn: parent; size: 64 }
             Rectangle {
-                x: 70; y: 70; width: 30; height: 30; radius: 15
+                x: 70; y: 70; width: 30; height: 30; radius: Theme.rPill
                 color: Theme.amber
-                Icon { anchors.centerIn: parent; name: "question"; size: 20; stroke: 2.2; color: "#1A1A1A" }
+                Icon { anchors.centerIn: parent; name: "question"; size: 20; stroke: 2.2; color: Theme.ink }
             }
         }
         Txt {
@@ -71,12 +72,29 @@ Card {
                 onClicked: folderDialog.open()
             }
         }
-        SButton {
+        AbstractButton {   // a link: underlined, link colour
+            id: dl
             Layout.alignment: Qt.AlignHCenter
-            variant: "ghost"
+            implicitWidth: dlText.implicitWidth + 2 * Theme.s2
+            implicitHeight: Theme.hSm
+            hoverEnabled: true
+            focusPolicy: Qt.StrongFocus
+            property int radius: Theme.rXs
             text: qsTr("Or download it from spiralknights.com")
             Accessible.name: text
+            Accessible.role: Accessible.Link
             onClicked: root.downloadPage()
+            contentItem: Txt {
+                id: dlText
+                text: dl.text
+                color: Theme.accentFg
+                font.underline: true
+                font.weight: dl.hovered ? Font.DemiBold : Font.Normal
+                wrapMode: Text.NoWrap
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            FocusRing { grow: 2 }
         }
         Txt {
             Layout.fillWidth: true
@@ -84,7 +102,7 @@ Card {
             horizontalAlignment: Text.AlignHCenter
             text: qsTr("We looked in the default install locations.")
             kind: "micro"
-            color: Theme.textTertiary
+            color: Theme.textSecondary
         }
     }
 

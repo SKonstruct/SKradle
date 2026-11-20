@@ -30,11 +30,11 @@ Rectangle {
     // brand row
     Item {
         id: brand
-        x: 12; y: 18
-        width: root.targetWidth - 24; height: 44
-        Logo { x: 8; anchors.verticalCenter: parent.verticalCenter; size: 32 }
+        x: Theme.s3; y: Theme.s5
+        width: root.targetWidth - 2 * Theme.s3; height: Theme.hLg
+        Logo { x: Theme.s2; anchors.verticalCenter: parent.verticalCenter; size: 32 }
         Txt {
-            x: 8 + 32 + 12
+            x: Theme.s2 + 32 + Theme.s3
             anchors.verticalCenter: parent.verticalCenter
             text: "SKradle"
             kind: "heading"
@@ -75,13 +75,13 @@ Rectangle {
         height: root.pillBottom - root.pillTop
         Rectangle {
             anchors.fill: parent
-            radius: Theme.rMd
-            color: Theme.accentTint
+            radius: Theme.rSm
+            color: Theme.stateSelected
         }
         Rectangle {   // accent bar rides along with the pill
             x: 0
-            width: 3; radius: 1.5
-            height: Math.min(parent.height - 16, 20)
+            width: 3; radius: Theme.rXs / 2
+            height: Math.min(parent.height - Theme.s4, 20)
             anchors.verticalCenter: parent.verticalCenter
             color: Theme.accent
         }
@@ -89,9 +89,9 @@ Rectangle {
 
     ColumnLayout {
         id: navCol
-        x: 12; y: 88
-        width: root.targetWidth - 24
-        spacing: 4
+        x: Theme.s3; y: Theme.s5 + Theme.hLg + Theme.s6
+        width: root.targetWidth - 2 * Theme.s3
+        spacing: Theme.s1
         Repeater {
             id: rep
             model: root.items
@@ -119,9 +119,9 @@ Rectangle {
     }
 
     IconButton {
-        x: root.collapsed ? (root.collapsedWidth - width) / 2 : 12 + 6
+        x: root.collapsed ? (root.collapsedWidth - width) / 2 : navCol.x + Theme.s4 - 2 + 10 - width / 2   // under the nav icons
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 16
+        anchors.bottomMargin: Theme.s4
         glyph: "panel"
         tip: root.collapsed ? qsTr("Expand sidebar") : qsTr("Collapse sidebar")
         onClicked: root.toggleCollapsed()

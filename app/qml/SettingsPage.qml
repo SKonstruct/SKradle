@@ -17,6 +17,7 @@ Item {
     readonly property bool gameBusy: LaunchModel.state !== "ready" && LaunchModel.state !== "error"
     readonly property bool hasGame: GameModel.selectedPath !== ""
     readonly property int memShown: Settings.memoryMb > 0 ? Settings.memoryMb : (GameModel.detectedMemoryMb > 0 ? GameModel.detectedMemoryMb : 2048)
+    readonly property int gutter: width < 1000 - 224 ? Theme.s6 : Theme.s8
     readonly property int memMax: Math.max(GameTools.memoryMaxMb, memShown)
 
     function scrollTo(i) {
@@ -50,18 +51,19 @@ Item {
     Connections {
         target: GameTools
         function onNoticeSerialChanged() {
+            // Errors say what failed and what to do; the engine's own text goes to the log, not the screen.
             const d = GameTools.noticeDetail
             switch (GameTools.notice) {
-            case "reset-done": Data.toast(qsTr("Game files removed (%1). Launch the game to download them again.").arg(d)); break
-            case "reset-error": Data.toast(qsTr("Could not reset the game files: %1").arg(d)); break
-            case "editor-error": Data.toast(qsTr("Could not start the editor: %1").arg(d)); break
-            case "folder-error": Data.toast(qsTr("Could not open the folder: %1").arg(d)); break
+            case "reset-done": Data.toast(qsTr("Game files removed (%1). Launch the game to download them again.").arg(d), "success"); break
+            case "reset-error": console.warn("reset game files:", d); Data.toast(qsTr("Could not reset the game files. Close the game and anything using its folder, then try again."), "error"); break
+            case "editor-error": console.warn("start editor:", d); Data.toast(qsTr("Could not start the editor. Check the Java setting in Settings > Game."), "error"); break
+            case "folder-error": console.warn("open folder:", d); Data.toast(qsTr("Could not open the folder. Check that it still exists."), "error"); break
             }
         }
     }
 
     // ---- small building blocks ---------------------------------------------------------------------------------
-    component Sep: Divider { Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5 }
+    component Sep: Divider { Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard }
 
     // A combo box whose rows map to setting values. A retranslation hands the box a new model and resets its index,
     // so the index is set again from the setting at start, on a new model and on a change.
@@ -78,38 +80,23 @@ Item {
         onActivated: (i) => chosen(values[i])
     }
 
-    component Notice: Rectangle {
-        id: note
-        property string text
-        property string icon: "info"
+    // A Banner inside a section card: indented like the rows. `warn` is the old spelling of kind "warn".
+    component Notice: Banner {
         property bool warn: false
-        Layout.fillWidth: true
-        Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5; Layout.topMargin: Theme.s2; Layout.bottomMargin: Theme.s2
-        implicitHeight: noteRow.implicitHeight + 2 * Theme.s3
-        radius: Theme.rMd
-        color: warn ? Theme.amberTint : Theme.hoverTint
-        border.width: 1
-        border.color: warn ? Qt.rgba(Theme.amber.r, Theme.amber.g, Theme.amber.b, 0.45) : Theme.border
-        Accessible.role: Accessible.StaticText
-        Accessible.name: text
-        RowLayout {
-            id: noteRow
-            anchors.fill: parent
-            anchors.margins: Theme.s3
-            spacing: Theme.s3
-            Icon { name: note.warn ? "warning" : note.icon; size: 18; color: note.warn ? Theme.amber : Theme.textSecondary; Layout.alignment: Qt.AlignTop }
-            Txt { Layout.fillWidth: true; text: note.text; kind: "caption"; color: note.warn ? Theme.amberText : Theme.text }
-        }
+        property string icon: "info"
+        kind: warn ? "warn" : "info"
+        Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard; Layout.topMargin: Theme.s2; Layout.bottomMargin: Theme.s2
     }
 
     function kindLabel(kind) {
         return kind === "steam" ? qsTr("Steam") : kind === "standalone" ? qsTr("Standalone") : qsTr("Custom folder")
     }
+    function lastPart(path) { const p = path.replace(/[\\/]+$/, "").split(/[\\/]/); return p[p.length - 1] }
     readonly property var installLabels: {
         const out = []
         const paths = GameModel.installPaths
         const kinds = GameModel.installKinds
-        for (let i = 0; i < paths.length; i++) out.push(kindLabel(kinds[i]) + "  ·  " + paths[i])
+        for (let i = 0; i < paths.length; i++) out.push(kinds[i] === "custom" ? kindLabel(kinds[i]) + ": " + lastPart(paths[i]) : kindLabel(kinds[i]))
         return out
     }
     readonly property bool hasCustom: GameModel.installKinds.indexOf("custom") >= 0
@@ -141,7 +128,7 @@ Item {
         ColumnLayout {
             id: topCol
             y: Theme.s8
-            width: Math.min(Theme.pageMax, top.width - 2 * Theme.s8)
+            width: Math.min(Theme.pageMax, top.width - 2 * page.gutter)
             x: (top.width - width) / 2
             spacing: Theme.s4
             PageHeader {
@@ -187,9 +174,9 @@ Item {
             ColumnLayout {
                 id: col
                 y: Theme.s4
-                width: Math.min(Theme.pageMax, holder.width - 2 * Theme.s8)
+                width: Math.min(Theme.pageMax, holder.width - 2 * page.gutter)
                 x: (holder.width - width) / 2
-                spacing: Theme.s6
+                spacing: Theme.gapSection
 
                 // ---- General ----------------------------------------------------------------------------------
                 SettingsSection {
@@ -249,8 +236,7 @@ Item {
                     title: qsTr("Game")
                     SettingRow {
                         label: qsTr("Game install"); hint: page.hasGame ? qsTr("Which copy of Spiral Knights SKradle starts.") : qsTr("No Spiral Knights install was found.")
-                        controlWidth: 330
-                        SComboBox {
+                                                SComboBox {
                             id: installBox
                             Layout.fillWidth: true
                             enabled: GameModel.installPaths.length > 0
@@ -265,20 +251,20 @@ Item {
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5; Layout.bottomMargin: Theme.s3
+                        Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard; Layout.bottomMargin: Theme.s3
                         spacing: Theme.s4
                         visible: page.hasGame
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 0
-                            spacing: 2
-                            Txt { Layout.fillWidth: true; text: qsTr("Folder: %1").arg(GameModel.selectedPath); kind: "caption"; elide: Text.ElideMiddle; wrapMode: Text.NoWrap }
+                            spacing: Theme.s1
+                            Txt { Layout.fillWidth: true; text: qsTr("Folder: %1").arg(GameModel.selectedPath); kind: "caption"; mono: true; elide: Text.ElideMiddle; wrapMode: Text.NoWrap }
                             Txt { Layout.fillWidth: true; text: GameModel.gameVersion !== "" ? qsTr("Game version: %1").arg(GameModel.gameVersion) : qsTr("Game version: unknown"); kind: "caption" }
                         }
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5; Layout.bottomMargin: Theme.s3
+                        Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard; Layout.bottomMargin: Theme.s3
                         spacing: Theme.s2
                         SButton { text: qsTr("Add a folder…"); glyph: "plus"; onClicked: folderDialog.open() }
                         SButton { text: qsTr("Forget the custom folder"); visible: page.hasCustom; onClicked: GameModel.forgetCustom() }
@@ -288,8 +274,7 @@ Item {
                     Sep {}
                     SettingRow {
                         label: qsTr("Java"); hint: qsTr("Leave empty to let SKradle choose. A path to a Java folder or its java program overrides that.")
-                        controlWidth: 330
-                        STextField {
+                                                STextField {
                             id: javaField
                             Layout.fillWidth: true; placeholderText: qsTr("Automatic")
                             onEditingFinished: Settings.javaPath = text.trim()
@@ -300,28 +285,17 @@ Item {
                         }
                         SButton { text: qsTr("Browse…"); onClicked: javaDialog.open() }
                     }
-                    Notice {
-                        text: qsTr("In use: %1").arg(page.javaLine)
-                        warn: page.hasGame && GameTools.javaProblem !== ""
-                    }
-                    Notice {
-                        visible: page.hasGame && GameTools.javaProblem === ""
-                        icon: GameTools.agentJavaOk ? "check" : "info"
-                        text: GameTools.agentJavaOk ? qsTr("This computer has a Java that supports the graphics agent (Java 24 or newer).") : qsTr("The graphics agent needs Java 24 or newer; none was found.")
+                    Notice {   // one banner for Java: what is in use, and whether it can run the graphics agent
+                        text: GameTools.javaProblem !== "" || !page.hasGame || GameTools.javaVersion === "" ? page.javaLine
+                            : GameTools.agentJavaOk ? qsTr("%1. Supports the graphics agent.").arg(page.javaLine)
+                            : qsTr("%1. Too old for the graphics agent, which needs Java 24 or newer.").arg(page.javaLine)
+                        kind: page.hasGame && GameTools.javaProblem !== "" ? "warn" : page.hasGame && GameTools.javaVersion !== "" && GameTools.agentJavaOk ? "success" : "info"
                     }
                     Sep {}
                     SettingRow {
                         label: qsTr("Memory"); hint: qsTr("Megabytes the game may use (its heap limit).")
-                        controlWidth: 420
-                        SSlider {
-                            id: memSlider
-                            Layout.fillWidth: true
-                            from: GameTools.memoryMinMb; to: page.memMax; stepSize: 256
-                            snapMode: SSlider.SnapAlways
-                            onMoved: Settings.memoryMb = Math.round(value)
-                            Binding on value { value: page.memShown }
-                            Accessible.name: qsTr("Memory in megabytes")
-                        }
+                        Layout.bottomMargin: Theme.s0
+                        Item { Layout.fillWidth: true }
                         SSpinBox {
                             from: GameTools.memoryMinMb; to: page.memMax; stepSize: 256; editable: true
                             onValueModified: Settings.memoryMb = value
@@ -329,9 +303,19 @@ Item {
                             Accessible.name: qsTr("Memory in megabytes, exact value")
                         }
                     }
+                    SSlider {
+                        id: memSlider
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard
+                        from: GameTools.memoryMinMb; to: page.memMax; stepSize: 256
+                        snapMode: SSlider.SnapAlways
+                        onMoved: Settings.memoryMb = Math.round(value)
+                        Binding on value { value: page.memShown }
+                        Accessible.name: qsTr("Memory in megabytes")
+                    }
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5; Layout.bottomMargin: Theme.s3
+                        Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard; Layout.bottomMargin: Theme.s3
                         spacing: Theme.s3
                         Txt {
                             Layout.fillWidth: true
@@ -368,8 +352,7 @@ Item {
                     Sep {}
                     SettingRow {
                         label: qsTr("Extra Java arguments"); hint: qsTr("Added last, so they win over the options above. Separate with spaces; quote values that contain spaces.")
-                        controlWidth: 330
-                        STextField {
+                                                STextField {
                             id: argsField
                             Layout.fillWidth: true; placeholderText: qsTr("None")
                             onEditingFinished: Settings.extraJvmArgs = text.trim()
@@ -401,8 +384,7 @@ Item {
                     Sep {}
                     SettingRow {
                         label: qsTr("Reset game files"); hint: qsTr("Removes every applied mod and the game's files, so the game's own updater downloads them all again. Your mods folder and settings stay.")
-                        controlWidth: 200
-                        Item { Layout.fillWidth: true }
+                                                Item { Layout.fillWidth: true }
                         SButton {
                             variant: "danger"
                             glyph: "refresh"
@@ -419,8 +401,7 @@ Item {
                     Sep {}
                     SettingRow {
                         label: qsTr("Game folder"); hint: page.hasGame ? GameModel.selectedPath : qsTr("No game install was found.")
-                        controlWidth: 200
-                        Item { Layout.fillWidth: true }
+                                                Item { Layout.fillWidth: true }
                         SButton { text: qsTr("Open game folder"); glyph: "folder"; enabled: page.hasGame; onClicked: GameTools.openFolder(GameModel.selectedPath) }
                     }
                 }
@@ -446,7 +427,7 @@ Item {
                                 Binding on value { value: Settings.renderScale }
                                 Accessible.name: qsTr("Render scale")
                             }
-                            Txt { Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight; text: Math.round(scale.value) + "%"; font.features: { "tnum": 1 }; wrapMode: Text.NoWrap }
+                            Txt { Layout.preferredWidth: Theme.s12; horizontalAlignment: Text.AlignRight; text: Math.round(scale.value) + "%"; numeric: true; wrapMode: Text.NoWrap }
                         }
                         Sep {}
                         SettingRow {
@@ -457,7 +438,7 @@ Item {
                                 Binding on value { value: Settings.sharpening }
                                 Accessible.name: qsTr("Sharpening")
                             }
-                            Txt { Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight; text: Math.round(sharp.value); font.features: { "tnum": 1 }; wrapMode: Text.NoWrap }
+                            Txt { Layout.preferredWidth: Theme.s12; horizontalAlignment: Text.AlignRight; text: Math.round(sharp.value); numeric: true; wrapMode: Text.NoWrap }
                         }
                         Sep {}
                         SettingRow {
@@ -533,8 +514,7 @@ Item {
                                     : tool.blocker === "java" ? (GameTools.javaNeeded > 0 ? qsTr("Needs Java %1 or newer, which was not found.").arg(GameTools.javaNeeded) : qsTr("Needs Java, which was not found."))
                                     : tool.blocker === "files" ? qsTr("The game folder lacks files this editor needs. Start the game once so it downloads them.")
                                     : tool.modelData.hint
-                                controlWidth: 160
-                                Item { Layout.fillWidth: true }
+                                                                Item { Layout.fillWidth: true }
                                 SButton {
                                     text: qsTr("Open")
                                     glyph: "play"
@@ -553,13 +533,13 @@ Item {
                     title: qsTr("About")
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5; Layout.topMargin: Theme.s3; Layout.bottomMargin: Theme.s3
+                        Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard; Layout.topMargin: Theme.s3; Layout.bottomMargin: Theme.s3
                         spacing: Theme.s5
                         Logo { size: 56; Layout.alignment: Qt.AlignVCenter }
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 0
-                            spacing: 2
+                            spacing: Theme.s1
                             Txt { Layout.fillWidth: true; text: "SKradle"; kind: "heading" }
                             Txt { Layout.fillWidth: true; text: qsTr("Version %1  ·  Qt %2").arg(AppEnv.version).arg(AppEnv.qtVersion); kind: "caption" }
                         }
@@ -590,18 +570,18 @@ Item {
                                 visible: text !== ""
                                 color: UpdateModel.state === "error" ? Theme.danger : Theme.textSecondary
                                 text: UpdateModel.state === "uptodate" ? qsTr("You are up to date.")
-                                    : UpdateModel.state === "error" ? qsTr("Could not check: %1").arg(UpdateModel.message) : ""
+                                    : UpdateModel.state === "error" ? qsTr("Could not check for updates. Check your internet connection and try again.") : ""
                             }
                         }
                     }
                     Notice { text: qsTr("Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights © Grey Havens, LLC.") }
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5; Layout.bottomMargin: Theme.s3
+                        Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard; Layout.bottomMargin: Theme.s3
                         spacing: Theme.s2
                         SButton { text: qsTr("Release notes"); glyph: "info"; onClicked: Data.releaseNotes() }
                         SButton { text: qsTr("SKradle on GitHub"); glyph: "globe"; onClicked: Qt.openUrlExternally("https://github.com/SKonstruct/SKradle") }
-                        SButton { text: qsTr("Buy the developer a coffee"); glyph: "star"; onClicked: Qt.openUrlExternally("https://buymeacoffee.com/sirdankk") }
+                        SButton { text: qsTr("Buy me a coffee"); glyph: "coffee"; onClicked: Qt.openUrlExternally("https://buymeacoffee.com/sirdankk") }
                         Item { Layout.fillWidth: true }
                     }
                 }
