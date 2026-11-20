@@ -6,14 +6,14 @@ T.MenuItem {
     id: control
     property bool danger: false
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, implicitContentWidth + leftPadding + rightPadding)
-    implicitHeight: 36
-    leftPadding: 14
-    rightPadding: 14
+    implicitHeight: Theme.hMd
+    leftPadding: Theme.s4
+    rightPadding: Theme.s4
     hoverEnabled: true
     background: Rectangle {
-        x: 4; width: parent.width - 8; height: parent.height
-        radius: 7
-        color: control.down ? Theme.pressTint : control.highlighted ? (control.danger ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.14) : Theme.accentTint) : "transparent"
+        x: Theme.s1; width: parent.width - 2 * Theme.s1; height: parent.height
+        radius: Theme.rXs
+        color: control.down ? Theme.pressTint : control.highlighted ? (control.danger ? Theme.dangerTint : Theme.accentTint) : "transparent"
     }
     contentItem: Text {
         text: control.text

@@ -3,6 +3,7 @@ import com.skradle.app
 import QtQuick.Layouts
 
 // "Are you sure?" for something that cannot be undone. The safe button (Cancel) has the focus.
+// danger: the confirm button is the filled red one (use for irreversible actions only).
 ServerDialog {
     id: dlg
     property string message
@@ -17,7 +18,7 @@ ServerDialog {
         SButton { id: cancelBtn; text: qsTr("Cancel"); onClicked: dlg.close() },
         SButton {
             text: dlg.confirmText
-            variant: dlg.danger ? "danger" : "primary"
+            variant: dlg.danger ? "danger-primary" : "primary"
             onClicked: { dlg.close(); dlg.confirmed() }
         }
     ]

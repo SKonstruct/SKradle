@@ -6,29 +6,29 @@ T.Switch {
     id: control
     implicitWidth: implicitIndicatorWidth + leftPadding + rightPadding + (text.length > 0 ? implicitContentWidth + spacing : 0)
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset, implicitIndicatorHeight + topPadding + bottomPadding)
-    padding: 4
-    spacing: 10
+    padding: 0
+    spacing: Theme.gapInline
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
     Accessible.name: text
     Accessible.checked: checked
 
     indicator: Item {
-        implicitWidth: 44
-        implicitHeight: 26
+        implicitWidth: 40
+        implicitHeight: 24
         x: control.leftPadding
         y: control.topPadding + (control.availableHeight - height) / 2
         Rectangle {
             id: track
             anchors.fill: parent
-            radius: height / 2
+            radius: Theme.rPill
             color: !control.enabled ? Theme.track : control.checked ? (control.down ? Theme.accentPressed : control.hovered ? Theme.accentHover : Theme.accent)
-                 : (control.hovered ? Qt.lighter(Theme.switchOff, 1.1) : Theme.switchOff)
+                 : (control.hovered ? Theme.switchOff : Theme.switchOff)
             Behavior on color { ColorAnimation { duration: Motion.base } }
         }
         Rectangle {
             id: knob
-            width: 20; height: 20; radius: 10
+            width: 18; height: 18; radius: Theme.rPill
             y: 3
             x: control.checked ? parent.width - width - 3 : 3
             color: Theme.knob

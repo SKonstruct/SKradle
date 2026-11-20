@@ -7,8 +7,8 @@ T.Menu {
     id: control
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, contentItem.implicitWidth + leftPadding + rightPadding)
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset, contentItem.implicitHeight + topPadding + bottomPadding)
-    margins: 8
-    padding: 4
+    margins: Theme.s2
+    padding: Theme.s1
     overlap: 0
     popupType: T.Popup.Item
     delegate: SMenuItem {}
@@ -28,5 +28,5 @@ T.Menu {
         currentIndex: control.currentIndex
         boundsBehavior: Flickable.StopAtBounds
     }
-    background: Card { radius: 12; fill: Theme.card; implicitWidth: 200 }
+    background: Card { radius: Theme.rMd; fill: Theme.overlay; elevation: 2; implicitWidth: 200 }
 }

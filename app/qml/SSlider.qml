@@ -6,7 +6,7 @@ T.Slider {
     id: control
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, implicitHandleWidth + leftPadding + rightPadding)
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset, implicitHandleHeight + topPadding + bottomPadding)
-    padding: 6
+    padding: Theme.s2
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
     snapMode: T.Slider.NoSnap
@@ -20,10 +20,10 @@ T.Slider {
         height: implicitHeight
         Rectangle {   // rail: high enough contrast to stay visible on both surfaces
             x: 0; y: (parent.height - height) / 2
-            width: parent.width; height: 6; radius: 3
+            width: parent.width; height: 6; radius: Theme.rXs
             color: control.enabled ? Theme.sliderRail : Theme.track
             Rectangle {
-                width: control.visualPosition * parent.width; height: parent.height; radius: 3
+                width: control.visualPosition * parent.width; height: parent.height; radius: Theme.rXs
                 color: control.enabled ? Theme.accent : Theme.textTertiary
             }
         }
@@ -35,7 +35,7 @@ T.Slider {
         implicitHeight: 22
         Rectangle {   // press halo
             anchors.centerIn: parent
-            width: 38; height: 38; radius: 19
+            width: 40; height: 40; radius: Theme.rPill
             color: Theme.accentTint
             opacity: control.pressed ? 1 : (control.hovered ? 0.55 : 0)
             scale: control.pressed ? 1 : 0.7
@@ -44,7 +44,7 @@ T.Slider {
         }
         Rectangle {
             anchors.fill: parent
-            radius: 11
+            radius: Theme.rPill
             color: Theme.knob
             border.width: 2
             border.color: control.enabled ? Theme.accent : Theme.textTertiary

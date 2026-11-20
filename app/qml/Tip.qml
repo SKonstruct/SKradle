@@ -15,9 +15,9 @@ Popup {
     padding: 0
     closePolicy: Popup.NoAutoClose
     focus: false
-    x: placement === "right" ? parent.width + 10 : Math.round((parent.width - width) / 2)
-    y: placement === "right" ? Math.round((parent.height - height) / 2) : parent.height + 8
-    width: Math.min(label.implicitWidth + 24, 320)
+    x: placement === "right" ? parent.width + Theme.s3 : Math.round((parent.width - width) / 2)
+    y: placement === "right" ? Math.round((parent.height - height) / 2) : parent.height + Theme.s2
+    width: Math.min(label.implicitWidth + 2 * Theme.s3, 320)
 
     onWantedChanged: if (wanted) timer.restart(); else { timer.stop(); close() }
     Timer { id: timer; interval: tip.delay; onTriggered: if (tip.wanted && tip.text.length) tip.open() }
@@ -32,22 +32,22 @@ Popup {
 
     background: Rectangle {
         transform: Translate { y: tip.slide }
-        radius: Theme.rSm + 2
-        color: Theme.dark ? "#2E2E2E" : "#262626"
+        radius: Theme.rSm
+        color: Theme.tipBg
         border.width: 1
-        border.color: Theme.dark ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.25)
+        border.color: Theme.tipBorder
     }
     contentItem: Item {
         transform: Translate { y: tip.slide }
-        implicitWidth: label.implicitWidth + 24
-        implicitHeight: label.implicitHeight + 14
+        implicitWidth: label.implicitWidth + 2 * Theme.s3
+        implicitHeight: label.implicitHeight + Theme.s3
         Txt {
             id: label
-            x: 12; y: 7
+            x: Theme.s3; y: Theme.s3 / 2
             width: Math.min(implicitWidth, 296)
             text: tip.text
             kind: "caption"
-            color: "#F2F2F2"
+            color: Theme.tipText
         }
     }
 }

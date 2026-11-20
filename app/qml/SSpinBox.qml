@@ -5,11 +5,11 @@ import QtQuick.Templates as T
 // Stepper: [-] value [+]
 T.SpinBox {
     id: control
-    implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, contentItem.implicitWidth + 2 * 40, 150)
-    implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset, 38)
+    implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, contentItem.implicitWidth + 2 * Theme.s10, 150)
+    implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset, Theme.hMd)
     editable: true
-    leftPadding: 40
-    rightPadding: 40
+    leftPadding: Theme.s10
+    rightPadding: Theme.s10
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
     Accessible.name: "Value"
@@ -33,23 +33,23 @@ T.SpinBox {
     }
     up.indicator: Rectangle {
         x: control.width - width
-        height: control.height; implicitWidth: 40; implicitHeight: 38
-        radius: 10
+        height: control.height; implicitWidth: Theme.s10; implicitHeight: Theme.hMd
+        radius: Theme.rSm
         color: control.up.pressed ? Theme.pressTint : control.up.hovered ? Theme.hoverTint : "transparent"
         Icon { anchors.centerIn: parent; name: "plus"; size: 16; color: control.value >= control.to || !control.enabled ? Theme.textTertiary : Theme.text }
     }
     down.indicator: Rectangle {
-        height: control.height; implicitWidth: 40; implicitHeight: 38
-        radius: 10
+        height: control.height; implicitWidth: Theme.s10; implicitHeight: Theme.hMd
+        radius: Theme.rSm
         color: control.down.pressed ? Theme.pressTint : control.down.hovered ? Theme.hoverTint : "transparent"
         Icon { anchors.centerIn: parent; name: "minus"; size: 16; color: control.value <= control.from || !control.enabled ? Theme.textTertiary : Theme.text }
     }
     background: Rectangle {
         implicitWidth: 140
-        radius: 10
+        radius: Theme.rSm
         color: Theme.field
         border.width: control.activeFocus ? 2 : 1
-        border.color: control.activeFocus ? Theme.accentFg : (control.hovered ? Theme.borderStrong : Theme.fieldBorder)
+        border.color: control.activeFocus ? Theme.accentFg : (control.hovered ? Theme.textSecondary : Theme.fieldBorder)
         Behavior on border.color { ColorAnimation { duration: Motion.fast } }
     }
 }

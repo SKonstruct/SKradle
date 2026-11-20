@@ -19,7 +19,11 @@ QtObject {
     readonly property int pillTrail: 320 * k   // pill edge catching up (this is the stretch)
     readonly property int progress: 420 * k    // smoothing of the displayed progress value
     readonly property int spin: 1000           // indeterminate ring, essential: kept under reduced motion
-    readonly property int pulse: 1900
+    readonly property int pulse: 1900          // live status dot only (never under reduce)
+    readonly property int loop: 1100           // indeterminate bars (real progress, kept under reduce)
+    // How long a toast stays. NOT scaled by `k`: reduced motion shortens animations, never how long a message can be read.
+    readonly property int toastInfo: 4000
+    readonly property int toastError: 8000
 
     readonly property var standard: [0.2, 0, 0, 1, 1, 1]
     readonly property var decel: [0.05, 0.7, 0.1, 1, 1, 1]

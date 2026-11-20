@@ -8,7 +8,7 @@ import QtQuick.Layouts
 Control {
     id: root
     property string reason
-    property int radius: Theme.rLg
+    property int radius: Theme.rMd
     property string icon: "lock"
     hoverEnabled: true
     activeFocusOnTab: visible
@@ -25,17 +25,17 @@ Control {
         Rectangle {
             id: chip
             anchors.centerIn: parent
-            width: Math.min(parent.width - 2 * Theme.s5, chipRow.implicitWidth + 28)
-            height: chipRow.implicitHeight + 18
-            radius: Math.min(height / 2, 20)
+            width: Math.min(parent.width - 2 * Theme.s5, chipRow.implicitWidth + 2 * Theme.s3)
+            height: chipRow.implicitHeight + 2 * Theme.s2
+            radius: Theme.rMd
             color: Theme.raised
             border.width: 1
             border.color: Theme.borderStrong
             RowLayout {
                 id: chipRow
-                x: 14; y: 9
-                width: chip.width - 28
-                spacing: 8
+                x: Theme.s3; y: Theme.s2
+                width: chip.width - 2 * Theme.s3
+                spacing: Theme.s2
                 Icon { name: root.icon; size: 16; color: Theme.textSecondary; Layout.alignment: Qt.AlignVCenter }
                 Txt {
                     Layout.fillWidth: true

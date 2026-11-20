@@ -6,13 +6,13 @@ T.ItemDelegate {
     id: control
     property bool danger: false
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, implicitContentWidth + leftPadding + rightPadding)
-    implicitHeight: 36
-    leftPadding: 12
-    rightPadding: 12
+    implicitHeight: Theme.hMd
+    leftPadding: Theme.s3
+    rightPadding: Theme.s3
     hoverEnabled: true
     background: Rectangle {
-        x: 4; width: parent.width - 8; height: parent.height
-        radius: 7
+        x: Theme.s1; width: parent.width - 2 * Theme.s1; height: parent.height
+        radius: Theme.rXs
         color: control.down ? Theme.pressTint : control.highlighted ? Theme.accentTint : control.hovered ? Theme.hoverTint : "transparent"
     }
     contentItem: Text {

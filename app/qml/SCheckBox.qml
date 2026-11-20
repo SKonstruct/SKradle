@@ -6,8 +6,8 @@ T.CheckBox {
     id: control
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, implicitContentWidth + leftPadding + rightPadding)
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset, implicitContentHeight + topPadding + bottomPadding, implicitIndicatorHeight + topPadding + bottomPadding)
-    padding: 4
-    spacing: 10
+    padding: Theme.s1
+    spacing: Theme.gapInline
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
     Accessible.name: text
@@ -17,7 +17,7 @@ T.CheckBox {
         implicitWidth: 20; implicitHeight: 20
         x: control.leftPadding
         y: control.topPadding + (control.availableHeight - height) / 2
-        radius: 6
+        radius: Theme.rXs
         color: control.checkState !== Qt.Unchecked ? (control.down ? Theme.accentPressed : control.hovered ? Theme.accentHover : Theme.accent)
              : (control.hovered ? Theme.hoverTint : "transparent")
         border.width: control.checkState !== Qt.Unchecked ? 0 : 1.5
