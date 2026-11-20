@@ -152,6 +152,7 @@ pub fn command_spec(layout: &ServerLayout, options: &HostOptions) -> CommandSpec
         program: options.java.clone(),
         args,
         cwd: layout.root().to_path_buf(),
+        env: Vec::new(),
     }
 }
 

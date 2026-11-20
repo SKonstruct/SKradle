@@ -23,6 +23,7 @@ use crate::getdown::{update_and_launch, CommandSpec};
 use crate::getdown_launch::{LaunchConfig, Target};
 use crate::getdown_txt::GetdownConfig;
 use crate::launch::direct::{self, DirectOptions, Inputs};
+use crate::launch::steam;
 use crate::mods::ApplyOptions;
 use crate::runtime::{pick_for_game, pick_for_graphics_agent, Runtime};
 use crate::servers::{self, Server};
@@ -53,6 +54,9 @@ pub struct PlanInputs<'a> {
     pub options: &'a DirectOptions,
     /// How mods are applied (file cleaning and purging).
     pub mod_options: ApplyOptions,
+    /// The Steam client is running (`launch::steam::client_running`). Only looked at for a Steam install on
+    /// Official, which signs in through that client.
+    pub steam_running: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -120,6 +124,8 @@ pub enum Refusal {
     UpdateRequiredForPrivateServer,
     /// A private server was chosen but game files are missing; let the updater repair the game first.
     GameFilesIncompleteForPrivateServer(Vec<String>),
+    /// A Steam install signs in through the running Steam client, and none is running.
+    SteamNotRunning,
     /// The game's `getdown.txt` could not be understood.
     Config(String),
 }
@@ -139,6 +145,10 @@ impl std::fmt::Display for Refusal {
                 "Game files are missing ({}). Repair the game before joining a private server.",
                 files.len()
             ),
+            Refusal::SteamNotRunning => write!(
+                f,
+                "Steam is not running. This copy of the game signs in through Steam: start Steam and sign in, then launch again."
+            ),
             Refusal::Config(why) => write!(f, "The game's configuration could not be read: {why}"),
         }
     }
@@ -148,6 +158,11 @@ impl std::error::Error for Refusal {}
 
 /// Decides how to launch. See the module documentation for the rules.
 pub fn plan(inputs: &PlanInputs<'_>) -> Result<Plan, Refusal> {
+    let private = inputs.server.is_some();
+    if steam::needs_client(inputs.install.kind, private) && !inputs.steam_running {
+        return Err(Refusal::SteamNotRunning);
+    }
+    let steam_env = steam::launch_environment(inputs.install.kind, private);
     let minimum = GetdownConfig::parse(&inputs.game_files.getdown_txt)
         .java_version
         .unwrap_or(0);
@@ -183,11 +198,13 @@ pub fn plan(inputs: &PlanInputs<'_>) -> Result<Plan, Refusal> {
             .iter()
             .map(std::ffi::OsString::from)
             .collect::<Vec<_>>();
-        let command = update_and_launch(
+        let mut command = update_and_launch(
             inputs.install,
             &game_java.java_executable(inputs.os),
             &jvm_args,
         );
+        // The updater's child inherits these, which is how the game gets them on this path.
+        command.env = steam_env;
         return Ok(Plan {
             steps: vec![
                 Step::CleanExtraTxt { game_root },
@@ -217,7 +234,7 @@ pub fn plan(inputs: &PlanInputs<'_>) -> Result<Plan, Refusal> {
             }
         },
     };
-    let command = direct::command(
+    let mut command = direct::command(
         inputs.install,
         &java.java_executable(inputs.os),
         inputs.game_files,
@@ -226,6 +243,7 @@ pub fn plan(inputs: &PlanInputs<'_>) -> Result<Plan, Refusal> {
         inputs.arch,
     )
     .map_err(|e| Refusal::Config(e.to_string()))?;
+    command.env = steam_env;
 
     let mut steps = Vec::new();
     if let Some(mods_dir) = inputs.mods_dir {
@@ -454,6 +472,7 @@ mod tests {
             update_pending: pending,
             options: &f.options,
             mod_options: ApplyOptions::default(),
+            steam_running: true,
         }
     }
 
@@ -744,6 +763,76 @@ mod tests {
         let launched = execute(&p, &mut fake).unwrap();
         assert_eq!(fake.log, ["clean", "spawn"]);
         assert_eq!(launched.kind, LaunchKind::Updater);
+    }
+
+    fn env_of(command: &CommandSpec) -> Vec<(String, String)> {
+        command
+            .env
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k.to_string_lossy().into_owned(),
+                    v.to_string_lossy().into_owned(),
+                )
+            })
+            .collect()
+    }
+
+    fn steam_ids() -> Vec<(String, String)> {
+        vec![
+            ("SteamAppId".into(), "99900".into()),
+            ("SteamGameId".into(), "99900".into()),
+        ]
+    }
+
+    #[test]
+    fn a_steam_install_gets_the_steam_environment_on_the_direct_path() {
+        let f = fixture();
+        let p = plan(&inputs(&f, None, None, None, false)).unwrap();
+        assert_eq!(kinds(&p), ["connection", "direct"]);
+        assert_eq!(env_of(spawn_of(&p)), steam_ids());
+    }
+
+    #[test]
+    fn a_steam_install_gets_the_steam_environment_on_the_updater_path() {
+        let f = fixture();
+        let p = plan(&inputs(&f, None, None, None, true)).unwrap();
+        assert_eq!(kinds(&p), ["clean", "updater"]);
+        assert_eq!(env_of(spawn_of(&p)), steam_ids());
+    }
+
+    #[test]
+    fn steam_not_running_refuses_both_paths_with_a_clear_sentence() {
+        let f = fixture();
+        for pending in [false, true] {
+            let mut i = inputs(&f, None, None, None, pending);
+            i.steam_running = false;
+            let refusal = plan(&i).unwrap_err();
+            assert_eq!(refusal, Refusal::SteamNotRunning);
+            assert!(refusal.to_string().starts_with("Steam is not running."));
+        }
+    }
+
+    #[test]
+    fn a_standalone_install_is_unchanged_and_does_not_look_for_steam() {
+        let mut f = fixture();
+        f.install.kind = InstallKind::Standalone;
+        for pending in [false, true] {
+            let mut i = inputs(&f, None, None, None, pending);
+            i.steam_running = false;
+            let p = plan(&i).unwrap();
+            assert!(spawn_of(&p).env.is_empty());
+        }
+    }
+
+    #[test]
+    fn a_private_server_on_a_steam_install_gets_no_steam_identity() {
+        let f = fixture();
+        let s = server();
+        let mut i = inputs(&f, Some(&s), None, None, false);
+        i.steam_running = false;
+        let p = plan(&i).unwrap();
+        assert!(spawn_of(&p).env.is_empty());
     }
 
     #[test]
