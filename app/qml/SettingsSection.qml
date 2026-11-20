@@ -15,7 +15,7 @@ Card {
         width: parent.width
         spacing: 0
         Txt {
-            Layout.margins: Theme.s5
+            Layout.margins: Theme.padCard
             Layout.bottomMargin: Theme.s1
             text: root.title
             kind: "heading"
@@ -26,6 +26,6 @@ Card {
             Layout.fillWidth: true
             spacing: 0
         }
-        Item { Layout.preferredHeight: Theme.s1 }
+        Item { Layout.preferredHeight: Theme.s2 }
     }
 }

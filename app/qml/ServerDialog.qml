@@ -3,13 +3,15 @@ import com.skradle.app
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The frame of every dialog on the Servers page: title, optional explanation, a scrolling body and a row of buttons.
+// The frame of every dialog: title, optional explanation, a scrolling body and a right-aligned row of buttons.
+// size: "form" (480 px, default) or "reading" (560 px, for text to read). An explicit preferredWidth still wins.
 // Modal; Tab stays inside it; Escape closes it; when it closes the focus goes back to the control that opened it.
 Popup {
     id: dlg
     property string title
     property string subtitle
-    property int preferredWidth: 460
+    property string size: "form"
+    property int preferredWidth: size === "reading" ? Theme.readMeasure : 480
     // The control that had the focus when the dialog opened (it gets it back).
     property Item opener: null
     // Where the focus goes when that control is gone (for example the row that was just deleted).
@@ -47,29 +49,29 @@ Popup {
     }
 
     Overlay.modal: Rectangle { color: Theme.scrim }
+    // Fade plus an 8 px rise (a transform, so the centring anchor keeps its binding).
+    property real rise: 0
     enter: Transition {
         ParallelAnimation {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Motion.base; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel }
-            NumberAnimation { property: "scale"; from: 0.95; to: 1; duration: Motion.slow * 0.85; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel }
+            NumberAnimation { property: "rise"; from: Theme.s2; to: 0; duration: Motion.base; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel }
         }
     }
     exit: Transition {
-        ParallelAnimation {
-            NumberAnimation { property: "opacity"; to: 0; duration: Motion.fast; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.accel }
-            NumberAnimation { property: "scale"; to: 0.97; duration: Motion.fast; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.accel }
-        }
+        NumberAnimation { property: "opacity"; to: 0; duration: Motion.pageOut; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.accel }
     }
-    background: Card { radius: Theme.rXl; fill: Theme.card }
+    background: Card { radius: Theme.rLg; fill: Theme.overlay; elevation: 3; transform: Translate { y: dlg.rise } }
 
     contentItem: ColumnLayout {
         spacing: 0
+        transform: Translate { y: dlg.rise }
         Accessible.role: Accessible.Dialog
         Accessible.name: dlg.title
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.margins: Theme.s6
+            Layout.margins: Theme.padDialog
             Layout.bottomMargin: Theme.s3
-            spacing: 4
+            spacing: Theme.s1
             Txt { Layout.fillWidth: true; text: dlg.title; kind: "title"; Accessible.role: Accessible.Heading }
             Txt { Layout.fillWidth: true; visible: dlg.subtitle.length > 0; text: dlg.subtitle; color: Theme.textSecondary }
         }
@@ -86,8 +88,8 @@ Popup {
             ScrollBar.vertical: SScrollBar {}
             ColumnLayout {
                 id: bodyCol
-                x: Theme.s6
-                width: flick.width - 2 * Theme.s6
+                x: Theme.padDialog
+                width: flick.width - 2 * Theme.padDialog
                 spacing: Theme.s2
             }
         }
@@ -95,8 +97,8 @@ Popup {
         RowLayout {
             id: buttonRow
             Layout.fillWidth: true
-            Layout.margins: Theme.s5
-            Layout.leftMargin: Theme.s6; Layout.rightMargin: Theme.s6
+            Layout.margins: Theme.s4
+            Layout.leftMargin: Theme.padDialog; Layout.rightMargin: Theme.padDialog
             spacing: Theme.s2
         }
     }

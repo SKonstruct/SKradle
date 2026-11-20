@@ -5,12 +5,14 @@ import QtQuick.Templates as T
 T.TextField {
     id: control
     property string glyph
+    property string label            // visible label of the field: becomes the accessible name
+    property bool invalid: false     // red border; show the sentence in a Txt below the field
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, contentWidth + leftPadding + rightPadding)
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset, contentHeight + topPadding + bottomPadding)
-    leftPadding: 12 + (glyph.length > 0 ? 26 : 0)
-    rightPadding: 12
-    topPadding: 8
-    bottomPadding: 8
+    leftPadding: Theme.s3 + (glyph.length > 0 ? Theme.s6 + Theme.s1 : 0)
+    rightPadding: Theme.s3
+    topPadding: Theme.s2
+    bottomPadding: Theme.s2
     font.pixelSize: Theme.fsBody
     color: enabled ? Theme.text : Theme.textTertiary
     placeholderTextColor: Theme.textTertiary
@@ -21,19 +23,19 @@ T.TextField {
     selectByMouse: true
     clip: true
     focusPolicy: Qt.StrongFocus
-    Accessible.name: placeholderText
+    Accessible.name: label.length > 0 ? label : placeholderText
 
     background: Rectangle {
         implicitWidth: 200
-        implicitHeight: 38
-        radius: 10
+        implicitHeight: Theme.hMd
+        radius: Theme.rSm
         color: Theme.field
-        border.width: control.activeFocus ? 2 : 1
-        border.color: control.activeFocus ? Theme.accentFg : (control.hovered ? Theme.borderStrong : Theme.fieldBorder)
+        border.width: control.activeFocus || control.invalid ? 2 : 1
+        border.color: control.invalid ? Theme.danger : control.activeFocus ? Theme.accentFg : (control.hovered ? Theme.textSecondary : Theme.fieldBorder)
         Behavior on border.color { ColorAnimation { duration: Motion.fast } }
         Icon {
             visible: control.glyph.length > 0
-            x: 12; anchors.verticalCenter: parent.verticalCenter
+            x: Theme.s3; anchors.verticalCenter: parent.verticalCenter
             name: control.glyph; size: 16
             color: control.activeFocus ? Theme.accentFg : Theme.textTertiary
         }

@@ -7,11 +7,11 @@ AbstractButton {
     property string glyph
     property bool selected: false
     property bool collapsed: false
-    implicitHeight: 42
+    implicitHeight: Theme.hNav
     hoverEnabled: true
     activeFocusOnTab: true
     focusPolicy: Qt.StrongFocus
-    property int radius: Theme.rMd
+    property int radius: Theme.rSm
     Accessible.role: Accessible.PageTab
     Accessible.name: text
     Accessible.selected: selected
@@ -26,7 +26,7 @@ AbstractButton {
     }
     contentItem: Item {
         Icon {
-            x: 14
+            x: Theme.s4 - 2
             anchors.verticalCenter: parent.verticalCenter
             name: root.glyph
             size: 20
@@ -34,8 +34,8 @@ AbstractButton {
             Behavior on color { ColorAnimation { duration: Motion.fast } }
         }
         Txt {
-            x: 14 + 20 + 12
-            width: parent.width - x - 8
+            x: Theme.s4 - 2 + 20 + Theme.s3
+            width: parent.width - x - Theme.s2
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
             wrapMode: Text.NoWrap

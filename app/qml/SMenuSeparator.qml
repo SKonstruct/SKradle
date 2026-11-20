@@ -7,7 +7,7 @@ T.MenuSeparator {
     implicitHeight: 9
     contentItem: Item {
         Rectangle {
-            x: 12; width: parent.width - 24; height: 1
+            x: Theme.s3; width: parent.width - 2 * Theme.s3; height: 1
             anchors.verticalCenter: parent.verticalCenter
             color: Theme.border
         }
