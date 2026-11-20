@@ -160,7 +160,9 @@ ApplicationWindow {
     // ---- screenshot driver (skradle --shots <dir> [--prefix name]) -----------------------------------------------
     readonly property var shotNames: ["home-ready", "home-updating", "home-launching", "home-running", "home-error", "home-firstrun",
         "home-collapsed", "home-scrolled", "servers", "servers-dialog", "mods", "mods-search", "mods-drop", "graphics", "graphics-running",
-        "about", "focus", "focus-controls", "servers-menu", "graphics-combo", "mods-toggle", "servers-myserver"]
+        "about", "focus", "focus-controls", "servers-menu", "graphics-combo", "mods-selected", "servers-myserver",
+        "mods-focus", "mods-tag", "mods-empty", "mods-nogame", "mods-confirm", "mods-issues", "mods-pack-update", "mods-pack-syncing",
+        "mods-pack-report", "mods-pack-error"]
     property int shotIndex: 0
     property int shotsFailed: 0
     function nextShot() {
@@ -197,7 +199,7 @@ ApplicationWindow {
         const hp = pageItem(0); if (hp) hp.scroller.contentY = 0
         const sv = pageItem(1); if (sv) sv.closeAll()
         const gp = pageItem(3); if (gp) gp.closeCombo()
-        const md = pageItem(2); if (md) { md.dropForced = false; md.setSearch(""); md.filter = "all" }
+        const md = pageItem(2); if (md) md.resetShot()
         switch (name) {
         case "home-ready": go(0); break
         case "home-updating": go(0); LaunchModel.force("updating", 0); break
@@ -218,7 +220,10 @@ ApplicationWindow {
         case "servers-menu": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.openMenu() }); break
         case "graphics-combo": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.openCombo() }); break
         case "focus-controls": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.focusSlider() }); break
-        case "mods-toggle": go(2); Qt.callLater(() => { const p = pageItem(2); if (p) { p.setOn(4, true); p.setOn(0, false) } }); break
+        case "mods-selected": case "mods-focus": case "mods-tag": case "mods-empty": case "mods-confirm": case "mods-issues":
+        case "mods-pack-update": case "mods-pack-syncing": case "mods-pack-report": case "mods-pack-error":
+            go(2); Qt.callLater(() => { const p = pageItem(2); if (p) p.shotState(name.substring(5)) }); break
+        case "mods-nogame": go(2); GameModel.force("notfound"); break
         case "servers-myserver": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.showHost = true }); break
         case "focus": go(1); Qt.callLater(() => side.focusItem(1)); break
         }

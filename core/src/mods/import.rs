@@ -72,7 +72,11 @@ pub fn validate(src: &Path) -> Result<Mod, Refusal> {
     if scanned.parts.is_empty() {
         return refuse("it is a modpack with no readable mods inside");
     }
-    if scanned.parts.iter().all(|p| p.applicable_files().next().is_none()) {
+    if scanned
+        .parts
+        .iter()
+        .all(|p| p.applicable_files().next().is_none())
+    {
         return refuse("it holds no files a mod could change");
     }
     Ok(scanned)
@@ -208,7 +212,10 @@ mod tests {
         let mods = tempfile::tempdir().unwrap();
         let cases: Vec<(PathBuf, &str)> = vec![
             (write(src.path(), "notes.txt", b"x"), "not a .zip"),
-            (write(src.path(), "broken.zip", b"not a zip"), "not a usable mod"),
+            (
+                write(src.path(), "broken.zip", b"not a zip"),
+                "not a usable mod",
+            ),
             (write(src.path(), ".hidden.zip", &good()), "hidden"),
             (
                 write(src.path(), "empty.zip", &simple_zip(&[("mod.json", b"{}")])),
@@ -245,14 +252,21 @@ mod tests {
         let real = write(src.path(), "real.zip", &good());
         let link = src.path().join("link.zip");
         std::os::unix::fs::symlink(&real, &link).unwrap();
-        assert!(import_file(&link, mods.path()).unwrap_err().0.contains("link"));
+        assert!(import_file(&link, mods.path())
+            .unwrap_err()
+            .0
+            .contains("link"));
     }
 
     #[test]
     fn an_empty_modpack_is_refused() {
         let src = tempfile::tempdir().unwrap();
         let mods = tempfile::tempdir().unwrap();
-        let p = write(src.path(), "p.modpack", &simple_zip(&[("readme.txt", b"x")]));
+        let p = write(
+            src.path(),
+            "p.modpack",
+            &simple_zip(&[("readme.txt", b"x")]),
+        );
         assert!(import_file(&p, mods.path()).is_err());
     }
 

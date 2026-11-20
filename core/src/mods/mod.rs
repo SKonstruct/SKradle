@@ -20,8 +20,8 @@ pub mod metadata;
 pub mod model;
 pub mod protected;
 pub mod source;
-pub mod tags;
 pub mod sync;
+pub mod tags;
 pub mod txn;
 
 pub use apply::{apply, restore_pristine, ApplyError, ApplyOptions, ApplyReport};

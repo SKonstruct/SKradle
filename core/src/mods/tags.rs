@@ -114,7 +114,10 @@ mod tests {
 
     #[test]
     fn textures_audio_and_other_resources() {
-        let m = scan("a.zip", simple_zip(&[("ui/a.PNG", b"1"), ("snd/b.ogg", b"2")]));
+        let m = scan(
+            "a.zip",
+            simple_zip(&[("ui/a.PNG", b"1"), ("snd/b.ogg", b"2")]),
+        );
         assert_eq!(ids(&m), ["textures", "audio"]);
         let m = scan("b.zip", simple_zip(&[("item/x/model.dat", b"1")]));
         assert_eq!(ids(&m), ["resources"]);
@@ -128,7 +131,10 @@ mod tests {
     #[test]
     fn class_and_locale_mods() {
         let json = br#"{"mod":{"type":"class","locale":{"messages.properties":{"k":"v"}}}}"#;
-        let m = scan("c.jar", simple_zip(&[("mod.json", json), ("a/B.class", b"x")]));
+        let m = scan(
+            "c.jar",
+            simple_zip(&[("mod.json", json), ("a/B.class", b"x")]),
+        );
         assert_eq!(ids(&m), ["code", "text"]);
     }
 
@@ -144,7 +150,10 @@ mod tests {
 
     #[test]
     fn metadata_files_alone_earn_no_tag() {
-        let m = scan("e.zip", simple_zip(&[("mod.json", b"{}"), ("mod.png", b"x")]));
+        let m = scan(
+            "e.zip",
+            simple_zip(&[("mod.json", b"{}"), ("mod.png", b"x")]),
+        );
         assert!(tags_of(&m).is_empty());
     }
 }

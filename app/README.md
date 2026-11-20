@@ -73,6 +73,7 @@ result back with cxx-qt's `CxxQtThread::queue`.
 | `LaunchModel` | `state` (`ready` `updating` `launching` `running` `error`) `step` (`checking` `downloading`) `message progress determinate` | `start(path) stop() cancel() dismiss() force(state, progress)` |
 | `UpdateModel` | `state` (`idle checking uptodate available downloading ready error`) `version progress message` | `check() download() install() skip()` |
 | `ServerHost` | `state url message` | `refresh()` |
+| `ModsModel` | `items tags folder folderUrl error busy loaded result packState packMessage packCurrent packTotal packName packChanges packReport` (JSON strings for lists) | `refresh(version) setEnabled(json, on) remove(json) add(json) ensureFolder() checkPack() syncPack() cancelSync() dismissReport() forcePack(state)` |
 
 `force(...)` exists for screenshots and does nothing else. The state properties have a `WRITE` only because cxx-qt
 generates its Rust setter from it; nothing in QML assigns them.
@@ -182,6 +183,6 @@ Real: game discovery and the custom folder, Java choice and the launch state mac
 (`UpdateModel`: check on request, download with SHA-256 check, start the installer), crash-report switch, theme,
 reduced motion, language.
 
-Placeholder (`Data.qml`, each marked): news (`TODO(backend)`), servers list (`TODO(serverhost)`), mods and mod updates
-(`TODO(mods)`), graphics presets and the Graphics page's effect on the game (`TODO(graphics)`), and the "My server"
+Placeholder (`Data.qml`, each marked): news (`TODO(backend)`), servers list (`TODO(serverhost)`), mod updates on Home
+(`TODO(mods)`; the Mods page itself is real), graphics presets and the Graphics page's effect on the game (`TODO(graphics)`), and the "My server"
 host (`TODO(serverhost)`).

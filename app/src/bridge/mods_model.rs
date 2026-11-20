@@ -248,7 +248,8 @@ impl qobject::ModsModel {
         let seq = self.seq;
         let mut value = serde_json::to_value(outcome).unwrap_or_default();
         value["seq"] = json!(seq);
-        self.as_mut().set_result(QString::from(value.to_string().as_str()));
+        self.as_mut()
+            .set_result(QString::from(value.to_string().as_str()));
     }
 
     pub fn refresh(mut self: Pin<&mut Self>, game_version: &QString) {
@@ -312,10 +313,7 @@ impl qobject::ModsModel {
     }
 
     pub fn check_pack(mut self: Pin<&mut Self>) {
-        if matches!(
-            self.pack_state.to_string().as_str(),
-            "checking" | "syncing"
-        ) {
+        if matches!(self.pack_state.to_string().as_str(), "checking" | "syncing") {
             return;
         }
         let Some(dir) = self.dir.clone() else {

@@ -4,36 +4,36 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Shapes
 
-// Drop affordance: dashed outline, turns into a solid brand-tinted target while a drag hovers (or when forced).
+// Drop affordance: dashed outline, a solid brand-tinted target while a drag hovers. The page owns the DropArea (the
+// whole page accepts a drop) and tells this item through `dragging`. Enter or Space opens the file dialog.
 Control {
     id: root
     property bool forceActive: false
-    readonly property bool active: da.containsDrag || forceActive
-    signal dropped(int count)
-    implicitHeight: 84
+    property bool dragging: false
+    // A bigger, explaining version for an empty mods folder.
+    property bool roomy: false
+    readonly property bool active: (dragging || forceActive) && enabled
+    signal browse()
+    implicitHeight: roomy ? 168 : 76
     hoverEnabled: true
     activeFocusOnTab: true
     focusPolicy: Qt.StrongFocus
     property int radius: Theme.rLg
     Accessible.role: Accessible.Button
-    Accessible.name: qsTr("Drop mod files here, or press Enter to browse")
-    Keys.onReturnPressed: Data.toast(qsTr("Browse for mod files…"))
-    Keys.onSpacePressed: Data.toast(qsTr("Browse for mod files…"))
+    Accessible.name: qsTr("Add mod files. Drop files here, or press Enter to choose files.")
+    Keys.onReturnPressed: if (enabled) root.browse()
+    Keys.onEnterPressed: if (enabled) root.browse()
+    Keys.onSpacePressed: if (enabled) root.browse()
+    opacity: enabled ? 1 : 0.5
 
-    DropArea {
-        id: da
-        anchors.fill: parent
-        onDropped: (drop) => root.dropped(drop.urls.length)
-    }
-    TapHandler { onTapped: Data.toast(qsTr("Browse for mod files…")) }
+    TapHandler { enabled: root.enabled; onTapped: { root.forceActiveFocus(Qt.MouseFocusReason); root.browse() } }
 
     background: Item {
         Rectangle {
-            id: tint
             anchors.fill: parent
             radius: root.radius
             color: Theme.accentTint
-            opacity: root.active ? 1 : (root.hovered ? 0.4 : 0)
+            opacity: root.active ? 1 : (root.hovered && root.enabled ? 0.4 : 0)
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
         }
         Shape {
@@ -51,32 +51,34 @@ Control {
         }
     }
     contentItem: Item {
+        ColumnLayout {
+            visible: root.roomy
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 2 * Theme.s5, 460)
+            spacing: Theme.s2
+            Icon { Layout.alignment: Qt.AlignHCenter; name: "upload"; size: 32; color: root.active ? Theme.accent : Theme.textSecondary }
+            Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; kind: "heading"; text: root.active ? qsTr("Release to add") : qsTr("No mods yet") }
+            Txt { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; color: Theme.textSecondary; text: qsTr("Drop .zip, .jar or .modpack files here, or click to choose them. Each file is checked before it is copied in.") }
+        }
         RowLayout {
+            visible: !root.roomy
             anchors.centerIn: parent
             width: Math.min(parent.width - 2 * Theme.s5, implicitWidth)
             spacing: Theme.s4
-            Item {
-                Layout.preferredWidth: 40; Layout.preferredHeight: 40
+            Icon {
                 Layout.alignment: Qt.AlignVCenter
-                Icon {
-                    anchors.centerIn: parent
-                    anchors.verticalCenterOffset: root.active ? -3 : 0
-                    name: "upload"; size: 26
-                    color: root.active ? Theme.accent : Theme.textSecondary
-                    Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: Motion.base; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel } }
-                    Behavior on color { ColorAnimation { duration: Motion.base } }
-                }
+                name: "upload"; size: 26
+                color: root.active ? Theme.accent : Theme.textSecondary
+                Behavior on color { ColorAnimation { duration: Motion.base } }
             }
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
                 spacing: 2
                 Txt { Layout.fillWidth: true; text: root.active ? qsTr("Release to add") : qsTr("Drop mod files here"); font.weight: Font.Medium }
-                Txt { Layout.fillWidth: true; text: qsTr("Accepts .jar and .zip. Or click to browse."); kind: "caption" }
+                Txt { Layout.fillWidth: true; text: qsTr("Accepts .zip, .jar and .modpack. Or click to choose files."); kind: "caption" }
             }
         }
     }
-    scale: root.active ? 1.006 : 1
-    Behavior on scale { NumberAnimation { duration: Motion.base; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.decel } }
     FocusRing {}
 }

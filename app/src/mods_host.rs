@@ -115,12 +115,19 @@ pub fn item_view(dir: &Path, m: &InstalledMod, game_version: Option<&str>) -> It
             for p in &scanned.parts {
                 v.warnings.extend(p.warnings.iter().cloned());
             }
-            v.incompatible = scanned.parts.iter().any(|p| !p.compatible_with(game_version));
+            v.incompatible = scanned
+                .parts
+                .iter()
+                .any(|p| !p.compatible_with(game_version));
         }
     }
     v.search = format!(
         "{} {} {} {} {}",
-        v.name, v.file, v.author, v.description, v.tags.join(" ")
+        v.name,
+        v.file,
+        v.author,
+        v.description,
+        v.tags.join(" ")
     )
     .to_lowercase();
     v
@@ -373,7 +380,9 @@ mod tests {
     fn tags_exist_only_for_what_is_installed() {
         let dir = tempfile::tempdir().unwrap();
         assert!(build_listing(dir.path(), None).tags.is_empty());
-        assert!(build_listing(&dir.path().join("missing"), None).items.is_empty());
+        assert!(build_listing(&dir.path().join("missing"), None)
+            .items
+            .is_empty());
     }
 
     #[test]
@@ -388,11 +397,27 @@ mod tests {
         )
         .unwrap();
         jar.set("A.class", b"x".to_vec()).unwrap();
-        std::fs::write(dir.path().join("Damage Numbers.jar"), jar.to_bytes().unwrap()).unwrap();
+        std::fs::write(
+            dir.path().join("Damage Numbers.jar"),
+            jar.to_bytes().unwrap(),
+        )
+        .unwrap();
         let l = build_listing(dir.path(), Some("222"));
-        assert!(l.items.iter().find(|i| i.file == "Damage Numbers.jar").unwrap().incompatible);
+        assert!(
+            l.items
+                .iter()
+                .find(|i| i.file == "Damage Numbers.jar")
+                .unwrap()
+                .incompatible
+        );
         let l = build_listing(dir.path(), None);
-        assert!(!l.items.iter().find(|i| i.file == "Damage Numbers.jar").unwrap().incompatible);
+        assert!(
+            !l.items
+                .iter()
+                .find(|i| i.file == "Damage Numbers.jar")
+                .unwrap()
+                .incompatible
+        );
     }
 
     #[test]
@@ -401,13 +426,21 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_fixtures(src.path()).unwrap();
         std::fs::write(src.path().join("notes.txt"), b"x").unwrap();
-        let sources: Vec<String> = ["Sharp HUD.zip", "Broken Mod.zip", "notes.txt", "Sharp HUD.zip"]
-            .iter()
-            .map(|n| file_url(&src.path().join(n)))
-            .collect();
+        let sources: Vec<String> = [
+            "Sharp HUD.zip",
+            "Broken Mod.zip",
+            "notes.txt",
+            "Sharp HUD.zip",
+        ]
+        .iter()
+        .map(|n| file_url(&src.path().join(n)))
+        .collect();
         let out = add_all(dir.path(), &sources);
         assert_eq!(out.ok, 2);
-        assert_eq!(out.renamed, [("Sharp HUD.zip".into(), "Sharp HUD (2).zip".into())]);
+        assert_eq!(
+            out.renamed,
+            [("Sharp HUD.zip".into(), "Sharp HUD (2).zip".into())]
+        );
         let failed: Vec<_> = out.failed.iter().map(|f| f.0.as_str()).collect();
         assert_eq!(failed, ["Broken Mod.zip", "notes.txt"]);
 
@@ -415,7 +448,14 @@ mod tests {
         let off = set_enabled_all(dir.path(), &files, false);
         assert_eq!(off.ok, 2, "a disabled entry for a missing mod is harmless");
         let listing = build_listing(dir.path(), None);
-        assert!(!listing.items.iter().find(|i| i.file == "Sharp HUD.zip").unwrap().enabled);
+        assert!(
+            !listing
+                .items
+                .iter()
+                .find(|i| i.file == "Sharp HUD.zip")
+                .unwrap()
+                .enabled
+        );
         let gone = remove_all(dir.path(), &files);
         assert_eq!(gone.ok, 1);
         assert_eq!(gone.failed.len(), 1);

@@ -158,6 +158,28 @@ link (a link at the target is replaced, never followed); a file where a folder i
   others.
 - GitHub's unauthenticated API allows 60 requests per hour per address; a refused request is reported as an error.
 
+## In the app
+
+The Mods page (`ModsPage.qml`, bridge `ModsModel`, logic in `app/src/mods_host.rs`) manages the folder
+`<data dir>/SKradle/mods` (`SKRADLE_MODS_DIR` overrides it for tests); apply still happens at launch.
+
+- **List:** every mod with `mod.json` name, version, author and description, file name, container and size. A mod
+  that does not scan is shown with its error. The switch writes `.skradle-mods.json` (`list::set_enabled`).
+- **Tags** come from the scan only (`mods::tags`): modpack, code (class mod), textures (images), audio, text (locale
+  changes), game files (other loose files), problem (unreadable). The filter chips list only tags that exist, with counts.
+- **Adding** (drop anywhere on the page, or a file dialog): each file goes through `mods::import`: a regular file
+  (no folder, no link) with a mod extension and a visible name, at most 1 GiB, that scans and holds files. It is
+  copied to a hidden temporary name, scanned again, then linked into place; a taken name gets ` (2)`, never an
+  overwrite. Refusals are listed per file with the reason, plus one summary toast.
+- **Selection and keys:** click, Ctrl/Cmd+click, Shift+click; Ctrl/Cmd+A, Esc; Up/Down, Shift+Up/Down, Home/End;
+  Space switches the selected (else focused) mods, Delete removes after a confirmation. The list is one tab stop.
+- **Remove** deletes the file and its switch entry. A file the modpack sync wrote returns at the next sync while the pack still lists it.
+- **Modpack:** `sync::status` (one listing request) decides "install", "update (N files)" or "up to date"; the button
+  runs `sync::sync_cancellable` on a worker thread with file n of total, then shows the report (downloaded, current,
+  removed, failed with reasons). Cancel stops before the next file (the running download completes), deletes nothing
+  and keeps earlier claims. No network gives an error state with a retry button.
+- All actions are off while no game is found.
+
 ## Limits
 
 - Behaviour inside the game (whether the game loads what apply writes, including the `rsrc/rsrc/` case and `.jar`
