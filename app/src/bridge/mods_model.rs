@@ -182,7 +182,11 @@ fn report_json(r: &SyncReport) -> String {
         "downloaded": r.downloaded,
         "skipped": r.skipped.len(),
         "deleted": r.deleted,
-        "failed": r.failed,
+        "failed": r
+            .failed
+            .iter()
+            .map(|(file, why)| (file, mods_host::plain_pack_file(why)))
+            .collect::<Vec<_>>(),
         "warnings": r.warnings,
         "cancelled": r.cancelled,
     })
@@ -294,7 +298,9 @@ impl qobject::ModsModel {
     }
 
     fn fail_pack(mut self: Pin<&mut Self>, why: &str) {
-        self.as_mut().set_pack_message(QString::from(why));
+        eprintln!("skradle: modpack: {why}");
+        self.as_mut()
+            .set_pack_message(QString::from(mods_host::plain_pack_error(why).as_str()));
         self.as_mut().set_pack_state(QString::from("error"));
     }
 

@@ -244,27 +244,11 @@
 <context>
     <name>DropZone</name>
     <message>
-        <source>Add mod files. Drop files here, or press Enter to choose files.</source>
+        <source>Release to add mods</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Release to add</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No mods yet</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Drop .zip, .jar or .modpack files here, or click to choose them. Each file is checked before it is copied in.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Drop mod files here</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Accepts .zip, .jar and .modpack. Or click to choose files.</source>
+        <source>Accepts .zip, .jar and .modpack files. Each one is checked before it is copied in.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -603,17 +587,32 @@
     </message>
 </context>
 <context>
+    <name>ModFilters</name>
+    <message>
+        <source>Show by status</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show by type</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>ModRow</name>
+    <message>
+        <source>Built for another game version, so it is skipped at launch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(+%1 more)</source>
+        <translation type="unfinished"></translation>
+    </message>
     <message>
         <source>enabled</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>disabled</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>has a warning</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -626,14 +625,6 @@
     </message>
     <message>
         <source>%1 mods</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cannot be used: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Built for another game version. It is skipped when the game starts.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -729,7 +720,19 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Showing %1 of %2 mods</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>%1 of %2 enabled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the mods folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -738,18 +741,6 @@
     </message>
     <message>
         <source>Spiral Knights was not found, so mods are switched off here. Set up the game on the Home page first.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Details</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dismiss</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dismiss the details</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -765,70 +756,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Selected. Click to show every type.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Showing %1 of %2 mods. </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Pick one status and one type. A mod must match both and the search to be listed.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>%n selected</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Enable</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Enable the selected mods</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disable</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Disable the selected mods</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Remove</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Remove the selected mods</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Clear</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Clear the selection</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Click selects. %1+click adds or removes one, Shift+click selects a range, %1+A selects all, Esc clears. Up and Down move, Space switches, Delete removes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Mod</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>On</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -840,7 +772,83 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>No mods yet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drop .zip, .jar or .modpack files anywhere on this page, or choose them. Each file is checked before it is copied in. You can also install the modpack above.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spiral Knights was not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mods are applied when the game starts, so the game has to be set up first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>The mods folder could not be read</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selecting and switching</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select one mod</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add or remove one</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shift + click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select all</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Up, Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Space</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch on or off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Esc</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -871,15 +879,31 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open mods folder</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Add mods…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All types</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Home</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some files need attention</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Done</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keyboard shortcuts</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1016,61 +1040,53 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Checking the modpack…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not installed</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Update available</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Up to date</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Downloading %1 of %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not reach the modpack</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Maintained modpack</source>
+        <source>Checking for changes…</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <source>%n mod(s) to download. Each file is checked against its published hash.</source>
+        <source>Not installed. %n mod(s) to download.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
             <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
-        <source>%n file(s) changed upstream. Only those are downloaded.</source>
+        <source>Update available. %n file(s) changed.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
             <numerusform></numerusform>
         </translation>
     </message>
     <message>
-        <source>Every file matches the published modpack.</source>
+        <source>Downloading %1 of %2: %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Check your internet connection and try again. (%1)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Installs the maintained collection of mods and keeps it up to date. Mods you added yourself are never touched.</source>
+        <source>A maintained collection of mods. Mods you added are never touched.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Modpack</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide what the last sync did</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show what the last sync did</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1099,6 +1115,10 @@
     </message>
     <message>
         <source>Modpack download progress</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing needed attention.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1145,6 +1165,55 @@
     <name>SButton</name>
     <message>
         <source>Working</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>SelectionBar</name>
+    <message numerus="yes">
+        <source>%n mod(s) selected</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n selected</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Enable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable the selected mods</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable the selected mods</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove the selected mods</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear the selection</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -2247,27 +2316,47 @@ Content URL: %4</source>
 <context>
     <name>VersionBlock</name>
     <message>
-        <source>Unreleased</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Version %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1, shown. Press to minimise.</source>
+        <source>Next version</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1, hidden. Press to maximise.</source>
+        <source>New</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Minimise</source>
+        <source>Changed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Maximise</source>
+        <source>Fixed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Security</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Press Enter to open %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expanded. Press to collapse.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Collapsed. Press to expand.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not released yet</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -3,14 +3,17 @@ import com.skradle.app
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The maintained modpack: install it, keep it up to date, see what a sync did. State comes from ModsModel.
+// The maintained modpack as a compact card: name, one line of status, the button for the next step. What the last
+// sync did opens under it on demand. State comes from ModsModel.
 Card {
     id: root
     property bool usable: true
+    property bool open: false
     readonly property string st: ModsModel.packState
     readonly property var report: { try { return ModsModel.packReport === "" ? null : JSON.parse(ModsModel.packReport) } catch (e) { return null } }
     signal checkRequested()
-    implicitHeight: col.implicitHeight + 2 * Theme.s5
+    elevation: 0
+    implicitHeight: col.implicitHeight + 2 * Theme.s3
 
     function reportSummary(r) {
         const parts = []
@@ -20,52 +23,58 @@ Card {
         if (r.failed.length > 0) parts.push(qsTr("%n failed", "", r.failed.length))
         return (r.cancelled ? qsTr("Stopped. ") : "") + parts.join(", ")
     }
-    readonly property string headline: {
+    readonly property string status: {
         switch (st) {
-        case "checking": return qsTr("Checking the modpack…")
-        case "notinstalled": return qsTr("Not installed")
-        case "update": return qsTr("Update available")
+        case "checking": return qsTr("Checking for changes…")
+        case "notinstalled": return qsTr("Not installed. %n mod(s) to download.", "", ModsModel.packTotal)
+        case "update": return qsTr("Update available. %n file(s) changed.", "", ModsModel.packChanges)
         case "current": return qsTr("Up to date")
-        case "syncing": return qsTr("Downloading %1 of %2").arg(ModsModel.packCurrent).arg(ModsModel.packTotal)
-        case "error": return qsTr("Could not reach the modpack")
+        case "syncing": return qsTr("Downloading %1 of %2: %3").arg(ModsModel.packCurrent).arg(ModsModel.packTotal).arg(ModsModel.packName)
+        case "error": return ModsModel.packMessage
         }
-        return qsTr("Maintained modpack")
+        return qsTr("A maintained collection of mods. Mods you added are never touched.")
     }
-    readonly property string detail: {
-        switch (st) {
-        case "notinstalled": return qsTr("%n mod(s) to download. Each file is checked against its published hash.", "", ModsModel.packTotal)
-        case "update": return qsTr("%n file(s) changed upstream. Only those are downloaded.", "", ModsModel.packChanges)
-        case "current": return qsTr("Every file matches the published modpack.")
-        case "syncing": return ModsModel.packName
-        case "error": return qsTr("Check your internet connection and try again. (%1)").arg(ModsModel.packMessage)
-        case "checking": return ""
-        }
-        return qsTr("Installs the maintained collection of mods and keeps it up to date. Mods you added yourself are never touched.")
-    }
+    readonly property bool bad: st === "error" || (report !== null && report.failed.length > 0)
 
     ColumnLayout {
         id: col
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.s5 }
+        anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.s3 }
         spacing: Theme.s3
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.s4
+            spacing: Theme.s3
             Rectangle {
-                Layout.preferredWidth: 44; Layout.preferredHeight: 44; radius: 11
-                color: root.st === "error" ? Theme.amberTint : Theme.accentTint
+                Layout.preferredWidth: Theme.hMd; Layout.preferredHeight: Theme.hMd; radius: Theme.rSm
+                color: root.st === "error" ? Theme.warnTint : Theme.raised
                 Icon {
-                    anchors.centerIn: parent; size: 22
+                    anchors.centerIn: parent; size: 18
                     name: root.st === "error" ? "warning" : root.st === "current" ? "check" : "download"
-                    color: root.st === "error" ? Theme.amberText : Theme.accentFg
+                    color: root.st === "error" ? Theme.amberText : Theme.textSecondary
                 }
             }
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 2
-                Txt { Layout.fillWidth: true; text: qsTr("Modpack"); kind: "heading"; Accessible.role: Accessible.Heading }
-                Txt { Layout.fillWidth: true; text: root.headline; font.weight: Font.Medium; color: root.st === "error" ? Theme.amberText : Theme.text; elide: Text.ElideRight; wrapMode: Text.NoWrap }
-                Txt { Layout.fillWidth: true; visible: root.detail.length > 0; text: root.detail; kind: "caption"; elide: root.st === "syncing" ? Text.ElideMiddle : Text.ElideNone; wrapMode: root.st === "syncing" ? Text.NoWrap : Text.WordWrap }
+                spacing: 0
+                Txt { Layout.fillWidth: true; text: qsTr("Modpack"); font.weight: Font.Medium; wrapMode: Text.NoWrap; Accessible.role: Accessible.Heading }
+                Txt {
+                    Layout.fillWidth: true
+                    text: root.status + (root.report && root.st !== "syncing" && root.st !== "error" ? " · " + root.reportSummary(root.report) : "")
+                    kind: "caption"
+                    color: root.st === "error" ? Theme.amberText : Theme.textSecondary
+                    wrapMode: Text.NoWrap
+                    elide: Text.ElideRight
+                    HoverHandler { id: statusHover }
+                    Tip { text: parent.text; wanted: statusHover.hovered && parent.truncated }
+                }
+            }
+            SButton {
+                visible: root.report !== null && root.st !== "syncing"
+                variant: "ghost"
+                size: "sm"
+                text: root.open ? qsTr("Hide details") : qsTr("Details")
+                Accessible.name: root.open ? qsTr("Hide what the last sync did") : qsTr("Show what the last sync did")
+                onClicked: root.open = !root.open
             }
             SButton {
                 visible: root.st === "syncing"
@@ -75,7 +84,6 @@ Card {
             }
             SButton {
                 visible: root.st === "unknown" || root.st === "notinstalled" || root.st === "update"
-                highlighted: true
                 enabled: root.usable && !ModsModel.busy
                 glyph: root.st === "update" ? "refresh" : "download"
                 text: root.st === "update" ? qsTr("Update modpack") : qsTr("Install modpack")
@@ -92,13 +100,14 @@ Card {
 
         Rectangle {   // determinate progress (file n of total)
             Layout.fillWidth: true
+            Layout.topMargin: -Theme.s1
             visible: root.st === "syncing"
-            implicitHeight: 6; radius: 3
+            implicitHeight: Theme.s1; radius: Theme.rXs
             color: Theme.track
             Accessible.role: Accessible.ProgressBar
             Accessible.name: qsTr("Modpack download progress")
             Rectangle {
-                height: parent.height; radius: 3
+                height: parent.height; radius: Theme.rXs
                 color: Theme.accent
                 width: ModsModel.packTotal > 0 ? parent.width * Math.max(0, ModsModel.packCurrent - 1) / ModsModel.packTotal : 0
                 Behavior on width { NumberAnimation { duration: Motion.base } }
@@ -107,22 +116,18 @@ Card {
 
         ColumnLayout {   // what the last sync did
             Layout.fillWidth: true
-            visible: root.report !== null
-            spacing: Theme.s2
+            visible: root.open && root.report !== null && root.st !== "syncing"
+            spacing: Theme.s1
             Divider {}
-            RowLayout {
-                Layout.fillWidth: true
-                Txt { Layout.fillWidth: true; text: root.report ? root.reportSummary(root.report) : ""; font.weight: Font.Medium }
-                SButton { variant: "ghost"; text: qsTr("Dismiss"); Accessible.name: qsTr("Dismiss the modpack report"); onClicked: ModsModel.dismissReport() }
-            }
             Repeater {
                 model: root.report ? root.report.failed : []
-                delegate: Txt {
+                delegate: RowLayout {
                     required property var modelData
                     Layout.fillWidth: true
-                    text: modelData[0] + ": " + modelData[1]
-                    kind: "caption"
-                    color: Theme.danger
+                    Layout.topMargin: Theme.s1
+                    spacing: Theme.s2
+                    Icon { Layout.alignment: Qt.AlignTop; name: "error"; size: 14; color: Theme.danger }
+                    Txt { Layout.fillWidth: true; text: modelData[0] + ": " + modelData[1]; kind: "caption"; color: Theme.danger }
                 }
             }
             Repeater {
@@ -133,6 +138,19 @@ Card {
                     text: qsTr("Removed %1 (dropped from the modpack)").arg(modelData)
                     kind: "caption"
                 }
+            }
+            Txt {
+                Layout.fillWidth: true
+                visible: root.report && root.report.failed.length === 0 && root.report.deleted.length === 0
+                text: qsTr("Nothing needed attention.")
+                kind: "caption"
+            }
+            SButton {
+                Layout.alignment: Qt.AlignRight
+                variant: "ghost"; size: "sm"
+                text: qsTr("Dismiss")
+                Accessible.name: qsTr("Dismiss the modpack report")
+                onClicked: { root.open = false; ModsModel.dismissReport() }
             }
         }
     }

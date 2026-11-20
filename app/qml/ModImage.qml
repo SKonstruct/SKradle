@@ -2,15 +2,15 @@ import QtQuick
 import QtQuick.Effects
 import com.skradle.app
 
-// A mod's picture at a fixed size with rounded corners, or the generic mod glyph when it has none (or the file
-// cannot be shown). `source` is a file URL from the core's checked cache, or "".
+// A mod's picture, 40 px, rounded to the small radius, or a quiet neutral tile when it has none (or the file cannot
+// be shown). `source` is a file URL from the core's checked cache, or "". A mod with a warning gets the amber tile.
 Item {
     id: root
     property url source
     property bool warned: false
-    property int radius: 12
-    implicitWidth: 48
-    implicitHeight: 48
+    property int radius: Theme.rSm
+    implicitWidth: 40
+    implicitHeight: 40
     width: implicitWidth
     height: implicitHeight
 
@@ -21,15 +21,15 @@ Item {
     Rectangle {   // the placeholder, and the frame behind a picture
         anchors.fill: parent
         radius: root.radius
-        color: root.warned ? Theme.amberTint : Theme.accentTint
+        color: root.warned ? Theme.warnTint : Theme.raised
         border.width: 1
         border.color: Theme.border
         Icon {
             visible: !root.shown
             anchors.centerIn: parent
             name: "mods"
-            size: 24
-            color: root.warned ? Theme.amberText : Theme.accentFg
+            size: 20
+            color: root.warned ? Theme.amberText : Theme.textTertiary
         }
     }
     Image {

@@ -178,7 +178,7 @@ ApplicationWindow {
         "settings-general", "settings-game", "settings-files", "settings-graphics", "settings-graphics-running", "settings-integrations",
         "settings-tools", "settings-about", "settings-reset", "toast-error", "toast-info", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
         "mods-selected", "mods-focus", "mods-tag", "mods-empty", "mods-nogame", "mods-confirm", "mods-issues", "mods-pack-update",
-        "mods-pack-syncing", "mods-pack-report", "mods-pack-error",
+        "mods-pack-syncing", "mods-pack-report", "mods-pack-error", "mods-help",
         "mods-enabled", "mods-disabled", "mods-warning", "mods-combo", "mods-long", "mods-nomatch", "mods-scroll1", "mods-scroll2",
         "srv-notinstalled", "srv-offline", "srv-install", "srv-busy", "srv-nojava", "srv-stopped", "srv-starting", "srv-running", "srv-running-lan",
         "srv-failed", "srv-manage", "srv-portbusy", "srv-backup", "srv-add", "srv-add-errors", "srv-edit", "srv-info", "srv-delete", "srv-selected-menu"]
@@ -261,7 +261,7 @@ ApplicationWindow {
         case "settings-combo": go(3); Qt.callLater(() => pageItem(3).scrollTo(1)); Qt.callLater(() => { const p = pageItem(3); if (p) p.openCombo() }); break
         case "focus-controls": go(3); Qt.callLater(() => pageItem(3).scrollTo(1)); Qt.callLater(() => { const p = pageItem(3); if (p) p.focusSlider() }); break
         case "mods-selected": case "mods-focus": case "mods-tag": case "mods-empty": case "mods-confirm": case "mods-issues":
-        case "mods-pack-update": case "mods-pack-syncing": case "mods-pack-report": case "mods-pack-error":
+        case "mods-pack-update": case "mods-pack-syncing": case "mods-pack-report": case "mods-pack-error": case "mods-help":
         case "mods-enabled": case "mods-disabled": case "mods-warning": case "mods-combo": case "mods-long": case "mods-nomatch": case "mods-scroll1": case "mods-scroll2":
             go(2); Qt.callLater(() => { const p = pageItem(2); if (p) p.shotState(name.substring(5)) }); break
         case "mods-nogame": go(2); GameModel.force("notfound"); break
