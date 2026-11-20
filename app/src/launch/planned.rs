@@ -17,8 +17,9 @@ use std::time::Duration;
 use skradle_core::getdown::CommandSpec;
 use skradle_core::graphics::{agent_args, GraphicsSettings};
 use skradle_core::install::LATEST_GETDOWN_TXT_URL;
-use skradle_core::launch::direct::{DirectOptions, Inputs, Memory};
+use skradle_core::launch::direct::{DirectOptions, GarbageCollector, Inputs, Memory};
 use skradle_core::launch::plan::{self as core_plan, Effects, LaunchKind, PlanInputs, RealEffects};
+use skradle_core::mods::ApplyOptions;
 use skradle_core::net;
 use skradle_core::runtime::{self, Runtime};
 use skradle_core::servers::{self, Server, ServerList};
@@ -26,7 +27,7 @@ use skradle_core::servers::{self, Server, ServerList};
 use super::plan::{self, Machine};
 use super::supervisor::{self, Prepare, Timing};
 use super::{memory, LaunchError, Launcher, Request, Running, Sink};
-use crate::settings::{self, Settings};
+use crate::settings::{self, Collector, Settings};
 
 /// What a launch depends on besides the game folder and the settings.
 #[derive(Debug, Clone, Default)]
@@ -49,7 +50,8 @@ impl Surroundings {
             server: ServerList::load(&settings::config_dir().join("servers.json"))
                 .selected_server()
                 .cloned(),
-            mods_dir: data.as_ref().map(|d| d.join("mods")).filter(|p| p.is_dir()),
+            // The same folder the Mods page manages (it honours SKRADLE_MODS_DIR); no folder means nothing to apply.
+            mods_dir: crate::mods_host::mods_dir().filter(|p| p.is_dir()),
             agent_jar: data
                 .as_ref()
                 .map(|d| d.join("skgfx").join("skgfx-agent.jar"))
@@ -75,8 +77,13 @@ impl Effects for Deferred {
         self.0.clean_extra_txt(game_root)
     }
 
-    fn apply_mods(&mut self, game_root: &Path, mods_dir: &Path) -> Result<Vec<String>, String> {
-        self.0.apply_mods(game_root, mods_dir)
+    fn apply_mods(
+        &mut self,
+        game_root: &Path,
+        mods_dir: &Path,
+        options: ApplyOptions,
+    ) -> Result<Vec<String>, String> {
+        self.0.apply_mods(game_root, mods_dir, options)
     }
 
     fn apply_connection(
@@ -100,6 +107,36 @@ fn graphics_settings(settings: &Settings) -> GraphicsSettings {
         show_fps: settings.show_fps,
         frame_generation: settings.frame_gen_mode == 1,
         target_fps: settings.target_fps,
+    }
+}
+
+/// The JVM-related settings as the direct launch takes them: memory, collector, explicit GC and the player's own
+/// extra arguments (which come last and win).
+pub fn direct_options(settings: &Settings) -> DirectOptions {
+    DirectOptions {
+        memory: settings.memory_mb.map(|mb| Memory {
+            initial_mb: None,
+            max_mb: Some(mb),
+        }),
+        collector: match settings.collector {
+            Collector::Default => GarbageCollector::Default,
+            Collector::G1 => GarbageCollector::G1,
+            Collector::Zgc => GarbageCollector::Zgc,
+            Collector::Parallel => GarbageCollector::Parallel,
+            Collector::Serial => GarbageCollector::Serial,
+        },
+        disable_explicit_gc: settings.disable_explicit_gc,
+        jvm_args: split_args(&settings.extra_jvm_args),
+        ..DirectOptions::default()
+    }
+}
+
+/// The file cleaning and purging switches as the mods engine takes them (its flags say what to keep, so they invert).
+pub fn mod_options(settings: &Settings) -> ApplyOptions {
+    ApplyOptions {
+        keep_modified_originals: !settings.file_cleaning,
+        keep_added_files: !settings.file_purging,
+        ..ApplyOptions::default()
     }
 }
 
@@ -128,14 +165,7 @@ pub fn prepare(
     let core_install = install.to_core();
     let game_files = Inputs::read(&core_install)
         .map_err(|e| LaunchError::Prepare(format!("could not read the game's files: {e}")))?;
-    let options = DirectOptions {
-        memory: settings.memory_mb.map(|mb| Memory {
-            initial_mb: None,
-            max_mb: Some(mb),
-        }),
-        jvm_args: split_args(&settings.extra_jvm_args),
-        ..DirectOptions::default()
-    };
+    let options = direct_options(settings);
     let graphics = around
         .agent_jar
         .as_deref()
@@ -156,6 +186,7 @@ pub fn prepare(
         graphics_args: graphics.as_deref(),
         update_pending,
         options: &options,
+        mod_options: mod_options(settings),
     })
     .map_err(|refusal| LaunchError::Refused(refusal.to_string()))?;
     for warning in &plan.warnings {
@@ -256,6 +287,7 @@ mod tests {
     #[derive(Default)]
     struct Recorder {
         calls: Vec<&'static str>,
+        mod_options: Vec<ApplyOptions>,
         fail_connection: bool,
     }
 
@@ -265,8 +297,14 @@ mod tests {
             self.calls.push("clean");
             Ok(())
         }
-        fn apply_mods(&mut self, _: &Path, _: &Path) -> Result<Vec<String>, String> {
+        fn apply_mods(
+            &mut self,
+            _: &Path,
+            _: &Path,
+            options: ApplyOptions,
+        ) -> Result<Vec<String>, String> {
             self.calls.push("mods");
+            self.mod_options.push(options);
             Ok(vec![])
         }
         fn apply_connection(&mut self, _: &Path, _: Option<&Server>) -> Result<(), String> {
@@ -457,6 +495,101 @@ mod tests {
         let error = prepare(&w.request, &w.machine, &around(), &mut fx).unwrap_err();
         assert!(matches!(error, LaunchError::CustomJavaInvalid { .. }));
         assert!(fx.calls.is_empty());
+    }
+
+    fn arg_strings(spec: &CommandSpec) -> Vec<String> {
+        spec.args
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn the_jvm_settings_reach_the_game_command_in_a_fixed_order() {
+        let mut w = world();
+        w.request.settings.memory_mb = Some(6144);
+        w.request.settings.collector = Collector::Zgc;
+        w.request.settings.disable_explicit_gc = true;
+        w.request.settings.extra_jvm_args = "-Dplayer=1 -Xss4m".into();
+        // The game's own extra.txt names another collector and its own heap: both are replaced.
+        fs::write(
+            w.request.install.path.join("extra.txt"),
+            "-XX:+UseG1GC\n-Xmx2g\n-Dgame=1\n",
+        )
+        .unwrap();
+        let mut fx = Recorder::default();
+        let (spec, kind) = prepare(&w.request, &w.machine, &around(), &mut fx).unwrap();
+        assert_eq!(kind, LaunchKind::Direct);
+        let args = arg_strings(&spec);
+        let at = |flag: &str| {
+            args.iter()
+                .position(|a| a == flag)
+                .unwrap_or_else(|| panic!("{flag} in {args:?}"))
+        };
+        assert_eq!(
+            args.iter()
+                .filter(|a| a.starts_with("-XX:+Use") && a.ends_with("GC"))
+                .count(),
+            1
+        );
+        assert!(!args.contains(&"-XX:+UseG1GC".to_owned()) && !args.contains(&"-Xmx2g".to_owned()));
+        // game flags, then memory, collector, explicit GC, then the player's arguments last, then the class.
+        assert!(at("-Dgame=1") < at("-Xmx6144M"));
+        assert!(at("-Xmx6144M") < at("-XX:+UseZGC"));
+        assert!(at("-XX:+UseZGC") < at("-XX:+DisableExplicitGC"));
+        assert!(at("-XX:+DisableExplicitGC") < at("-Dplayer=1"));
+        assert_eq!(args[at("-Dplayer=1") + 1], "-Xss4m");
+        assert!(at("-Xss4m") < at("com.threerings.projectx.client.ProjectXApp"));
+    }
+
+    #[test]
+    fn default_settings_add_no_collector_and_no_explicit_gc_flag() {
+        let w = world();
+        let mut fx = Recorder::default();
+        let (spec, _) = prepare(&w.request, &w.machine, &around(), &mut fx).unwrap();
+        let args = arg_strings(&spec);
+        assert!(
+            !args
+                .iter()
+                .any(|a| a.starts_with("-XX:+Use") && a.ends_with("GC")),
+            "{args:?}"
+        );
+        assert!(!args.contains(&"-XX:+DisableExplicitGC".to_owned()));
+        assert!(
+            !args.iter().any(|a| a.starts_with("-Xmx")),
+            "no memory chosen, none added"
+        );
+    }
+
+    #[test]
+    fn file_cleaning_and_purging_reach_the_mods_step() {
+        let mods_for = |clean: bool, purge: bool| {
+            let mut w = world();
+            w.request.settings.file_cleaning = clean;
+            w.request.settings.file_purging = purge;
+            let mods = w.dir.path().join("mods");
+            fs::create_dir_all(&mods).unwrap();
+            let mut fx = Recorder::default();
+            let around = Surroundings {
+                mods_dir: Some(mods),
+                ..around()
+            };
+            prepare(&w.request, &w.machine, &around, &mut fx).unwrap();
+            fx.mod_options
+        };
+        let normal = mods_for(true, true);
+        assert_eq!(normal, [ApplyOptions::default()]);
+        let dirty = mods_for(false, false);
+        assert_eq!(
+            dirty,
+            [ApplyOptions {
+                keep_modified_originals: true,
+                keep_added_files: true,
+                ..ApplyOptions::default()
+            }]
+        );
+        assert!(!mods_for(true, false)[0].keep_modified_originals);
+        assert!(mods_for(true, false)[0].keep_added_files);
     }
 
     #[test]

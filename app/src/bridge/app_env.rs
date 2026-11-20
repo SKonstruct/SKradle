@@ -25,6 +25,14 @@ pub mod qobject {
             READ,
             CONSTANT
         )]
+        /// True when a Discord application id is built in, so the Discord setting can have an effect.
+        #[qproperty(
+            bool,
+            discord_configured,
+            cxx_name = "discordConfigured",
+            READ,
+            CONSTANT
+        )]
         #[qproperty(QString, version, READ, CONSTANT)]
         #[qproperty(QString, qt_version, cxx_name = "qtVersion", READ, CONSTANT)]
         #[qproperty(i32, initial_page, cxx_name = "initialPage", READ, CONSTANT)]
@@ -66,6 +74,7 @@ pub struct AppEnvRust {
     scheme: QString,
     style_name: QString,
     web_view_available: bool,
+    discord_configured: bool,
     version: QString,
     qt_version: QString,
     initial_page: i32,
@@ -86,6 +95,7 @@ impl Default for AppEnvRust {
             scheme: QString::from(o.scheme.as_str()),
             style_name: QString::from(options::style_name().as_str()),
             web_view_available: super::glue::webview_backend_available(),
+            discord_configured: skradle_core::presence::is_configured(),
             version: QString::from(env!("CARGO_PKG_VERSION")),
             qt_version: QString::from(super::glue::qt_version().as_str()),
             initial_page: o.page,

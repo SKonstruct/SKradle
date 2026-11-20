@@ -40,6 +40,39 @@ pub struct Memory {
     pub max_mb: Option<u32>,
 }
 
+/// The garbage collector the player chose. `Default` adds nothing and leaves the game's own flags alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GarbageCollector {
+    #[default]
+    Default,
+    G1,
+    Zgc,
+    Parallel,
+    Serial,
+}
+
+impl GarbageCollector {
+    /// The JVM flag that selects it; `None` for `Default`.
+    pub fn flag(self) -> Option<&'static str> {
+        match self {
+            GarbageCollector::Default => None,
+            GarbageCollector::G1 => Some("-XX:+UseG1GC"),
+            GarbageCollector::Zgc => Some("-XX:+UseZGC"),
+            GarbageCollector::Parallel => Some("-XX:+UseParallelGC"),
+            GarbageCollector::Serial => Some("-XX:+UseSerialGC"),
+        }
+    }
+}
+
+/// The flag that ignores `System.gc()` calls.
+pub const DISABLE_EXPLICIT_GC: &str = "-XX:+DisableExplicitGC";
+
+/// True for JVM flags that select a collector (`-XX:+UseG1GC`, `-XX:+UseZGC`, ...). The JVM refuses to start with two
+/// of them ("Conflicting collector combinations"), so a chosen collector replaces any the game already names.
+pub fn is_collector_flag(arg: &str) -> bool {
+    arg.starts_with("-XX:+Use") && arg.ends_with("GC")
+}
+
 #[derive(Debug, Clone)]
 pub struct DirectOptions {
     pub app_id: String,
@@ -47,6 +80,11 @@ pub struct DirectOptions {
     pub main_class: Option<String>,
     /// Replaces the heap flags of `getdown.txt` and `extra.txt` when set.
     pub memory: Option<Memory>,
+    /// Replaces every collector flag of `getdown.txt` and `extra.txt` with this one, unless the player's own `jvm_args`
+    /// name a collector (those win and are never doubled).
+    pub collector: GarbageCollector,
+    /// Adds `-XX:+DisableExplicitGC` once.
+    pub disable_explicit_gc: bool,
     /// Drops `extra.txt` lines for which this returns true (the alt client drops the graphics agent's).
     pub skip_extra_line: Option<fn(&str) -> bool>,
     /// Added after everything else, so they win over earlier flags.
@@ -63,6 +101,8 @@ impl Default for DirectOptions {
             app_id: CLIENT_APP_ID.to_owned(),
             main_class: None,
             memory: None,
+            collector: GarbageCollector::Default,
+            disable_explicit_gc: false,
             skip_extra_line: None,
             jvm_args: Vec::new(),
             system_props: Vec::new(),
@@ -182,6 +222,16 @@ pub fn command_with_env(
         if let Some(mb) = memory.max_mb {
             jvm.push(format!("-Xmx{mb}M"));
         }
+    }
+    if let Some(flag) = options.collector.flag() {
+        jvm.retain(|arg| !is_collector_flag(arg));
+        if !options.jvm_args.iter().any(|arg| is_collector_flag(arg)) {
+            jvm.push(flag.to_owned());
+        }
+    }
+    if options.disable_explicit_gc {
+        jvm.retain(|arg| arg != DISABLE_EXPLICIT_GC);
+        jvm.push(DISABLE_EXPLICIT_GC.to_owned());
     }
     args.extend(jvm.into_iter().map(OsString::from));
     args.extend(options.jvm_args.iter().map(OsString::from));
@@ -320,6 +370,108 @@ code/lwjgl-natives-linux.jar:code/commons-logging.jar"
         assert_eq!(args[ms + 1], "-Xmx1024M");
         assert_eq!(args[ms + 2], "-Dlast=1");
         assert!(args.contains(&"-Dkeep=1".to_owned()));
+    }
+
+    fn count(args: &[String], f: impl Fn(&str) -> bool) -> usize {
+        args.iter().filter(|a| f(a)).count()
+    }
+
+    #[test]
+    fn a_chosen_collector_replaces_the_one_the_game_names_and_default_changes_nothing() {
+        let extra = "-XX:+UseG1GC
+-XX:+DisableExplicitGC
+-Dkeep=1
+";
+        let plain = build(Some(extra), &DirectOptions::default(), Os::Linux);
+        assert!(plain.contains(&"-XX:+UseG1GC".to_owned()));
+        assert_eq!(count(&plain, is_collector_flag), 1);
+        for (choice, flag) in [
+            (GarbageCollector::Zgc, "-XX:+UseZGC"),
+            (GarbageCollector::Parallel, "-XX:+UseParallelGC"),
+            (GarbageCollector::Serial, "-XX:+UseSerialGC"),
+            (GarbageCollector::G1, "-XX:+UseG1GC"),
+        ] {
+            let options = DirectOptions {
+                collector: choice,
+                ..DirectOptions::default()
+            };
+            let args = build(Some(extra), &options, Os::Linux);
+            assert_eq!(count(&args, is_collector_flag), 1, "{args:?}");
+            assert!(args.contains(&flag.to_owned()), "{args:?}");
+            assert!(args.contains(&"-Dkeep=1".to_owned()));
+        }
+        // No collector anywhere and Default: no collector flag at all.
+        let none = build(
+            Some(
+                "-Dkeep=1
+",
+            ),
+            &DirectOptions::default(),
+            Os::Linux,
+        );
+        assert_eq!(count(&none, is_collector_flag), 0);
+    }
+
+    #[test]
+    fn the_players_own_collector_argument_wins_and_is_never_doubled() {
+        let options = DirectOptions {
+            collector: GarbageCollector::Zgc,
+            jvm_args: vec!["-XX:+UseSerialGC".into()],
+            ..DirectOptions::default()
+        };
+        let args = build(
+            Some(
+                "-XX:+UseG1GC
+",
+            ),
+            &options,
+            Os::Linux,
+        );
+        assert_eq!(count(&args, is_collector_flag), 1, "{args:?}");
+        assert!(args.contains(&"-XX:+UseSerialGC".to_owned()));
+    }
+
+    #[test]
+    fn disabling_explicit_gc_adds_the_flag_exactly_once() {
+        let options = DirectOptions {
+            disable_explicit_gc: true,
+            ..DirectOptions::default()
+        };
+        let args = build(
+            Some(
+                "-XX:+DisableExplicitGC
+",
+            ),
+            &options,
+            Os::Linux,
+        );
+        assert_eq!(count(&args, |a| a == DISABLE_EXPLICIT_GC), 1);
+        let args = build(None, &options, Os::Linux);
+        assert_eq!(count(&args, |a| a == DISABLE_EXPLICIT_GC), 1);
+        let off = build(None, &DirectOptions::default(), Os::Linux);
+        assert_eq!(count(&off, |a| a == DISABLE_EXPLICIT_GC), 0);
+    }
+
+    #[test]
+    fn collector_flags_are_recognised_narrowly() {
+        for yes in [
+            "-XX:+UseG1GC",
+            "-XX:+UseZGC",
+            "-XX:+UseParallelGC",
+            "-XX:+UseSerialGC",
+            "-XX:+UseShenandoahGC",
+        ] {
+            assert!(is_collector_flag(yes), "{yes}");
+        }
+        for no in [
+            "-XX:+UseStringDeduplication",
+            "-XX:-UseG1GC",
+            "-XX:+DisableExplicitGC",
+            "-Xmx1g",
+            "-XX:+UseGCOverheadLimit",
+        ] {
+            assert!(!is_collector_flag(no), "{no}");
+        }
     }
 
     #[test]

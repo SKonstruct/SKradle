@@ -100,6 +100,10 @@ impl qobject::LaunchModel {
     /// Copies the status into the properties.
     fn show(mut self: Pin<&mut Self>) {
         let status = self.status.clone();
+        crate::presence_driver::phase_changed(
+            status.phase,
+            settings::global().get().discord_presence,
+        );
         self.as_mut()
             .set_state(QString::from(status.phase.as_str()));
         self.as_mut().set_step(QString::from(status.step.as_str()));

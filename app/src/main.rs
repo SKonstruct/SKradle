@@ -5,10 +5,12 @@ mod discovery;
 mod launch;
 mod mods_host;
 mod options;
+mod presence_driver;
 mod reporter;
 mod selfupdate;
 mod server_host;
 mod settings;
+mod tools;
 
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, QUrl};
 

@@ -23,6 +23,7 @@ use crate::getdown::{update_and_launch, CommandSpec};
 use crate::getdown_launch::{LaunchConfig, Target};
 use crate::getdown_txt::GetdownConfig;
 use crate::launch::direct::{self, DirectOptions, Inputs};
+use crate::mods::ApplyOptions;
 use crate::runtime::{pick_for_game, pick_for_graphics_agent, Runtime};
 use crate::servers::{self, Server};
 
@@ -50,6 +51,8 @@ pub struct PlanInputs<'a> {
     /// direct launch). On the direct path `skip_extra_line` is replaced by the planner's own rule for the graphics
     /// module's lines.
     pub options: &'a DirectOptions,
+    /// How mods are applied (file cleaning and purging).
+    pub mod_options: ApplyOptions,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +70,7 @@ pub enum Step {
     ApplyMods {
         game_root: PathBuf,
         mods_dir: PathBuf,
+        options: ApplyOptions,
     },
     ApplyConnection {
         game_root: PathBuf,
@@ -228,6 +232,7 @@ pub fn plan(inputs: &PlanInputs<'_>) -> Result<Plan, Refusal> {
         steps.push(Step::ApplyMods {
             game_root: game_root.clone(),
             mods_dir: mods_dir.to_path_buf(),
+            options: inputs.mod_options,
         });
     }
     // After the mods: applying them rebuilds config.jar from the game's original.
@@ -249,7 +254,12 @@ pub trait Effects {
 
     fn clean_extra_txt(&mut self, game_root: &Path) -> Result<(), String>;
     /// Returns notes (skipped mods, warnings) for the player.
-    fn apply_mods(&mut self, game_root: &Path, mods_dir: &Path) -> Result<Vec<String>, String>;
+    fn apply_mods(
+        &mut self,
+        game_root: &Path,
+        mods_dir: &Path,
+        options: ApplyOptions,
+    ) -> Result<Vec<String>, String>;
     fn apply_connection(&mut self, game_root: &Path, server: Option<&Server>)
         -> Result<(), String>;
     fn spawn(&mut self, command: &CommandSpec) -> Result<Self::Handle, String>;
@@ -294,7 +304,12 @@ pub fn execute<E: Effects>(plan: &Plan, effects: &mut E) -> Result<Launched<E::H
             Step::ApplyMods {
                 game_root,
                 mods_dir,
-            } => notes.extend(effects.apply_mods(game_root, mods_dir).map_err(fail)?),
+                options,
+            } => notes.extend(
+                effects
+                    .apply_mods(game_root, mods_dir, *options)
+                    .map_err(fail)?,
+            ),
             Step::ApplyConnection { game_root, server } => effects
                 .apply_connection(game_root, server.as_ref())
                 .map_err(fail)?,
@@ -326,8 +341,14 @@ impl Effects for RealEffects {
             .map_err(|e| format!("could not clean extra.txt: {e}"))
     }
 
-    fn apply_mods(&mut self, game_root: &Path, mods_dir: &Path) -> Result<Vec<String>, String> {
-        let report = crate::mods::apply(game_root, mods_dir).map_err(|e| e.to_string())?;
+    fn apply_mods(
+        &mut self,
+        game_root: &Path,
+        mods_dir: &Path,
+        options: ApplyOptions,
+    ) -> Result<Vec<String>, String> {
+        let report = crate::mods::apply_with_options(game_root, mods_dir, options)
+            .map_err(|e| e.to_string())?;
         let mut notes = report.warnings;
         notes.extend(
             report
@@ -432,6 +453,7 @@ mod tests {
             graphics_args: graphics,
             update_pending: pending,
             options: &f.options,
+            mod_options: ApplyOptions::default(),
         }
     }
 
@@ -661,7 +683,12 @@ mod tests {
         fn clean_extra_txt(&mut self, _: &Path) -> Result<(), String> {
             self.step("clean")
         }
-        fn apply_mods(&mut self, _: &Path, _: &Path) -> Result<Vec<String>, String> {
+        fn apply_mods(
+            &mut self,
+            _: &Path,
+            _: &Path,
+            _: ApplyOptions,
+        ) -> Result<Vec<String>, String> {
             self.step("mods").map(|()| vec!["a note".to_owned()])
         }
         fn apply_connection(&mut self, _: &Path, _: Option<&Server>) -> Result<(), String> {

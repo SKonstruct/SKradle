@@ -72,6 +72,15 @@ const MAX_SMALL_FILE: u64 = 1024 * 1024;
 pub struct ApplyOptions {
     /// Rebuild every loose file of `rsrc/` from the game's bundles (slow; clears files other tools left behind).
     pub rebuild_resources: bool,
+    /// File cleaning off: do not put modified originals back. The code jars are built on the jar that is in `code/`
+    /// (the game's original only when that jar is missing or unreadable) and loose files that mods overwrote keep
+    /// the version a previous apply wrote. Removing a mod then leaves its changes behind. `false` is the normal,
+    /// clean behaviour.
+    pub keep_modified_originals: bool,
+    /// File purging off: loose files that earlier applies added (the game has no such file) stay in the game folder
+    /// instead of being deleted. They stay recorded in `.skradle/applied.json`, so purging can remove them later.
+    /// Only files in that record are ever purged. `false` purges.
+    pub keep_added_files: bool,
 }
 
 /// A mod that was applied.
@@ -236,6 +245,20 @@ pub fn apply(game_root: &Path, mods_dir: &Path) -> Result<ApplyReport, ApplyErro
     )
 }
 
+/// [`apply`] with the file cleaning and purging choices.
+pub fn apply_with_options(
+    game_root: &Path,
+    mods_dir: &Path,
+    options: ApplyOptions,
+) -> Result<ApplyReport, ApplyError> {
+    apply_with(
+        game_root,
+        Some(mods_dir),
+        options,
+        default_source(game_root).as_ref(),
+    )
+}
+
 /// Removes every mod: both code jars go back to the game's original and every loose file a previous apply wrote is
 /// restored or removed. Mods stay in their folder.
 pub fn restore_pristine(game_root: &Path) -> Result<ApplyReport, ApplyError> {
@@ -247,7 +270,8 @@ pub fn restore_pristine(game_root: &Path) -> Result<ApplyReport, ApplyError> {
     )
 }
 
-fn default_source(game_root: &Path) -> Box<dyn PristineSource> {
+/// Where an original code jar comes from when none is on disk: the game's own servers, named by its `getdown.txt`.
+pub(crate) fn default_source(game_root: &Path) -> Box<dyn PristineSource> {
     let text = read_small(&game_root.join("getdown.txt")).unwrap_or_default();
     match HttpSource::from_getdown(&GetdownConfig::parse(&String::from_utf8_lossy(&text))) {
         Some(source) => Box::new(source),
@@ -723,7 +747,15 @@ pub(crate) fn run(
     // 3. The code jars as they should end up. Originals are fetched here if needed, before anything is written.
     let mut desired_jars: Vec<(String, Vec<u8>, bool)> = Vec::new();
     for name in CODE_JARS {
-        let pristine = load_pristine(root, name, &digests, source)?;
+        let pristine = if options.keep_modified_originals {
+            // Build on what is there; ask for the original only when there is nothing usable.
+            match read_regular(&root.join("code").join(name), MAX_CODE_JAR_BYTES)? {
+                Some(bytes) if Jar::from_bytes(&bytes, &Limits::CODE_JAR).is_ok() => bytes,
+                _ => load_pristine(root, name, &digests, source)?,
+            }
+        } else {
+            load_pristine(root, name, &digests, source)?
+        };
         let wants_class = name == "config.jar" && !class_files.is_empty();
         let wants_locale = name == "projectx-config.jar" && !locale.is_empty();
         if !wants_class && !wants_locale {
@@ -873,13 +905,22 @@ fn write_phase(
                 .filter(|p| !winner_lower.contains(lower(p).as_str())),
         );
     }
+    // Paths left alone on purpose stay in the record.
+    let mut retained: BTreeSet<String> = BTreeSet::new();
     for path in stale {
         let rel = format!("rsrc/{path}");
         match bundles.get()?.read(&path)? {
             Some(bytes) => {
-                if !file_equals(&root.join(&rel), &bytes) {
+                if options.keep_modified_originals {
+                    retained.insert(path);
+                } else if !file_equals(&root.join(&rel), &bytes) {
                     txn.put(&rel, &bytes)?;
                     counters.restored += 1;
+                }
+            }
+            None if options.keep_added_files => {
+                if fs::symlink_metadata(root.join(&rel)).is_ok() {
+                    retained.insert(path);
                 }
             }
             None => {
@@ -901,7 +942,7 @@ fn write_phase(
                 }
                 // A file system that folds case may have held the game's own file under this name: put it back.
                 let variant = bundles.get()?.case_variant(&path);
-                if let Some(original) = variant {
+                if let Some(original) = variant.filter(|_| !options.keep_modified_originals) {
                     let bytes = bundles.get()?.read(&original)?.unwrap_or_default();
                     let rel = format!("rsrc/{original}");
                     if !file_equals(&root.join(&rel), &bytes) {
@@ -938,7 +979,9 @@ fn write_phase(
 
     // The record of what was written, in the same transaction.
     let mut rsrc_files: Vec<String> = winners.values().map(|(_, _, p)| p.clone()).collect();
+    rsrc_files.extend(retained);
     rsrc_files.sort();
+    rsrc_files.dedup();
     if rsrc_files.is_empty() {
         txn.delete(MANIFEST)?;
         return Ok(counters);
@@ -1131,6 +1174,97 @@ mod tests {
         let cfg = Jar::from_bytes(&fx.read("code/config.jar"), &Limits::CODE_JAR).unwrap();
         assert_eq!(cfg.get("com/x/Ok.class"), Some(&b"ok"[..]));
         assert!(cfg.get("deployment.properties").is_some());
+    }
+
+    /// A game with one mod applied that overwrote a bundled file, added a new one and changed a class; then the mod
+    /// is removed (restore) with the given options. Returns the fixture.
+    fn mod_applied_then_removed(options: ApplyOptions) -> Fixture {
+        let fx = fixture();
+        fx.add_mod(
+            "1_res.zip",
+            &resource_mod(&[("texture/a.png", b"MOD-A"), ("new/n.png", b"new")]),
+        );
+        fx.add_mod(
+            "2_class.zip",
+            &class_mod("20261110044614", &[("com/x/Y.class", b"class!")]),
+        );
+        fx.apply().unwrap();
+        fs::remove_file(fx.mods.join("1_res.zip")).unwrap();
+        fs::remove_file(fx.mods.join("2_class.zip")).unwrap();
+        let source = FakeSource::default();
+        apply_with(&fx.root, Some(&fx.mods), options, &source).unwrap();
+        fx
+    }
+
+    #[test]
+    fn cleaning_and_purging_on_remove_every_trace_of_a_removed_mod() {
+        let fx = mod_applied_then_removed(ApplyOptions::default());
+        assert_eq!(fx.read("rsrc/texture/a.png"), b"png-a");
+        assert!(!fx.root.join("rsrc/new/n.png").exists());
+        assert_eq!(fx.read("code/config.jar"), fx.config_jar);
+    }
+
+    #[test]
+    fn with_cleaning_off_a_removed_mod_keeps_its_overwrites() {
+        let fx = mod_applied_then_removed(ApplyOptions {
+            keep_modified_originals: true,
+            ..ApplyOptions::default()
+        });
+        assert_eq!(fx.read("rsrc/texture/a.png"), b"MOD-A", "not restored");
+        assert!(
+            !fx.root.join("rsrc/new/n.png").exists(),
+            "purging is a separate switch and removes the recorded added file"
+        );
+    }
+
+    #[test]
+    fn with_purging_off_added_files_stay_recorded_and_a_later_purge_removes_only_those() {
+        let fx = mod_applied_then_removed(ApplyOptions {
+            keep_added_files: true,
+            ..ApplyOptions::default()
+        });
+        assert_eq!(
+            fx.read("rsrc/texture/a.png"),
+            b"png-a",
+            "cleaning restored it"
+        );
+        assert_eq!(fx.read("rsrc/new/n.png"), b"new", "kept");
+        assert!(fx.root.join(".skradle/applied.json").exists());
+        // A file the launcher never recorded is never touched, purge or not.
+        put(&fx.root, "rsrc/someone-elses.txt", b"theirs");
+        let source = FakeSource::default();
+        apply_with(&fx.root, Some(&fx.mods), ApplyOptions::default(), &source).unwrap();
+        assert!(!fx.root.join("rsrc/new/n.png").exists(), "purged now");
+        assert_eq!(fx.read("rsrc/someone-elses.txt"), b"theirs");
+        assert!(!fx.root.join(".skradle/applied.json").exists());
+    }
+
+    #[test]
+    fn with_cleaning_off_class_mods_build_on_the_current_jar_and_need_no_original() {
+        let fx = fixture();
+        fx.add_mod(
+            "1_class.zip",
+            &class_mod("20261110044614", &[("com/x/Y.class", b"class!")]),
+        );
+        fx.apply().unwrap();
+        // The jar in code/ is now modified; with no source an ordinary apply of another mod still works only
+        // because the kept pristine copy exists. Remove it: cleaning off must still succeed.
+        fs::remove_dir_all(fx.root.join(".skradle/pristine")).unwrap();
+        fx.add_mod(
+            "2_class.zip",
+            &class_mod("20261110044614", &[("com/x/Z.class", b"z")]),
+        );
+        let source = FakeSource::default();
+        let options = ApplyOptions {
+            keep_modified_originals: true,
+            ..ApplyOptions::default()
+        };
+        apply_with(&fx.root, Some(&fx.mods), options, &source).unwrap();
+        let cfg = Jar::from_bytes(&fx.read("code/config.jar"), &Limits::CODE_JAR).unwrap();
+        assert_eq!(cfg.get("com/x/Y.class"), Some(&b"class!"[..]));
+        assert_eq!(cfg.get("com/x/Z.class"), Some(&b"z"[..]));
+        // Cleaning on cannot rebuild without an original: it refuses rather than guess.
+        assert!(apply_with(&fx.root, Some(&fx.mods), ApplyOptions::default(), &source).is_err());
     }
 
     #[test]
@@ -1614,6 +1748,7 @@ mod tests {
         let source = FakeSource::default();
         let options = ApplyOptions {
             rebuild_resources: true,
+            ..ApplyOptions::default()
         };
         let report = apply_with(&fx.root, Some(&fx.mods), options, &source).unwrap();
         assert!(!fx.root.join("rsrc/junk/leftover.png").exists());

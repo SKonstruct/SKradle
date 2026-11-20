@@ -134,6 +134,16 @@ impl Presence for NoPresence {
     }
 }
 
+/// The Discord application id SKradle reports presence under. **The owner creates a Discord application and puts its
+/// id here.** While it is empty (or malformed) presence stays off whatever the setting says, and the Settings page
+/// says so.
+pub const DISCORD_APPLICATION_ID: &str = "";
+
+/// True when [`DISCORD_APPLICATION_ID`] is a usable id, so the Discord setting can have an effect.
+pub fn is_configured() -> bool {
+    is_valid_client_id(DISCORD_APPLICATION_ID)
+}
+
 /// A Discord application id is a decimal "snowflake" of 17 to 20 digits.
 pub fn is_valid_client_id(id: &str) -> bool {
     (17..=20).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_digit())
@@ -222,6 +232,13 @@ mod tests {
         assert!(!is_valid_client_id("1234"));
         assert!(!is_valid_client_id("12345678901234567x"));
         assert!(!is_valid_client_id(&"1".repeat(21)));
+    }
+
+    #[test]
+    fn presence_is_off_until_the_owner_supplies_an_application_id() {
+        // Fails on purpose the day an id is added without a decision: then flip this assertion.
+        assert_eq!(DISCORD_APPLICATION_ID, "");
+        assert!(!is_configured());
     }
 
     #[test]

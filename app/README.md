@@ -25,14 +25,14 @@ build still works and the UI stays English (a build warning says so).
 | Flag | Effect |
 | --- | --- |
 | `--selftest` | Starts the QML engine, visits every page, opens "My server", checks that no QML binding or type warning was raised, prints one line and exits 0 (1 on failure, also after 60 s). Use `QT_QPA_PLATFORM=offscreen` on Linux. Uses a temporary settings folder and never starts the game. |
-| `--shots <dir> [--prefix name]` | Saves a screenshot of each state (22 of them) into `<dir>` as `<prefix>-<state>.png`, then exits. Uses a temporary settings folder. |
+| `--shots <dir> [--prefix name]` | Saves a screenshot of each state (30 of them) into `<dir>` as `<prefix>-<state>.png`, then exits. Uses a temporary settings folder. |
 | `--scheme light\|dark` | Forces the colour scheme (the Appearance setting otherwise). |
 | `--pseudo` | Pseudo-localisation: every word is lengthened and accented to find clipping. |
-| `--style <Name>`, `--page <0-4>`, `--collapsed`, `--size WxH` | Qt Quick Controls style (default Basic), first page, sidebar collapsed, window size. |
+| `--style <Name>`, `--page <0-3>`, `--collapsed`, `--size WxH` | Qt Quick Controls style (default Basic), first page, sidebar collapsed, window size. |
 
 | Variable | Effect |
 | --- | --- |
-| `SKRADLE_REDUCE_MOTION=1` | Reduced motion (also a setting in About). |
+| `SKRADLE_REDUCE_MOTION=1` | Reduced motion (also a setting in Settings). |
 | `SKRADLE_CONFIG_DIR` | Folder for `settings.json` and downloaded launcher updates (default: the OS config folder, `SKradle` inside it). |
 | `SKRADLE_SENTRY_DSN` | Read at **build** time: the address crash reports go to. Without it nothing is ever sent, whatever the setting says. |
 
@@ -68,10 +68,12 @@ result back with cxx-qt's `CxxQtThread::queue`.
 | Singleton | Properties | Methods |
 | --- | --- | --- |
 | `AppEnv` | `selftest pseudo reduceMotion scheme styleName version qtVersion webViewAvailable initialPage initialCollapsed initialWidth initialHeight shotDir shotPrefix` (constant) | `report(text) localPath(url) grab(path) finishSelftest(ok, text)` |
-| `Settings` | `theme reduceMotion language memoryMb javaPath extraJvmArgs minimizeWhilePlaying crashReports renderScale sharpening antiAliasing sharpHud showFps frameGenMode targetFps loadWarning` (read/write, validated, saved in the background) | |
+| `Settings` | `theme reduceMotion language memoryMb javaPath extraJvmArgs minimizeWhilePlaying collector disableExplicitGc fileCleaning filePurging discordPresence crashReports autoUpdateCheck renderScale sharpening antiAliasing sharpHud showFps frameGenMode targetFps loadWarning` (read/write, validated, saved in the background) | |
 | `GameModel` | `state` (`searching` `ready` `notfound`) `installPaths installKinds selectedPath selectedKind gameVersion detectedMemoryMb error` | `refresh() select(path) addCustomFolder(url) forgetCustom() force(state)` |
 | `LaunchModel` | `state` (`ready` `updating` `launching` `running` `error`) `step` (`checking` `downloading`) `message progress determinate` | `start(path) stop() cancel() dismiss() force(state, progress)` |
 | `UpdateModel` | `state` (`idle checking uptodate available downloading ready error`) `version progress message` | `check() download() install() skip()` |
+| `HomeFeed` | `newsJson newsState newsFetchedAt playersState players` | `refreshNews() refreshPlayers() force(state)` |
+| `GameTools` | `javaVersion javaSource javaProblem javaFound javaNeeded agentJavaOk agentInstalled totalMemoryMb memoryMinMb memoryMaxMb editorBlockers busy notice noticeDetail noticeSerial` | `refresh(path) openFolder(path) launchEditor(i, path) resetGameFiles(path)` |
 | `ServerHost` | `state url message` | `refresh()` |
 | `ModsModel` | `items tags folder folderUrl error busy loaded result packState packMessage packCurrent packTotal packName packChanges packReport` (JSON strings for lists) | `refresh(version) setEnabled(json, on) remove(json) add(json) ensureFolder() checkPack() syncPack() cancelSync() dismissReport() forcePack(state)` |
 
@@ -179,10 +181,14 @@ pseudo mode.
 
 ### What is real and what is placeholder
 
-Real: game discovery and the custom folder, Java choice and the launch state machine, settings, launcher self-update
-(`UpdateModel`: check on request, download with SHA-256 check, start the installer), crash-report switch, theme,
-reduced motion, language.
+Real: game discovery and the custom folder, Java choice and the launch state machine, every Settings option (memory,
+collector, explicit GC, file cleaning and purging, reset game files, graphics values, Discord switch, editors, update
+check, crash reports, theme, motion, language), Spiral Knights news and the Steam player count (`HomeFeed`, cached on
+disk as `steam-news.json`; self-test and screenshot runs use compiled-in fixtures).
 
-Placeholder (`Data.qml`, each marked): news (`TODO(backend)`), servers list (`TODO(serverhost)`), mod updates on Home
-(`TODO(mods)`; the Mods page itself is real), graphics presets and the Graphics page's effect on the game (`TODO(graphics)`), and the "My server"
-host (`TODO(serverhost)`).
+Notes: memory, collector, explicit GC and extra arguments reach the game on a direct launch; a launch that first runs the
+game's updater only passes the memory limit (through `extra.txt`). Anti-aliasing has no agent property and is not offered.
+Discord presence stays off until `core::presence::DISCORD_APPLICATION_ID` is set. Reset game files uses `core::reset`.
+
+Placeholder (`Data.qml`, each marked): the servers list and the "My server" host (`TODO(serverhost)`); the Servers page
+replaces them. The Home, Mods and Settings pages are real.

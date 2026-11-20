@@ -122,6 +122,20 @@ let report = skradle_core::mods::restore_pristine(game_root)?;     // remove all
 The report lists applied mods, skipped mods with the reason (disabled, unreadable, unsafe, wrong game version),
 protected files left out, warnings, counts and what happened to each code jar.
 
+## File cleaning and purging
+
+`ApplyOptions::keep_modified_originals` (file cleaning off) builds the code jars on the jar in `code/` and leaves loose
+files that mods overwrote as they are. `keep_added_files` (purging off) keeps loose files that earlier applies added;
+they stay in `.skradle/applied.json`, so purging can remove them later. Only recorded files are ever purged. Defaults
+(both false) are the behaviour described above.
+
+## Resetting the game files
+
+`core::reset::reset` removes all mods (best effort), then deletes every regular file `digest2.txt` lists plus its `<name>v`
+marker, except `getdown.txt`, the digest files and anything named `getdown*`. Folders, links that leave the game folder and
+the player's mods folder are never touched. The missing code jars send the next launch through the updater. Not run
+against the real updater.
+
 ## Archive safety
 
 All archives and listings are untrusted. When an archive is opened (`jar::Archive`):

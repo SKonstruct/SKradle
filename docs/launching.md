@@ -107,3 +107,10 @@ from the bytecode and never tried.
 `execute` stops at the first failing step: nothing after it runs and the game is not started on a half-applied state.
 The pending-update check (`servers::update_pending`) treats an unreachable server as no update, so an offline private
 server still launches.
+
+## Player settings in the launch
+
+`app/src/launch/planned.rs` maps the settings to the plan: `direct_options` (memory, `GarbageCollector`, `DisableExplicitGC`,
+the player's extra arguments last) and `mod_options` (file cleaning and purging as `ApplyOptions`). A chosen collector
+replaces any `-XX:+Use*GC` flag of `getdown.txt` and `extra.txt` (two collectors stop the JVM); the player's own collector
+argument wins. These apply to the direct launch only. Both mod switches are documented in `docs/mods.md`.
