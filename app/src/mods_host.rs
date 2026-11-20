@@ -2,13 +2,16 @@
 //! scan), adding files, removing and switching mods, and the screenshot fixtures. `bridge/mods_model.rs` only moves
 //! this between threads and Qt properties.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, SystemTime};
 
 use serde::Serialize;
+use skradle_core::jar::write_atomic;
 use skradle_core::mods::import::import_file;
 use skradle_core::mods::tags::{tags_of, Tag};
-use skradle_core::mods::{self, Container, InstalledMod};
+use skradle_core::mods::{self, Container, InstalledMod, Mod};
 
 use crate::discovery::local_path_from_url_text;
 
@@ -38,11 +41,108 @@ pub fn file_url(path: &Path) -> String {
     out
 }
 
+/// Where mod pictures are kept once checked: `SKRADLE_ICON_CACHE` when set (tests and screenshots), else
+/// `<cache dir>/SKradle/mod-icons`.
+fn icon_cache_dir() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("SKRADLE_ICON_CACHE").filter(|d| !d.is_empty()) {
+        return Some(PathBuf::from(dir));
+    }
+    dirs::cache_dir().map(|d| d.join("SKradle").join("mod-icons"))
+}
+
+/// What was learned about a mod file's picture, by file name, size and modification time, so a rescan after a
+/// switch does not open every archive again.
+type IconKey = (Option<PathBuf>, String, u64, Option<SystemTime>);
+static ICONS: Mutex<Option<HashMap<IconKey, String>>> = Mutex::new(None);
+
+/// The `file://` URL of the mod's checked picture in the cache, or "" when it has none or it cannot be used (too
+/// large, not a PNG or JPEG, a path outside the archive, ...): the page then draws its placeholder.
+pub fn icon_url(dir: &Path, scanned: &Mod, cache: Option<&Path>) -> String {
+    let path = dir.join(&scanned.file_name);
+    let meta = std::fs::symlink_metadata(&path).ok();
+    let key = (
+        cache.map(Path::to_path_buf),
+        scanned.file_name.clone(),
+        meta.as_ref().map_or(0, |m| m.len()),
+        meta.and_then(|m| m.modified().ok()),
+    );
+    if let Some(hit) = ICONS
+        .lock()
+        .ok()
+        .and_then(|g| g.as_ref().and_then(|m| m.get(&key).cloned()))
+    {
+        // A hit is only good while its cached file is still there.
+        if hit.is_empty() || local_path_from_url_text(&hit).is_file() {
+            return hit;
+        }
+    }
+    let url = (|| {
+        let cache = cache?;
+        let image = scanned.read_image(&path).ok()??;
+        let name = format!(
+            "{}.{}",
+            &skradle_core::net::sha256_hex(&image.bytes)[..32],
+            image.kind.extension()
+        );
+        let target = cache.join(&name);
+        if !target.is_file() {
+            std::fs::create_dir_all(cache).ok()?;
+            write_atomic(&target, &image.bytes).ok()?;
+        }
+        Some(file_url(&target))
+    })()
+    .unwrap_or_default();
+    if let Ok(mut g) = ICONS.lock() {
+        g.get_or_insert_with(HashMap::new).insert(key, url.clone());
+    }
+    url
+}
+
+/// Deletes cached pictures that no mod of the listing uses and that are over a month old.
+fn prune_icon_cache(cache: &Path, used: &HashSet<String>) {
+    let Ok(entries) = std::fs::read_dir(cache) else {
+        return;
+    };
+    let old = SystemTime::now()
+        .checked_sub(Duration::from_secs(30 * 24 * 3600))
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    for e in entries.flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let ours = name.ends_with(".png") || name.ends_with(".jpg");
+        let stale = e
+            .metadata()
+            .and_then(|m| m.modified())
+            .is_ok_and(|t| t < old);
+        if ours && stale && !used.contains(&name) {
+            let _ = std::fs::remove_file(e.path());
+        }
+    }
+}
+
+/// The file name without its mod extension: what a mod without a `mod.json` name is called.
+fn file_stem(file: &str) -> &str {
+    match file.rsplit_once('.') {
+        Some((stem, ext))
+            if !stem.is_empty()
+                && matches!(ext.to_ascii_lowercase().as_str(), "zip" | "jar" | "modpack") =>
+        {
+            stem
+        }
+        _ => file,
+    }
+}
+
 /// One mod as the page draws it.
 #[derive(Debug, Serialize, PartialEq)]
 pub struct ItemView {
     pub file: String,
+    /// The title: `mod.json`'s name, else the file name without its extension.
     pub name: String,
+    /// The file name when it says something the title does not (the title is not the file name without its
+    /// extension); empty otherwise, so no fact is shown twice.
+    pub file_note: String,
+    /// The `file://` URL of the mod's picture in the cache; empty when it has none.
+    pub image: String,
     pub version: String,
     pub author: String,
     pub description: String,
@@ -60,6 +160,9 @@ pub struct ItemView {
     pub warnings: Vec<String>,
     /// A class mod built for another game version than the install.
     pub incompatible: bool,
+    /// The Warning filter: the mod cannot be read, is built for another game version, or the scan noted something
+    /// (a skipped part of a modpack, protected files left out, an unreadable `mod.json`).
+    pub warning: bool,
     /// Lower-case text the search box matches.
     pub search: String,
 }
@@ -72,13 +175,21 @@ fn container_id(c: Container) -> &'static str {
     }
 }
 
-/// The view of one scanned entry. `game_version` is the install's version, when known.
-pub fn item_view(dir: &Path, m: &InstalledMod, game_version: Option<&str>) -> ItemView {
+/// The view of one scanned entry. `game_version` is the install's version, when known; `cache` is where its picture
+/// is kept (none: no pictures).
+pub fn item_view(
+    dir: &Path,
+    m: &InstalledMod,
+    game_version: Option<&str>,
+    cache: Option<&Path>,
+) -> ItemView {
     let size = std::fs::symlink_metadata(dir.join(&m.file_name)).map_or(0, |md| md.len());
     let container = Container::from_file_name(&m.file_name).map_or("zip", container_id);
     let mut v = ItemView {
         file: m.file_name.clone(),
-        name: m.file_name.clone(),
+        name: file_stem(&m.file_name).to_owned(),
+        file_note: String::new(),
+        image: String::new(),
         version: String::new(),
         author: String::new(),
         description: String::new(),
@@ -91,20 +202,29 @@ pub fn item_view(dir: &Path, m: &InstalledMod, game_version: Option<&str>) -> It
         error: None,
         warnings: Vec::new(),
         incompatible: false,
+        warning: false,
         search: String::new(),
     };
     match &m.parsed {
         Err(e) => {
-            v.tags = vec![Tag::Broken.id()];
             v.error = Some(e.to_string());
         }
         Ok(scanned) => {
             let info = scanned.pack_info().unwrap_or(&scanned.info);
-            v.name = scanned.display_name().to_owned();
+            v.name = info
+                .name
+                .clone()
+                .filter(|n| !n.trim().is_empty())
+                .unwrap_or_else(|| file_stem(&m.file_name).to_owned());
+            v.image = icon_url(dir, scanned, cache);
             v.version = info.version.clone().unwrap_or_default();
             v.author = info.author.clone().unwrap_or_default();
             v.description = info.description.clone().unwrap_or_default();
-            v.tags = tags_of(scanned).into_iter().map(Tag::id).collect();
+            v.tags = tags_of(scanned)
+                .into_iter()
+                .filter(|t| *t != Tag::Broken)
+                .map(Tag::id)
+                .collect();
             v.parts = scanned.parts.len();
             v.files = scanned
                 .parts
@@ -121,6 +241,10 @@ pub fn item_view(dir: &Path, m: &InstalledMod, game_version: Option<&str>) -> It
                 .any(|p| !p.compatible_with(game_version));
         }
     }
+    if !v.name.eq_ignore_ascii_case(file_stem(&m.file_name)) {
+        v.file_note = m.file_name.clone();
+    }
+    v.warning = v.error.is_some() || v.incompatible || !v.warnings.is_empty();
     v.search = format!(
         "{} {} {} {} {}",
         v.name,
@@ -150,7 +274,6 @@ pub fn tag_counts(items: &[ItemView]) -> Vec<TagCount> {
         Tag::Audio,
         Tag::Text,
         Tag::Resources,
-        Tag::Broken,
     ];
     for item in items {
         for t in &item.tags {
@@ -178,10 +301,18 @@ pub struct Listing {
 pub fn build_listing(dir: &Path, game_version: Option<&str>) -> Listing {
     match mods::list_mods(dir) {
         Ok(found) => {
+            let cache = icon_cache_dir();
             let items: Vec<ItemView> = found
                 .iter()
-                .map(|m| item_view(dir, m, game_version))
+                .map(|m| item_view(dir, m, game_version, cache.as_deref()))
                 .collect();
+            if let Some(cache) = &cache {
+                let used = items
+                    .iter()
+                    .filter_map(|i| i.image.rsplit('/').next().map(str::to_owned))
+                    .collect();
+                prune_icon_cache(cache, &used);
+            }
             Listing {
                 tags: tag_counts(&items),
                 items,
@@ -265,7 +396,67 @@ pub fn add_all(dir: &Path, sources: &[String]) -> Outcome {
     out
 }
 
-/// Screenshot and self-test runs: a folder with a few real mods in it, never the player's own.
+/// A small real PNG (a coloured tile with a lighter diamond) for the fixtures: uncompressed deflate blocks, so no
+/// encoder is needed.
+fn fixture_png(size: u32, back: [u8; 3], front: [u8; 3]) -> Vec<u8> {
+    fn crc32(data: &[u8]) -> u32 {
+        let mut crc = !0u32;
+        for &b in data {
+            crc ^= u32::from(b);
+            for _ in 0..8 {
+                crc = if crc & 1 == 1 {
+                    (crc >> 1) ^ 0xEDB8_8320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+        !crc
+    }
+    fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+        out.extend((data.len() as u32).to_be_bytes());
+        let mut body = kind.to_vec();
+        body.extend(data);
+        out.extend(&body);
+        out.extend(crc32(&body).to_be_bytes());
+    }
+    let mut raw = Vec::new();
+    let half = (size / 2) as i64;
+    for y in 0..size as i64 {
+        raw.push(0);
+        for x in 0..size as i64 {
+            let inside = (x - half).abs() + (y - half).abs() < half * 3 / 4;
+            let c = if inside { front } else { back };
+            raw.extend(c);
+        }
+    }
+    let mut z = vec![0x78, 0x01];
+    let blocks: Vec<&[u8]> = raw.chunks(65_535).collect();
+    for (n, block) in blocks.iter().enumerate() {
+        z.push(u8::from(n + 1 == blocks.len()));
+        z.extend((block.len() as u16).to_le_bytes());
+        z.extend((!(block.len() as u16)).to_le_bytes());
+        z.extend(*block);
+    }
+    let (mut a, mut b) = (1u32, 0u32);
+    for &byte in &raw {
+        a = (a + u32::from(byte)) % 65_521;
+        b = (b + a) % 65_521;
+    }
+    z.extend(((b << 16) | a).to_be_bytes());
+    let mut ihdr = Vec::new();
+    ihdr.extend(size.to_be_bytes());
+    ihdr.extend(size.to_be_bytes());
+    ihdr.extend([8, 2, 0, 0, 0]);
+    let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
+    chunk(&mut out, b"IHDR", &ihdr);
+    chunk(&mut out, b"IDAT", &z);
+    chunk(&mut out, b"IEND", &[]);
+    out
+}
+
+/// Screenshot and self-test runs: a folder with mods in every state the page shows (pictures and none, long
+/// names, a file name that differs from the title, warnings, a broken file), never the player's own.
 pub fn write_fixtures(dir: &Path) -> std::io::Result<()> {
     use skradle_core::jar::Jar;
     fn zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
@@ -277,6 +468,9 @@ pub fn write_fixtures(dir: &Path) -> std::io::Result<()> {
     }
     std::fs::create_dir_all(dir)?;
     let write = |name: &str, bytes: Vec<u8>| std::fs::write(dir.join(name), bytes);
+    let blue = fixture_png(64, [38, 70, 130], [120, 170, 240]);
+    let green = fixture_png(64, [30, 100, 70], [130, 220, 160]);
+    let rust = fixture_png(96, [130, 60, 40], [240, 170, 110]);
     write(
         "Sharp HUD.zip",
         zip(&[
@@ -284,6 +478,7 @@ pub fn write_fixtures(dir: &Path) -> std::io::Result<()> {
                 "mod.json",
                 br#"{"mod":{"name":"Sharp HUD","author":"Fixture Author","version":"1.4","description":"Draws the interface at full resolution."}}"#,
             ),
+            ("mod.png", &blue),
             ("ui/hud.png", b"png"),
         ]),
     )?;
@@ -311,13 +506,93 @@ pub fn write_fixtures(dir: &Path) -> std::io::Result<()> {
         "Starter Pack.modpack",
         zip(&[
             ("mod.json", br#"{"mod":{"name":"Starter Pack","author":"Fixture Author","description":"A small collection."}}"#),
+            ("mod.png", &green),
             ("one.zip", &inner_a),
             ("two.zip", &inner_b),
         ]),
     )?;
     write("Broken Mod.zip", b"this is not a zip file".to_vec())?;
+    // A title that differs from the file name, with a picture named in mod.json.
+    write(
+        "hd-ui-v2-final.zip",
+        zip(&[
+            (
+                "mod.json",
+                br#"{"mod":{"name":"Crisp Menus","author":"Fixture Author","version":"2.1","icon":"art/logo.png","description":"Sharper buttons and menu frames."}}"#,
+            ),
+            ("art/logo.png", &rust),
+            ("ui/menu.png", b"png"),
+        ]),
+    )?;
+    // Long text everywhere: the title wraps to two lines, the rest is cut to one line.
+    write(
+        "Ultimate Texture Overhaul and Interface Remaster for Every Gate.zip",
+        zip(&[
+            (
+                "mod.json",
+                br#"{"mod":{"name":"Ultimate Texture Overhaul and Interface Remaster for Every Gate","author":"A Very Long Author Name Of The Fixture Maker","version":"12.0.3-beta.4","description":"Replaces every texture in the game with a hand-painted version, rebuilds the interface frames and adds a quieter colour palette to all menus and loading screens."}}"#,
+            ),
+            ("mod.png", &rust),
+            ("texture/a.png", b"png"),
+        ]),
+    )?;
+    // A name that fits on one line but is long, no picture, no author.
+    write(
+        "Extended Tooltips With Item Statistics.zip",
+        zip(&[
+            (
+                "mod.json",
+                br#"{"mod":{"name":"Extended Tooltips With Item Statistics","version":"1.0"}}"#,
+            ),
+            ("config/other.xml", b"x"),
+        ]),
+    )?;
+    // Warnings from the scan: every file under rsrc/, and a protected game file.
+    write(
+        "Rsrc Prefixed.zip",
+        zip(&[
+            (
+                "mod.json",
+                br#"{"mod":{"name":"Prefixed Paths","description":"Its files sit under rsrc/ already."}}"#,
+            ),
+            ("rsrc/ui/x.png", b"png"),
+        ]),
+    )?;
+    write(
+        "Protected Items.zip",
+        zip(&[
+            (
+                "mod.json",
+                br#"{"mod":{"name":"Item Tweaks","author":"Fixture Author","version":"0.3","description":"Changes item data."}}"#,
+            ),
+            ("config/item.dat", b"protected"),
+            ("item/x/model.dat", b"model"),
+        ]),
+    )?;
+    // A modpack with a part that cannot be read: warned, the rest still counts.
+    write(
+        "Half Pack.modpack",
+        zip(&[
+            ("mod.json", br#"{"mod":{"name":"Half Pack"}}"#),
+            ("good.zip", &inner_a),
+            ("bad.zip", b"not a zip"),
+        ]),
+    )?;
+    // Pictures that cannot be used: the page falls back to the placeholder.
+    write(
+        "Bad Picture.zip",
+        zip(&[
+            (
+                "mod.json",
+                br#"{"mod":{"name":"Bad Picture","version":"1.0"}}"#,
+            ),
+            ("mod.png", b"this is not an image"),
+            ("ui/b.png", b"png"),
+        ]),
+    )?;
     mods::set_enabled(dir, "Fanfare.zip", false)?;
     mods::set_enabled(dir, "Plain Speech.zip", false)?;
+    mods::set_enabled(dir, "Protected Items.zip", false)?;
     Ok(())
 }
 
@@ -342,6 +617,14 @@ mod tests {
         );
     }
 
+    fn listing_with_cache(dir: &Path, cache: &Path, version: Option<&str>) -> Vec<ItemView> {
+        mods::list_mods(dir)
+            .unwrap()
+            .iter()
+            .map(|m| item_view(dir, m, version, Some(cache)))
+            .collect()
+    }
+
     #[test]
     fn the_fixture_folder_lists_with_tags_and_errors() {
         let dir = tempfile::tempdir().unwrap();
@@ -360,20 +643,99 @@ mod tests {
             ["modpack", "textures", "audio"]
         );
         let broken = by("Broken Mod.zip");
-        assert_eq!(broken.tags, ["broken"]);
-        assert!(broken.error.is_some());
+        assert!(broken.tags.is_empty(), "a broken mod has no type");
+        assert!(broken.error.is_some() && broken.warning);
         let counts: Vec<_> = l.tags.iter().map(|t| (t.id, t.count)).collect();
-        assert_eq!(
-            counts,
-            [
-                ("modpack", 1),
-                ("code", 1),
-                ("textures", 2),
-                ("audio", 2),
-                ("text", 1),
-                ("broken", 1)
-            ]
-        );
+        assert!(counts.iter().all(|(id, _)| *id != "broken"));
+        assert!(counts.contains(&("modpack", 2)));
+    }
+
+    #[test]
+    fn titles_and_file_names_are_shown_once() {
+        let dir = tempfile::tempdir().unwrap();
+        write_fixtures(dir.path()).unwrap();
+        let l = build_listing(dir.path(), None);
+        let by = |f: &str| l.items.iter().find(|i| i.file == f).unwrap();
+        // Same as the file name without its extension: no second line for the file.
+        assert_eq!(by("Damage Numbers.jar").name, "Damage Numbers");
+        assert_eq!(by("Damage Numbers.jar").file_note, "");
+        // No mod.json at all: the title is the file name without the extension.
+        assert_eq!(by("Fanfare.zip").name, "Fanfare");
+        assert_eq!(by("Fanfare.zip").file_note, "");
+        assert_eq!(by("Broken Mod.zip").name, "Broken Mod");
+        assert_eq!(by("Broken Mod.zip").file_note, "");
+        // A title that says something else keeps the file name as a note.
+        assert_eq!(by("hd-ui-v2-final.zip").name, "Crisp Menus");
+        assert_eq!(by("hd-ui-v2-final.zip").file_note, "hd-ui-v2-final.zip");
+    }
+
+    #[test]
+    fn warnings_come_from_the_scan() {
+        let dir = tempfile::tempdir().unwrap();
+        write_fixtures(dir.path()).unwrap();
+        let l = build_listing(dir.path(), None);
+        let by = |f: &str| l.items.iter().find(|i| i.file == f).unwrap();
+        for f in [
+            "Rsrc Prefixed.zip",
+            "Protected Items.zip",
+            "Half Pack.modpack",
+            "Broken Mod.zip",
+        ] {
+            assert!(by(f).warning, "{f}");
+        }
+        for f in [
+            "Sharp HUD.zip",
+            "Damage Numbers.jar",
+            "Fanfare.zip",
+            "Starter Pack.modpack",
+        ] {
+            assert!(!by(f).warning, "{f}");
+        }
+        assert!(by("Half Pack.modpack").warnings[0].contains("bad.zip"));
+    }
+
+    #[test]
+    fn pictures_are_cached_and_bad_ones_are_left_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        write_fixtures(dir.path()).unwrap();
+        let items = listing_with_cache(dir.path(), cache.path(), None);
+        let by = |f: &str| items.iter().find(|i| i.file == f).unwrap();
+        for f in [
+            "Sharp HUD.zip",
+            "Starter Pack.modpack",
+            "hd-ui-v2-final.zip",
+        ] {
+            let url = &by(f).image;
+            let path = local_path_from_url_text(url);
+            assert!(
+                path.starts_with(cache.path()) && path.is_file(),
+                "{f}: {url}"
+            );
+            assert!(std::fs::read(&path).unwrap().starts_with(b"\x89PNG"));
+        }
+        for f in [
+            "Bad Picture.zip",
+            "Fanfare.zip",
+            "Broken Mod.zip",
+            "Damage Numbers.jar",
+        ] {
+            assert_eq!(by(f).image, "", "{f}");
+        }
+        // The cache is not made when there is nowhere to put it.
+        let none: Vec<_> = mods::list_mods(dir.path())
+            .unwrap()
+            .iter()
+            .map(|m| item_view(dir.path(), m, None, None))
+            .collect();
+        assert!(none.iter().all(|i| i.image.is_empty()));
+    }
+
+    #[test]
+    fn the_fixture_picture_is_a_valid_png() {
+        let png = fixture_png(64, [1, 2, 3], [4, 5, 6]);
+        let checked = skradle_core::mods::image::check(png).unwrap();
+        assert_eq!((checked.width, checked.height), (64, 64));
     }
 
     #[test]

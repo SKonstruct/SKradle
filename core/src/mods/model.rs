@@ -23,6 +23,7 @@ use std::path::Path;
 
 use crate::jar::{Archive, JarError, Limits};
 
+use super::image::{read_image_from, ImageProblem, ModImage};
 use super::metadata::{parse_mod_json, ModInfo, MAX_MOD_JSON_BYTES};
 use super::protected::is_protected;
 
@@ -176,7 +177,7 @@ fn is_metadata_file(path: &str) -> bool {
 }
 
 /// The `mod.json` entry: the one at the root, else the first inside a folder.
-fn find_mod_json<R: io::Read + io::Seek>(archive: &Archive<R>) -> Option<usize> {
+pub(super) fn find_mod_json<R: io::Read + io::Seek>(archive: &Archive<R>) -> Option<usize> {
     archive
         .find("mod.json")
         .filter(|e| !e.is_dir)
@@ -240,7 +241,9 @@ fn scan_part<R: io::Read + io::Seek>(
     let files: Vec<PartFile> = archive
         .entries()
         .iter()
-        .filter(|e| !e.is_dir && !is_metadata_file(&e.path))
+        .filter(|e| {
+            !e.is_dir && !is_metadata_file(&e.path) && info.icon.as_deref() != Some(&e.path)
+        })
         .map(|e| PartFile {
             path: e.path.clone(),
             index: e.index,
@@ -345,6 +348,18 @@ impl Mod {
                 })
             }
         }
+    }
+
+    /// The mod's picture: the `icon` (or `image`) path of `mod.json`, else `mod.png` at the archive root or beside
+    /// `mod.json`. `path` is the mod file this was scanned from. `Ok(None)` when the mod has none; an `Err` says why
+    /// a picture it has cannot be used (too large, not a PNG or JPEG, ...), and callers show no picture then.
+    pub fn read_image(&self, path: &Path) -> Result<Option<ModImage>, ImageProblem> {
+        let mut archive = Archive::open(
+            open_regular(path).map_err(|_| ImageProblem::Unreadable)?,
+            &Limits::MOD,
+        )
+        .map_err(|_| ImageProblem::Unreadable)?;
+        read_image_from(&mut archive, &self.info)
     }
 
     /// A name to show.

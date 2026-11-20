@@ -24,6 +24,7 @@ Optional, at the archive root (or, failing that, the first one inside a folder).
     "name": "Acheron Trail",
     "description": "...", "author": "...", "version": "1.0", "compatibility": "1.2.2",
     "type": "class",
+    "icon": "art/logo.png",
     "pxVersion": "20261110044614",
     "locale": { "messages.properties": { "some.key": "New text" } }
   }
@@ -38,7 +39,17 @@ Optional, at the archive root (or, failing that, the first one inside a folder).
 - `locale` maps a `.properties` file name inside `rsrc/i18n/` of `code/projectx-config.jar` to the keys to set.
 - A `mod.json` that is unreadable, too large (over 1 MiB) or not an object is ignored with a warning; the mod is then
   applied as a resource mod without metadata.
-- `mod.json` and `mod.png` (anywhere in the archive) are never written to the game.
+- `icon` (or `image`) names the mod's picture, a path inside the archive. Without it, `mod.png` at the archive root (or
+  next to `mod.json`) is the picture. See "Mod pictures". `mod.json`, `mod.png` and the file `icon` names are never
+  written to the game.
+
+### Mod pictures
+
+`mods::image` reads the picture a mod may carry (`Mod::read_image`), never trusting it: the name must be a plain
+relative path that exists as a file in the archive (a `..`, absolute or drive path, or a name the archive does not
+hold, is refused, and the default `mod.png` is not substituted for it); at most 512 KiB; the bytes must be a PNG or a
+JPEG (checked by their header, not the extension) that declares at most 1024 by 1024 pixels. Any failure means "no
+picture". A modpack's picture is the pack's own, not one of its mods'.
 
 ### What each kind changes
 
@@ -177,10 +188,25 @@ link (a link at the target is replaced, never followed); a file where a folder i
 The Mods page (`ModsPage.qml`, bridge `ModsModel`, logic in `app/src/mods_host.rs`) manages the folder
 `<data dir>/SKradle/mods` (`SKRADLE_MODS_DIR` overrides it for tests); apply still happens at launch.
 
-- **List:** every mod with `mod.json` name, version, author and description, file name, container and size. A mod
-  that does not scan is shown with its error. The switch writes `.skradle-mods.json` (`list::set_enabled`).
+- **List:** one row per mod. Each fact appears once: the title (`mod.json` name, else the file name without its
+  extension), `v<version> · by <author>`, one line of description, then a small line with the file name (only when
+  it is not just the title plus its extension), the size and, for a modpack, how many mods it holds. The type tags sit
+  in their own column and the switch (`.skradle-mods.json`, `list::set_enabled`) on the right. A title wraps to a
+  second line before it is cut. Problems follow in amber (or red when the file cannot be used at all).
+- **Picture:** the mod's checked picture (see "Mod pictures") at 48 px with rounded corners, else the generic mod
+  glyph. A checked picture is copied to `<cache dir>/SKradle/mod-icons/<hash>.png|jpg` (`SKRADLE_ICON_CACHE`
+  overrides the folder), named by its content so it never goes stale; unused ones older than 30 days are removed.
+  Rounded corners use a shader, so the software renderer shows the picture square.
+- **Filters:** three at once, and a mod must pass all of them. One status (All, Enabled, Disabled, Warnings; the
+  last only appears when some mod has a warning), one type (the tags below; click the chosen one again for any type)
+  and the search. The numbers on the chips count what the chip would list given the other two filters, so a number
+  always matches the list. A line under the chips says how many of how many are shown.
+- **Warnings:** a mod has a warning when it cannot be read, a class mod is built for another game version than the
+  install, or the scan noted something (a modpack part that was skipped, protected files left out, files all under
+  `rsrc/`, an unreadable `mod.json`). The reasons are written on the row.
 - **Tags** come from the scan only (`mods::tags`): modpack, code (class mod), textures (images), audio, text (locale
-  changes), game files (other loose files), problem (unreadable). The filter chips list only tags that exist, with counts.
+  changes), game files (other loose files). An unreadable mod has no type; it is a warning. The type chips list only
+  tags that exist.
 - **Adding** (drop anywhere on the page, or a file dialog): each file goes through `mods::import`: a regular file
   (no folder, no link) with a mod extension and a visible name, at most 1 GiB, that scans and holds files. It is
   copied to a hidden temporary name, scanned again, then linked into place; a taken name gets ` (2)`, never an

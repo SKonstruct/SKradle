@@ -21,10 +21,5 @@ QtObject {
         if (bytes >= 1024) return qsTr("%1 KB").arg(Math.round(bytes / 1024))
         return qsTr("%1 B").arg(bytes)
     }
-    // "ZIP · 1.2 MB", "Modpack of 12 mods · 84 MB"
-    function kindText(item) {
-        if (item.container === "modpack") return qsTr("Modpack of %n mod(s)", "", item.parts) + " · " + sizeText(item.size)
-        return (item.container === "jar" ? qsTr("JAR") : qsTr("ZIP")) + " · " + sizeText(item.size)
-    }
     readonly property string cmdKey: Qt.platform.os === "osx" ? qsTr("Cmd") : qsTr("Ctrl")
 }

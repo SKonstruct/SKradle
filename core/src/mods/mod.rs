@@ -10,10 +10,12 @@
 //! - [`source`]: where an original code jar comes from when none is on disk.
 //! - [`txn`]: the journaled all-or-nothing file changes `apply` is built on.
 //! - [`tags`]: what a mod contains, as tags derived from the scan.
+//! - [`image`]: a mod's picture, read safely.
 //! - [`import`]: validating and copying a mod file into the mods folder.
 //! - [`sync`]: the modpack download.
 
 pub mod apply;
+pub mod image;
 pub mod import;
 pub mod list;
 pub mod metadata;
