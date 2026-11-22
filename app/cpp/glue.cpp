@@ -4,6 +4,7 @@
 #include <QtCore/QLibrary>
 #include <QtCore/QLocale>
 #include <QtCore/QTranslator>
+#include <QtGui/QClipboard>
 #include <QtGui/QGuiApplication>
 #include <QtGui/QIcon>
 #include <QtGui/QImage>
@@ -20,6 +21,9 @@
 #include <cstdio>
 #include <memory>
 
+// Defined in Rust (app/src/bridge/logs_model.rs): Qt's own messages go to SKradle's log.
+extern "C" void skradle_log_qt(int level, const char *message);
+
 namespace {
 
 // A QPointer: it becomes null when the engine is destroyed, so a late call never reaches a dead engine.
@@ -35,6 +39,12 @@ void message_handler(QtMsgType type, const QMessageLogContext &context, const QS
     const bool in_our_qml = message.startsWith(ours) || (context.file && QString::fromUtf8(context.file).startsWith(ours));
     if ((type == QtWarningMsg || type == QtCriticalMsg) && in_our_qml) {
         ++g_qml_warnings;
+    }
+    // Warnings and worse go to SKradle's log (scrubbed there); the chatty debug and info levels only in debug logs.
+    {
+        const int level = (type == QtFatalMsg || type == QtCriticalMsg) ? 2 : (type == QtWarningMsg ? 1 : 0);
+        const QByteArray utf8 = message.toUtf8();
+        skradle_log_qt(level, utf8.constData());
     }
     if (const QtMessageHandler previous = g_previous_handler.load()) previous(type, context, message);
     else std::fprintf(stderr, "%s\n", qPrintable(message));
@@ -134,6 +144,10 @@ bool grab_window(const QString &path) {
     // The screenshot folder may not exist yet.
     QFileInfo(path).dir().mkpath(QStringLiteral("."));
     return window->grabWindow().save(path);
+}
+
+void copy_text(const QString &text) {
+    if (QClipboard *clipboard = QGuiApplication::clipboard()) clipboard->setText(text);
 }
 
 void quit_app(int code) { QCoreApplication::exit(code); }

@@ -173,6 +173,7 @@ fn main() {
             "src/bridge/settings_model.rs",
             "src/bridge/game_model.rs",
             "src/bridge/launch_model.rs",
+            "src/bridge/logs_model.rs",
             "src/bridge/update_model.rs",
             "src/bridge/server_host_model.rs",
             "src/bridge/mods_model.rs",

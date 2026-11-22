@@ -3,6 +3,7 @@
 mod bridge;
 mod discovery;
 mod launch;
+mod logging;
 mod mods_host;
 mod options;
 mod presence_driver;
@@ -65,6 +66,8 @@ fn main() {
         settings::global().get().crash_reports && !(options.selftest || options.shots.is_some()),
     );
 
+    logging::start(&options);
+
     // The Basic style looks the same on every OS and all visible controls are our own templates.
     if let Some(style) = &options.style {
         QQuickStyle::set_style(&QString::from(style.as_str()));
@@ -86,6 +89,7 @@ fn main() {
     let mut app = QGuiApplication::new();
     bridge::glue::init_app();
     options::set_style_name(QQuickStyle::name().to_string());
+    logging::write_header_in_background();
 
     let mut engine = QQmlApplicationEngine::new();
     if let Some(mut engine) = engine.as_mut() {

@@ -56,9 +56,22 @@ impl Running for Handle {
 /// What the preparation step decided: the command to run and whether it is the updater or the game itself.
 pub type Prepared = (CommandSpec, LaunchKind);
 
-/// The work before a process starts (applying mods, pointing the game at a server). It runs on the supervisor's
-/// thread, so the window never waits for it, and a failure is reported like any other.
-pub type Prepare = Box<dyn FnOnce() -> Result<Prepared, LaunchError> + Send>;
+/// What the preparation step can use: whether the player cancelled, and a way to report where it is (for example
+/// "waiting for Steam").
+pub struct Context<'a> {
+    pub stop: &'a AtomicBool,
+    pub sink: &'a dyn Fn(Event),
+}
+
+impl Context<'_> {
+    pub fn cancelled(&self) -> bool {
+        self.stop.load(Ordering::SeqCst)
+    }
+}
+
+/// The work before a process starts (starting Steam, applying mods, pointing the game at a server). It runs on the
+/// supervisor's thread, so the window never waits for it, and a failure is reported like any other.
+pub type Prepare = Box<dyn FnOnce(&Context<'_>) -> Result<Prepared, LaunchError> + Send>;
 
 /// Starts the supervisor thread; `prepare` decides what to run (and may do work first). Errors (including failing
 /// to start the process) come through `sink`.
@@ -109,6 +122,23 @@ fn drain(finished: &[mpsc::Receiver<()>]) {
     }
 }
 
+fn exit_text(status: &std::process::ExitStatus) -> String {
+    status
+        .code()
+        .map_or_else(|| "no exit code".to_owned(), |c| format!("exit code {c}"))
+}
+
+/// Writes the end of the game folder's own `launcher.log` to SKradle's log, for a launch that failed early.
+fn log_game_log_tail(game_root: &Path) {
+    let lines = skradle_core::log::tail_of(&game_root.join("launcher.log"), 15);
+    if !lines.is_empty() {
+        skradle_core::log::warn(
+            "launch",
+            format!("end of the game's launcher.log:\n{}", lines.join("\n")),
+        );
+    }
+}
+
 fn tail_text(tail: &Tail) -> String {
     let tail = tail.lock().unwrap_or_else(|e| e.into_inner());
     let text: Vec<&str> = tail
@@ -129,11 +159,16 @@ fn run(
     sink: &dyn Fn(Event),
 ) {
     // The window shows work from the first moment, also while mods are applied.
-    sink(Event::Phase(Phase::Updating, Step::Checking));
-    let (spec, kind) = match prepare() {
+    sink(Event::Phase(Phase::Launching, Step::Preparing));
+    let (spec, kind) = match prepare(&Context { stop, sink }) {
         Ok(prepared) => prepared,
         Err(error) => {
-            sink(Event::Failed(error));
+            if stop.load(Ordering::SeqCst) {
+                sink(Event::Stopped);
+            } else {
+                skradle_core::log::error("launch", format!("launch failed before the game started: {}", error.message()));
+                sink(Event::Failed(error));
+            }
             return;
         }
     };
@@ -149,9 +184,27 @@ fn run(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     process_group(&mut command);
+    skradle_core::log::info(
+        "launch",
+        format!(
+            "starting {} ({}): program {}, {} arguments, {} variables set ({}), working folder {}",
+            if kind == LaunchKind::Direct { "the game" } else { "the updater" },
+            if kind == LaunchKind::Direct { "direct" } else { "updater" },
+            spec.program.display(),
+            spec.args.len(),
+            spec.env.len(),
+            spec.env
+                .iter()
+                .map(|(k, _)| k.to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join(", "),
+            spec.cwd.display()
+        ),
+    );
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(e) => {
+            skradle_core::log::error("launch", format!("could not start the process: {e}"));
             sink(Event::Failed(LaunchError::Spawn(e.to_string())));
             return;
         }
@@ -170,7 +223,8 @@ fn run(
         return;
     }
 
-    let mut phase = (Phase::Updating, Step::Checking);
+    let mut phase = (Phase::Updating, Step::Downloading);
+    sink(Event::Phase(phase.0, phase.1));
     let mut log_lines: VecDeque<String> = VecDeque::new();
     let status = loop {
         if stop.load(Ordering::SeqCst) {
@@ -215,8 +269,10 @@ fn run(
         log_lines.push_back(line);
     }
 
+    skradle_core::log::info("launch", format!("the updater exited ({})", exit_text(&status)));
     if !status.success() {
         drain(&readers);
+        log_game_log_tail(&game_root);
         let mut detail = tail_text(&output);
         if detail.is_empty() {
             detail = log_lines
@@ -263,7 +319,7 @@ fn run(
         }
         return;
     }
-    sink(Event::Phase(Phase::Running, Step::Checking));
+    sink(Event::Phase(Phase::Running, Step::Preparing));
     loop {
         if stop.load(Ordering::SeqCst) {
             probe.terminate(&mut child, timing.grace);
@@ -292,7 +348,7 @@ fn follow_game(
     sink: &dyn Fn(Event),
 ) {
     const EARLY: Duration = Duration::from_secs(20);
-    sink(Event::Phase(Phase::Launching, Step::Checking));
+    sink(Event::Phase(Phase::Launching, Step::Preparing));
     let started = Instant::now();
     let mut running = false;
     loop {
@@ -303,10 +359,20 @@ fn follow_game(
         }
         match child.try_wait() {
             Ok(Some(status)) => {
+                skradle_core::log::info(
+                    "launch",
+                    format!(
+                        "the game exited ({}) after {} s",
+                        exit_text(&status),
+                        started.elapsed().as_secs()
+                    ),
+                );
                 if status.success() || started.elapsed() > EARLY {
                     sink(Event::Finished);
                 } else {
                     drain(readers);
+                    log_game_log_tail(probe.root());
+                    skradle_core::log::error("launch", format!("the game's output ended with: {}", tail_text(output)));
                     sink(Event::Failed(LaunchError::GameFailed {
                         code: status.code(),
                         detail: tail_text(output),
@@ -323,7 +389,7 @@ fn follow_game(
         }
         if !running && started.elapsed() >= timing.settle {
             running = true;
-            sink(Event::Phase(Phase::Running, Step::Checking));
+            sink(Event::Phase(Phase::Running, Step::Preparing));
         }
         std::thread::sleep(timing.poll);
     }
@@ -331,8 +397,7 @@ fn follow_game(
 
 fn rank(phase: (Phase, Step)) -> u8 {
     match phase {
-        (Phase::Updating, Step::Checking) => 0,
-        (Phase::Updating, Step::Downloading) => 1,
+        (Phase::Updating, _) => 1,
         (Phase::Launching, _) => 2,
         _ => 3,
     }
@@ -345,11 +410,20 @@ fn process_group(command: &mut Command) {
     command.process_group(0);
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn process_group(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    // The game and the updater are started by a program without a console: without this flag Windows opens a
+    // console window for `java.exe`. Their output is captured through pipes, so nothing is lost.
+    command.creation_flags(super::winprobe::CREATE_NO_WINDOW);
+}
+
+#[cfg(all(not(unix), not(windows)))]
 fn process_group(_command: &mut Command) {}
 
 /// Finds out whether the game is still running and ends it.
 struct GameProbe {
+    root_dir: PathBuf,
     #[cfg(unix)]
     group: u32,
     #[cfg(not(unix))]
@@ -358,6 +432,10 @@ struct GameProbe {
 }
 
 impl GameProbe {
+    fn root(&self) -> &Path {
+        &self.root_dir
+    }
+
     fn due(&mut self, interval: Duration) -> bool {
         if self.last_check.elapsed() >= interval {
             self.last_check = Instant::now();
@@ -370,8 +448,9 @@ impl GameProbe {
 
 #[cfg(unix)]
 impl GameProbe {
-    fn new(child: &Child, _game_root: &Path) -> Self {
+    fn new(child: &Child, game_root: &Path) -> Self {
         Self {
+            root_dir: game_root.to_path_buf(),
             group: child.id(),
             last_check: Instant::now(),
         }
@@ -428,6 +507,7 @@ fn hidden(command: &mut Command) -> &mut Command {
 impl GameProbe {
     fn new(_child: &Child, game_root: &Path) -> Self {
         Self {
+            root_dir: game_root.to_path_buf(),
             root: game_root.to_path_buf(),
             last_check: Instant::now(),
         }
@@ -505,7 +585,7 @@ mod tests {
     /// Runs `spec` as the game's updater.
     fn start(spec: CommandSpec, game_root: PathBuf, timing: Timing, sink: Sink) -> Handle {
         start_prepared(
-            Box::new(move || Ok((spec, LaunchKind::Updater))),
+            Box::new(move |_| Ok((spec, LaunchKind::Updater))),
             game_root,
             timing,
             sink,
@@ -554,7 +634,7 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
         let (dir, spec) = fake(&updater_that_starts_a_game(""));
         let events = Arc::new(Events::default());
         let handle = start(spec, dir.path().to_path_buf(), fast(), events.sink());
-        let seen = events.wait_for(|e| *e == Event::Phase(Phase::Running, Step::Checking));
+        let seen = events.wait_for(|e| *e == Event::Phase(Phase::Running, Step::Preparing));
         let phases: Vec<_> = seen
             .iter()
             .filter_map(|e| match e {
@@ -565,10 +645,10 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
         assert_eq!(
             phases,
             [
-                (Phase::Updating, Step::Checking),
+                (Phase::Launching, Step::Preparing),
                 (Phase::Updating, Step::Downloading),
-                (Phase::Launching, Step::Checking),
-                (Phase::Running, Step::Checking)
+                (Phase::Launching, Step::Preparing),
+                (Phase::Running, Step::Preparing)
             ]
         );
         handle.stop();
@@ -584,7 +664,7 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
         let events = Arc::new(Events::default());
         let _handle = start(spec, dir.path().to_path_buf(), fast(), events.sink());
         let seen = events.wait_for(|e| *e == Event::Finished);
-        assert!(seen.contains(&Event::Phase(Phase::Running, Step::Checking)));
+        assert!(seen.contains(&Event::Phase(Phase::Running, Step::Preparing)));
     }
 
     #[test]
@@ -636,7 +716,7 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
 
     fn start_direct(spec: CommandSpec, dir: &Path, events: &Arc<Events>) -> Handle {
         start_prepared(
-            Box::new(move || Ok((spec, LaunchKind::Direct))),
+            Box::new(move |_| Ok((spec, LaunchKind::Direct))),
             dir.to_path_buf(),
             fast(),
             events.sink(),
@@ -658,7 +738,7 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
             .collect();
         assert_eq!(
             phases,
-            [Phase::Updating, Phase::Launching, Phase::Running],
+            [Phase::Launching, Phase::Launching, Phase::Running],
             "{seen:?}"
         );
         handle.stop();
@@ -671,7 +751,7 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
         let events = Arc::new(Events::default());
         let _handle = start_direct(spec, dir.path(), &events);
         let seen = events.wait_for(|e| matches!(e, Event::Finished));
-        assert!(seen.contains(&Event::Phase(Phase::Running, Step::Checking)));
+        assert!(seen.contains(&Event::Phase(Phase::Running, Step::Preparing)));
     }
 
     #[test]
@@ -694,7 +774,7 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
         let dir = tempfile::tempdir().unwrap();
         let events = Arc::new(Events::default());
         let _handle = start_prepared(
-            Box::new(|| Err(LaunchError::Prepare("config.jar is locked".into()))),
+            Box::new(|_| Err(LaunchError::Prepare("config.jar is locked".into()))),
             dir.path().to_path_buf(),
             fast(),
             events.sink(),
@@ -708,7 +788,7 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
         );
         assert!(!seen
             .iter()
-            .any(|e| matches!(e, Event::Phase(Phase::Launching | Phase::Running, _))));
+            .any(|e| matches!(e, Event::Phase(Phase::Running, _) | Event::Phase(_, Step::Downloading))));
     }
 
     #[test]
@@ -736,7 +816,7 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
         let mut timing = fast();
         timing.grace = Duration::from_millis(400);
         let handle = start(spec, dir.path().to_path_buf(), timing, events.sink());
-        events.wait_for(|e| *e == Event::Phase(Phase::Running, Step::Checking));
+        events.wait_for(|e| *e == Event::Phase(Phase::Running, Step::Preparing));
         handle.stop();
         events.wait_for(|e| *e == Event::Stopped);
     }

@@ -34,6 +34,9 @@ int qml_warning_count();
 // The Qt version the program runs with, for example "6.11.3".
 QString qt_version();
 
+// Puts text on the system clipboard (the UI thread's clipboard; safe to call from a QML invokable).
+void copy_text(const QString &text);
+
 // Installs the translator for `language` ("system", a locale such as "de", or "pseudo" for the pseudo-localisation
 // test mode) and retranslates the UI. Returns the name of the catalogue in use, or an empty string when the English
 // source text is shown.

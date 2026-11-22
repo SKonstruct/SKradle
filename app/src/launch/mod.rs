@@ -12,6 +12,7 @@
 
 pub mod log;
 pub mod memory;
+pub mod pending;
 pub mod plan;
 pub mod planned;
 pub mod supervisor;
@@ -27,7 +28,7 @@ use crate::settings::Settings;
 pub enum Phase {
     #[default]
     Ready,
-    /// The updater is running and the game has not been started yet.
+    /// The game's updater is running and has not started the game yet.
     Updating,
     /// The updater started the game; waiting for it to be up.
     Launching,
@@ -51,16 +52,20 @@ impl Phase {
 /// What the updater is doing while the phase is `Updating`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Step {
-    /// Looking for a newer version; nothing is downloading yet (and perhaps never will).
+    /// Getting ready: picking the Java, applying mods and the server settings. No network is involved.
     #[default]
-    Checking,
+    Preparing,
+    /// Waiting for the Steam client to start and sign in (a Steam install on Official).
+    Steam,
+    /// The game's updater is running (files missing or an update known locally).
     Downloading,
 }
 
 impl Step {
     pub fn as_str(self) -> &'static str {
         match self {
-            Step::Checking => "checking",
+            Step::Preparing => "preparing",
+            Step::Steam => "steam",
             Step::Downloading => "downloading",
         }
     }
@@ -241,16 +246,24 @@ impl Status {
             Event::Failed(error) => {
                 self.phase = Phase::Error;
                 self.progress = None;
-                self.step = Step::Checking;
+                self.step = Step::Preparing;
                 self.message = error.message();
             }
             Event::Finished | Event::Stopped => {
                 self.phase = Phase::Ready;
                 self.progress = None;
-                self.step = Step::Checking;
+                self.step = Step::Preparing;
                 self.message.clear();
             }
         }
+    }
+
+    /// A launch begins: no network is involved, so it starts in the launching phase.
+    pub fn begin(&mut self) {
+        *self = Status {
+            phase: Phase::Launching,
+            ..Status::default()
+        };
     }
 
     /// Whether a new launch may start now.
@@ -282,12 +295,12 @@ mod tests {
     fn the_normal_run() {
         let mut s = Status::default();
         assert!(s.can_start() && !s.can_stop());
-        s.apply(Event::Phase(Phase::Updating, Step::Checking));
+        s.apply(Event::Phase(Phase::Updating, Step::Preparing));
         assert!(!s.can_start() && s.can_stop());
         s.apply(Event::Phase(Phase::Updating, Step::Downloading));
         assert_eq!((s.phase, s.step), (Phase::Updating, Step::Downloading));
-        s.apply(Event::Phase(Phase::Launching, Step::Checking));
-        s.apply(Event::Phase(Phase::Running, Step::Checking));
+        s.apply(Event::Phase(Phase::Launching, Step::Preparing));
+        s.apply(Event::Phase(Phase::Running, Step::Preparing));
         assert_eq!(s.phase, Phase::Running);
         s.apply(Event::Finished);
         assert_eq!(s.phase, Phase::Ready);
@@ -300,7 +313,7 @@ mod tests {
         assert_eq!((s.progress, s.step), (Some(0.4), Step::Downloading));
         s.apply(Event::Progress(7.0));
         assert_eq!(s.progress, Some(1.0));
-        s.apply(Event::Phase(Phase::Launching, Step::Checking));
+        s.apply(Event::Phase(Phase::Launching, Step::Preparing));
         assert_eq!(s.progress, None);
         s.apply(Event::Progress(0.5));
         assert_eq!(s.progress, None);
@@ -318,7 +331,7 @@ mod tests {
         assert_eq!(s.phase, Phase::Error);
         assert!(s.message.contains("Java 25 or newer"), "{}", s.message);
         assert!(s.can_start() && !s.can_stop());
-        s.apply(Event::Phase(Phase::Updating, Step::Checking));
+        s.apply(Event::Phase(Phase::Updating, Step::Preparing));
         assert_eq!(s.phase, Phase::Updating);
         assert!(s.message.is_empty());
     }
@@ -335,11 +348,11 @@ mod tests {
     #[test]
     fn late_events_cannot_undo_a_finished_launch() {
         let mut s = status(Phase::Ready);
-        s.apply(Event::Phase(Phase::Running, Step::Checking));
+        s.apply(Event::Phase(Phase::Running, Step::Preparing));
         assert_eq!(s.phase, Phase::Ready);
         let mut e = status(Phase::Error);
         e.message = "x".into();
-        e.apply(Event::Phase(Phase::Launching, Step::Checking));
+        e.apply(Event::Phase(Phase::Launching, Step::Preparing));
         assert_eq!(e.phase, Phase::Error);
     }
 
