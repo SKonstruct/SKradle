@@ -993,6 +993,18 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Copy password</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Password copied</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy the web interface password. The user name is skradle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Open in browser</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1244,6 +1256,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Start your server before you launch.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>More actions for %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1261,6 +1277,65 @@
     </message>
     <message>
         <source>Delete…</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ServerConsoleDialog</name>
+    <message>
+        <source>Server console</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>What the server prints, and a line to send it commands. Type help to see what it understands.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>— the server restarted —</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The server isn&apos;t running.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Server output</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Waiting for output…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Latest</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Command for the server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Type a command and press Enter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The server isn&apos;t running</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Console copied</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1351,10 +1426,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>A new web interface password was made.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Stop the server before changing these settings.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1427,6 +1498,14 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Server console</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Server settings (web UI)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Use port %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1439,11 +1518,23 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Install server</source>
+        <source>Copy address</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open web UI</source>
+        <source>Server address copied</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset web password</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset the web interface password. Only needed if the server&apos;s page won&apos;t sign in.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install server</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1495,6 +1586,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>A new web interface password was made. The settings page signs in with it by itself.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Your server couldn&apos;t be added to the list. Check that the settings folder is writable.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1511,19 +1606,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Stop</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Cancel</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hide options</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Manage</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1547,66 +1630,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Other players join at %1, port %2. They add it with Add server, using the public key and content address from the join details.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Only this computer can join. To let others in, stop the server and turn on network access.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Copy join details</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Server address: %1
 Port: %2
 Public key: %3
 Content URL: %4</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Join details copied</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Web interface sign-in:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Password: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Password hidden</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hide</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Hide the web interface password</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show the web interface password</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Copy password</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Password copied</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>New password</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1694,6 +1721,13 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Close</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ServerStopButton</name>
+    <message>
+        <source>Stop server</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

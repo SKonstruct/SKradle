@@ -58,6 +58,24 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "adminPassword"]
         fn admin_password(self: &ServerHost) -> QString;
+        /// The script that signs the embedded web view in to the page at `origin` (empty without credentials).
+        /// Contains the password: run it in the view, never show or log it.
+        #[qinvokable]
+        #[cxx_name = "signInScript"]
+        fn sign_in_script(self: &ServerHost, origin: &QString) -> QString;
+        /// Console output from `cursor` on, as JSON `{lines, cursor, live}`. Never blocks.
+        #[qinvokable]
+        #[cxx_name = "consoleSince"]
+        fn console_since(self: &ServerHost, cursor: i32) -> QString;
+        /// Sends a line to the server's console; returns JSON `{ok, echo}` (`echo` is what to show back; a
+        /// secret typed at a prompt is masked there and not remembered).
+        #[qinvokable]
+        #[cxx_name = "consoleSend"]
+        fn console_send(self: &ServerHost, line: &QString) -> QString;
+        /// Up (`older` true) or Down in the command history; empty string when there is nothing to show.
+        #[qinvokable]
+        #[cxx_name = "consoleRecall"]
+        fn console_recall(self: &ServerHost, older: bool, current: &QString) -> QString;
         /// Clears the message shown in the control strip.
         #[qinvokable]
         fn dismiss(self: &ServerHost);
@@ -82,6 +100,21 @@ use cxx_qt_lib::QString;
 use skradle_core::serverhost::terms;
 
 use crate::server_host::{self, Snapshot};
+use skradle_core::serverhost::console;
+use std::sync::Mutex;
+
+/// What the console remembers between calls: the history and the last line the engine printed (to tell a prompt).
+#[derive(Default)]
+struct ConsoleState {
+    history: console::History,
+    last_line: String,
+}
+static CONSOLE: Mutex<Option<ConsoleState>> = Mutex::new(None);
+
+fn with_console<R>(f: impl FnOnce(&mut ConsoleState) -> R) -> R {
+    let mut guard = CONSOLE.lock().unwrap_or_else(|e| e.into_inner());
+    f(guard.get_or_insert_with(ConsoleState::default))
+}
 
 #[derive(Default)]
 pub struct ServerHostRust {
@@ -147,6 +180,45 @@ impl qobject::ServerHost {
                 .unwrap_or_default()
                 .as_str(),
         )
+    }
+    pub fn sign_in_script(&self, origin: &QString) -> QString {
+        QString::from(
+            server_host::global()
+                .sign_in_script(&origin.to_string())
+                .unwrap_or_default()
+                .as_str(),
+        )
+    }
+    pub fn console_since(&self, cursor: i32) -> QString {
+        let (lines, next, live) = server_host::global().console_since(cursor.max(0) as u64);
+        if let Some(last) = lines.last() {
+            with_console(|c| c.last_line = last.clone());
+        }
+        let json = serde_json::json!({ "lines": lines, "cursor": next, "live": live });
+        QString::from(json.to_string().as_str())
+    }
+    pub fn console_send(&self, line: &QString) -> QString {
+        let text = line.to_string();
+        let Some(command) = console::clean_command(&text) else {
+            return QString::from(r#"{"ok":false,"echo":""}"#);
+        };
+        let secret = with_console(|c| console::looks_like_prompt(&c.last_line));
+        let ok = server_host::global().console_send(&command);
+        if ok && !secret {
+            with_console(|c| c.history.push(&command));
+        }
+        let echo = if ok { console::echo(&command, secret) } else { String::new() };
+        QString::from(serde_json::json!({ "ok": ok, "echo": echo }).to_string().as_str())
+    }
+    pub fn console_recall(&self, older: bool, current: &QString) -> QString {
+        let shown = with_console(|c| {
+            if older {
+                c.history.older(&current.to_string())
+            } else {
+                c.history.newer()
+            }
+        });
+        QString::from(shown.unwrap_or_else(|| current.to_string()).as_str())
     }
     pub fn dismiss(&self) {
         server_host::global().dismiss();

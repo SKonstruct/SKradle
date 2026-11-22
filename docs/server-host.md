@@ -208,11 +208,24 @@ The Servers page (`app/qml/ServersPage.qml`) has the **control strip** "Your ser
 - **Ports and network access** are applied with `configure` while stopped; before a start the core checks both ports.
   A busy port is named and the next free one is offered as a button. Nothing is ever left spinning: a failed start,
   an offline download, a rate limit, a checksum mismatch and a locked data folder each have their own sentence.
-- **Registration.** After a start, after a port change and at launch of the app (once a key exists) the "Local Server"
-  entry is written to `servers.json` through the same writer lock the Servers page uses (`register::register`). A saved
-  server already called "Local Server" is reported, not overwritten.
-- **Web UI** opens from the strip only while the server runs (embedded where a web view exists, else the system browser).
-  The generated administrator is shown as user plus a hidden password with Show, Copy and New password.
+- **Registration.** After a start, after a port change and at launch of the app (once the engine is installed) the "Local
+  Server" entry is written to `servers.json` through the same writer lock the Servers page uses (`register::register`).
+  Before the engine has made its key the entry is listed without one (`local_server_keyless`), so it can be chosen at any
+  time; the first start fills the key in. A row selected while the server is stopped shows "Not running" and "Start your
+  server before you launch". A saved server already called "Local Server" is reported, not overwritten.
+- **Strip.** While running: icon buttons for the console, server settings (gear, opens the web UI) and a red Stop; an
+  icon-only chevron toggles Manage (restart, back up, update engine, copy address, reset web password, network, ports).
+  A first install shows no "installed" notice.
+- **Web UI and automatic sign-in.** The gear opens the web UI (embedded where a web view exists, else the system browser).
+  In the embedded view `core::serverhost::signin::script` (built from the stored credentials by `signInScript`) runs once
+  per address when the page has loaded: from the page's own origin it posts the administrator to `/admin/api/login`
+  (JSON, then form encoding, then it fills the page's own form) and reloads. It refuses any other origin. The request body
+  fields are **unverified** against the real engine. In the browser fallback a "Copy password" button is shown (user
+  `skradle`). "Reset web password" is under Manage and only for recovery.
+- **Console.** The Server console dialog polls `consoleSince(cursor)` every 400 ms (the core's 2000-line `LogBuffer`;
+  the dialog keeps the same cap, follows the end until scrolled up, Copy and Clear) and sends with `consoleSend`
+  (`ServerHost::send_console` writes to the engine's stdin). Up/Down walk `console::History` (100 commands). A line typed
+  right after a prompt-shaped line (ends with `:` or mentions a password) is echoed masked and not remembered.
 - **Quit.** `main` calls `server_host::shutdown()` after the event loop ends: a running engine gets the graceful stop
   sequence; an install or backup in progress is not waited for.
 - Test runs (`--selftest`, `--shots`) use `FixtureHost`: fixed states, no Java, no network, no files. The real host is

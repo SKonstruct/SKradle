@@ -4,8 +4,8 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 // "Your server": a compact summary of the hosted server under the list. One line says what it is doing and
-// offers the one action that fits (Install, Start, Open web UI, Stop). Everything else (restart, backups, engine
-// update, join details, sign-in, network access, ports) is under "Manage". Problems show as a banner below the
+// offers the one action that fits (Install, Start; while running: console, web settings, Stop). Everything else (restart,
+// backups, engine update, address, web password reset, network access, ports) is under "Manage". Problems show as a banner below the
 // line, with a plain sentence; the engine's own text goes to the log.
 Card {
     id: root
@@ -62,46 +62,47 @@ Card {
         case "installed": return qsTr("Installed engine %1.").arg(d)
         case "backup_done": return qsTr("Backup made: %1.").arg(d)
         case "restored": return qsTr("Restored %1.").arg(d)
-        case "password_reset": return qsTr("A new web interface password was made.")
+        case "password_reset": return qsTr("A new web interface password was made. The settings page signs in with it by itself.")
         case "stop_first": return qsTr("Stop the server before changing these settings.")
-        case "register_duplicate": return qsTr("A server you saved is already named “Local Server”, so your own server isn't in the list. Rename or delete it.")
+        case "register_duplicate": return qsTr("A server you saved is already named \u201CLocal Server\u201D, so your own server isn't in the list. Rename or delete it.")
         case "register_failed": return qsTr("Your server couldn't be added to the list. Check that the settings folder is writable.")
         }
         return qsTr("Something went wrong with the server. Try again.")
     }
     function sentence() {
         switch (st) {
-        case "checking": return qsTr("Checking the server's files…")
+        case "checking": return qsTr("Checking the server's files\u2026")
         case "notinstalled": return qsTr("Not installed. SKradle downloads the server engine (Tortodrone) from its author's GitHub releases.")
         case "stopped": return qsTr("Stopped. Engine %1.").arg(s.engineVersion)
-        case "starting": return qsTr("Starting…")
+        case "starting": return qsTr("Starting\u2026")
         case "running": return qsTr("Running on 127.0.0.1:%1").arg(s.gamePort)
-        case "stopping": return qsTr("Stopping…")
+        case "stopping": return qsTr("Stopping\u2026")
         case "failed": return qsTr("Stopped with a problem.")
         case "busy":
             switch (s.task) {
-            case "install": return qsTr("Installing the server engine…")
-            case "update": return qsTr("Updating the server engine…")
-            case "backup": return qsTr("Backing up. The server stops for a moment…")
-            case "restore": return qsTr("Restoring a backup. The server stops for a moment…")
+            case "install": return qsTr("Installing the server engine\u2026")
+            case "update": return qsTr("Updating the server engine\u2026")
+            case "backup": return qsTr("Backing up. The server stops for a moment\u2026")
+            case "restore": return qsTr("Restoring a backup. The server stops for a moment\u2026")
             }
         }
         return ""
     }
     function stepText() {
         switch (s.step) {
-        case "downloading": return s.progress >= 0 ? qsTr("Downloading… %1%").arg(Math.round(s.progress * 100)) : qsTr("Downloading…")
-        case "verifying": return qsTr("Checking the download…")
-        case "unpacking": return qsTr("Unpacking…")
-        case "installing": return qsTr("Installing…")
+        case "downloading": return s.progress >= 0 ? qsTr("Downloading\u2026 %1%").arg(Math.round(s.progress * 100)) : qsTr("Downloading\u2026")
+        case "verifying": return qsTr("Checking the download\u2026")
+        case "unpacking": return qsTr("Unpacking\u2026")
+        case "installing": return qsTr("Installing\u2026")
         }
         return ""
     }
-    function closeDialogs() { installDlg.close(); backupDlg.close() }
+    function closeDialogs() { installDlg.close(); backupDlg.close(); consoleDlg.close() }
     // Screenshots only.
     function demo(name) {
         if (name === "install") { installDlg.update = false; installDlg.openFrom(null) }
         else if (name === "backup") backupDlg.openFrom(null)
+        else if (name === "console") consoleDlg.openFrom(null)
     }
     function install() { if (s.termsAccepted) ServerHost.install(true); else { installDlg.update = false; installDlg.openFrom(installBtn) } }
     function updateEngine() { if (s.termsAccepted) ServerHost.updateEngine(); else { installDlg.update = true; installDlg.openFrom(updateBtn) } }
@@ -143,21 +144,25 @@ Card {
                 enabled: !root.needsJava
                 onClicked: ServerHost.start()
             }
-            SButton {
+            IconButton {
                 visible: root.st === "running"
-                text: qsTr("Open web UI"); glyph: "panel"; highlighted: true
+                glyph: "terminal"; tip: qsTr("Server console")
+                onClicked: consoleDlg.openFrom(this)
+            }
+            IconButton {
+                visible: root.st === "running"
+                glyph: "gear"; tip: qsTr("Server settings (web UI)")
                 enabled: ServerHost.url.length > 0
                 onClicked: root.openWebUi()
             }
-            SButton { visible: root.st === "running"; text: qsTr("Stop"); glyph: "stop"; onClicked: ServerHost.stop() }
+            ServerStopButton { visible: root.st === "running"; onClicked: ServerHost.stop() }
             SButton { visible: root.st === "starting"; text: qsTr("Cancel"); glyph: "stop"; onClicked: ServerHost.stop() }
-            SButton {
+            IconButton {
                 id: manageBtn
                 visible: root.installed && root.st !== "busy"
-                text: root.manage ? qsTr("Hide options") : qsTr("Manage")
-                glyph: "chevron-down"; variant: "ghost"
-                Accessible.name: root.manage ? qsTr("Hide the server options") : qsTr("Manage the server: backups, ports, network access")
-                Accessible.role: Accessible.Button
+                glyph: root.manage ? "chevron-up" : "chevron-down"
+                toggledOn: root.manage
+                tip: root.manage ? qsTr("Hide the server options") : qsTr("Manage the server: backups, ports, network access")
                 onClicked: root.manage = !root.manage
             }
         }
@@ -167,18 +172,28 @@ Card {
             Layout.fillWidth: true
             visible: root.st === "busy"
             spacing: Theme.s1
+            // The fill is clipped to the track and positioned from its own left edge, so it starts and ends exactly
+            // on the track's edges. (A moving fill left at an offset by the indeterminate animation once shifted it.)
             Rectangle {
-                Layout.fillWidth: true; implicitHeight: 6; radius: Theme.rXs; color: Theme.track
+                id: track
+                Layout.fillWidth: true; implicitHeight: 6; radius: height / 2; color: Theme.track
+                clip: true
+                readonly property bool known: root.s.progress >= 0
                 Accessible.role: Accessible.ProgressBar
                 Accessible.name: root.stepText()
                 Rectangle {
-                    height: parent.height; radius: Theme.rXs; color: Theme.accent
-                    width: root.s.progress >= 0 ? parent.width * root.s.progress : parent.width * 0.3
-                    Behavior on width { NumberAnimation { duration: Motion.progress } }
-                    SequentialAnimation on x {
-                        running: root.st === "busy" && root.s.progress < 0
+                    id: fill
+                    height: parent.height; radius: height / 2; color: Theme.accent
+                    // Smooth the value, not the width: a layout change of the track must never animate the fill.
+                    property real shown: Math.max(0, Math.min(1, root.s.progress))
+                    Behavior on shown { NumberAnimation { duration: Motion.progress } }
+                    width: track.known ? Math.round(track.width * shown) : Math.round(track.width * 0.3)
+                    x: track.known ? 0 : slide
+                    property real slide: 0
+                    SequentialAnimation on slide {
+                        running: root.st === "busy" && !track.known
                         loops: Animation.Infinite
-                        NumberAnimation { from: 0; to: parent.parent.width * 0.7; duration: Motion.loop }
+                        NumberAnimation { from: -fill.width; to: track.width; duration: Motion.loop }
                     }
                 }
             }
@@ -232,55 +247,20 @@ Card {
                     text: qsTr("Update engine"); glyph: "upload"
                     onClicked: root.updateEngine()
                 }
-            }
-
-            // While running: where to connect and how to sign in to the web page.
-            ColumnLayout {
-                Layout.fillWidth: true
-                visible: root.st === "running"
-                spacing: Theme.gapInline
-                Txt {
-                    Layout.fillWidth: true
-                    text: root.s.join && root.s.join.reachableByOthers
-                        ? qsTr("Other players join at %1, port %2. They add it with Add server, using the public key and content address from the join details.").arg(root.s.join.host).arg(root.s.join.port)
-                        : qsTr("Only this computer can join. To let others in, stop the server and turn on network access.")
-                    kind: "caption"
-                }
                 SButton {
-                    visible: root.s.join !== null && root.s.join.reachableByOthers
-                    text: qsTr("Copy join details"); glyph: "copy"
+                    visible: root.st === "running" && root.s.join !== null && root.s.join.reachableByOthers
+                    text: qsTr("Copy address"); glyph: "copy"
                     onClicked: {
                         const j = root.s.join
                         clip.copy(qsTr("Server address: %1\nPort: %2\nPublic key: %3\nContent URL: %4").arg(j.host).arg(j.port).arg(j.publicKey).arg(j.contentUrl))
-                        Data.toast(qsTr("Join details copied"))
+                        Data.toast(qsTr("Server address copied"))
                     }
                 }
-                Flow {
-                    Layout.fillWidth: true
-                    visible: root.s.adminUser.length > 0
-                    spacing: Theme.gapInline
-                    Row {
-                        height: Theme.hMd
-                        spacing: Theme.gapInline
-                        Txt { anchors.verticalCenter: parent.verticalCenter; text: qsTr("Web interface sign-in:"); kind: "caption" }
-                        Txt { anchors.verticalCenter: parent.verticalCenter; text: root.s.adminUser; font.weight: Font.Medium; kind: "caption"; color: Theme.text; wrapMode: Text.NoWrap }
-                        Txt {
-                            id: pwText
-                            anchors.verticalCenter: parent.verticalCenter
-                            property bool shown: false
-                            property string value: ""
-                            text: shown ? value : "••••••••••"
-                            kind: "caption"; mono: shown; numeric: true; color: Theme.text; wrapMode: Text.NoWrap
-                            Accessible.name: shown ? qsTr("Password: %1").arg(value) : qsTr("Password hidden")
-                        }
-                    }
-                    SButton {
-                        text: pwText.shown ? qsTr("Hide") : qsTr("Show"); variant: "ghost"
-                        Accessible.name: pwText.shown ? qsTr("Hide the web interface password") : qsTr("Show the web interface password")
-                        onClicked: { pwText.shown = !pwText.shown; pwText.value = pwText.shown ? ServerHost.adminPassword() : "" }
-                    }
-                    SButton { text: qsTr("Copy password"); variant: "ghost"; glyph: "copy"; onClicked: { clip.copy(ServerHost.adminPassword()); Data.toast(qsTr("Password copied")) } }
-                    SButton { text: qsTr("New password"); variant: "ghost"; onClicked: { pwText.shown = false; pwText.value = ""; ServerHost.resetAdminPassword() } }
+                SButton {
+                    visible: root.st === "running" && root.s.adminUser.length > 0
+                    text: qsTr("Reset web password"); variant: "ghost"
+                    Accessible.name: qsTr("Reset the web interface password. Only needed if the server's page won't sign in.")
+                    onClicked: ServerHost.resetAdminPassword()
                 }
             }
 
@@ -355,4 +335,5 @@ Card {
         onAccepted: if (update) ServerHost.updateEngine(); else ServerHost.install(true)
     }
     BackupDialog { id: backupDlg }
+    ServerConsoleDialog { id: consoleDlg }
 }

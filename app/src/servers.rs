@@ -605,6 +605,28 @@ mod tests {
     }
 
     #[test]
+    fn the_hosted_server_can_be_chosen_like_any_other() {
+        let (_d, book) = book();
+        book.update(|l| {
+            l.save(Server {
+                id: LOCAL_ID.into(),
+                name: "Local Server".into(),
+                host: "127.0.0.1".into(),
+                port: 47624,
+                public_key: String::new(),
+                client_url: String::new(),
+                content_url: String::new(),
+            })
+        })
+        .unwrap()
+        .unwrap();
+        select(&book, LOCAL_ID).unwrap();
+        let rows = entries(&book.load());
+        assert!(rows.iter().find(|e| e.id == LOCAL_ID).unwrap().selected);
+        assert!(!rows[0].selected);
+    }
+
+    #[test]
     fn the_selection_survives_a_restart_and_is_what_the_launch_reads() {
         let (dir, book) = book();
         assert_eq!(selected_server_from(dir.path()), None);

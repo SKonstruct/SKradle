@@ -31,6 +31,7 @@ Item {
         case "delete": deleteDlg.sid = "c"; deleteDlg.name = rows.get(3).name; deleteDlg.openFrom(lv); break
         case "install": ServerHost.force("notinstalled"); lv.positionViewAtEnd(); strip.demo("install"); break
         case "backup": ServerHost.force("stopped"); lv.positionViewAtEnd(); strip.demo("backup"); break
+        case "console": ServerHost.force("running"); lv.positionViewAtEnd(); strip.demo("console"); break
         case "selected-menu": { const it = lv.itemAtIndex(1); if (it) it.card.openMenu(); break }
         case "manage": ServerHost.force("running"); lv.positionViewAtEnd(); strip.manage = true; break
         default: ServerHost.force(name); lv.positionViewAtEnd(); strip.manage = false
@@ -216,7 +217,7 @@ Item {
         property string name: ""
         fallback: lv
         title: qsTr("Delete this server?")
-        message: qsTr("“%1” is removed from your list. If it is the selected server, the game will use Official again.").arg(name)
+        message: qsTr("\u201C%1\u201D is removed from your list. If it is the selected server, the game will use Official again.").arg(name)
         confirmText: qsTr("Delete")
         danger: true
         onConfirmed: { ServerBook.remove(sid); Data.toast(qsTr("Server deleted")) }

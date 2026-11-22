@@ -205,6 +205,12 @@ pub trait ServerHost: Send + Sync {
     fn set_ports(&self, game: u16, web: u16);
     fn reset_admin_password(&self);
     fn admin_password(&self) -> Option<String>;
+    /// The script that signs the embedded web view in, for the page at `origin`; `None` without credentials.
+    fn sign_in_script(&self, origin: &str) -> Option<String>;
+    /// The console output from `cursor` on: the lines, the next cursor, and whether a server process exists.
+    fn console_since(&self, cursor: u64) -> (Vec<String>, u64, bool);
+    /// Sends one line to the server's console. False when the server isn't running or the line is empty.
+    fn console_send(&self, line: &str) -> bool;
     fn dismiss(&self);
     /// Stops the engine gracefully when the app quits.
     fn shutdown(&self);
@@ -492,7 +498,12 @@ impl Inner {
             });
         let server = match register::local_server(&self.layout, &config) {
             Ok(server) => server,
-            Err(RegisterError::NoKey) => return,
+            // Not run yet, so no key: still list "Local Server" (without a key) so it can be chosen before the first
+            // start. The first start fills the key in.
+            Err(RegisterError::NoKey) => match register::local_server_keyless(&config) {
+                Ok(server) => server,
+                Err(_) => return,
+            },
             Err(e) => {
                 self.set_notice(Some(notice("warn", "register_failed", e.to_string())));
                 return;
@@ -583,11 +594,13 @@ impl Inner {
         self.refresh_engine();
         match result {
             Ok(report) => {
+                // A first install needs no "installed" sub card: the strip changing to Start says it.
                 let n = match &report.outcome {
-                    UpdateOutcome::UpToDate(v) => notice("info", "up_to_date", v.clone()),
-                    UpdateOutcome::Installed(e) => notice("info", "installed", e.version.clone()),
+                    UpdateOutcome::UpToDate(v) => Some(notice("info", "up_to_date", v.clone())),
+                    UpdateOutcome::Installed(_) if task == Task::Install => None,
+                    UpdateOutcome::Installed(e) => Some(notice("info", "installed", e.version.clone())),
                 };
-                self.set_notice(Some(n));
+                self.set_notice(n);
                 self.sync_registration();
                 if report.was_running {
                     self.start_again(&core);
@@ -882,6 +895,27 @@ impl ServerHost for RealHost {
         admin::load(&self.inner.layout).map(|c| c.reveal_password().to_owned())
     }
 
+    fn sign_in_script(&self, origin: &str) -> Option<String> {
+        admin::load(&self.inner.layout).map(|c| {
+            skradle_core::serverhost::signin::script(origin, &c.username, c.reveal_password())
+        })
+    }
+
+    fn console_since(&self, cursor: u64) -> (Vec<String>, u64, bool) {
+        match lock(&self.inner.core).as_ref().map(|(h, _)| h.clone()) {
+            Some(host) => {
+                let (lines, next) = host.log_since(cursor);
+                (lines, next, next > 0)
+            }
+            None => (Vec::new(), cursor, false),
+        }
+    }
+
+    fn console_send(&self, line: &str) -> bool {
+        let host = lock(&self.inner.core).as_ref().map(|(h, _)| h.clone());
+        host.is_some_and(|h| h.send_console(line).is_ok())
+    }
+
     fn dismiss(&self) {
         self.inner.set_notice(None);
     }
@@ -969,6 +1003,21 @@ impl ServerHost for FixtureHost {
     fn reset_admin_password(&self) {}
     fn admin_password(&self) -> Option<String> {
         Some("Fixture-password-0000".into())
+    }
+    fn sign_in_script(&self, origin: &str) -> Option<String> {
+        Some(skradle_core::serverhost::signin::script(origin, "skradle", "Fixture-password-0000"))
+    }
+    fn console_since(&self, cursor: u64) -> (Vec<String>, u64, bool) {
+        let all = [
+            "[10:00:01] [Main/INFO]: Starting the fixture server",
+            "[10:00:02] [Main/INFO]: Done! Listening on 127.0.0.1:47624 (TCP)",
+            "[10:00:03] [ServerConsole/INFO]: Type help for commands",
+        ];
+        let lines = all.iter().skip(cursor as usize).map(|l| (*l).to_owned()).collect();
+        (lines, all.len() as u64, true)
+    }
+    fn console_send(&self, line: &str) -> bool {
+        !line.trim().is_empty()
     }
     fn dismiss(&self) {
         lock(&self.state).notice = None;
