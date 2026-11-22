@@ -716,7 +716,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Add mods, or install the modpack.</source>
+        <source>Add mods, or install SirDank’s Modpack.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -776,7 +776,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Drop .zip, .jar or .modpack files anywhere on this page, or choose them. Each file is checked before it is copied in. You can also install the modpack above.</source>
+        <source>Drop .zip, .jar or .modpack files anywhere on this page, or choose them. Each file is checked before it is copied in. You can also install SirDank’s Modpack above.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1070,7 +1070,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Modpack</source>
+        <source>SirDank’s Modpack</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1094,15 +1094,15 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Cancel the modpack download</source>
+        <source>Cancel the download of SirDank’s Modpack</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Update modpack</source>
+        <source>Update SirDank’s Modpack</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Install modpack</source>
+        <source>Install SirDank’s Modpack</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1114,7 +1114,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Modpack download progress</source>
+        <source>SirDank’s Modpack download progress</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1126,11 +1126,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Dismiss the modpack report</source>
+        <source>Dismiss the report on SirDank’s Modpack</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Removed %1 (dropped from the modpack)</source>
+        <source>Removed %1 (dropped from SirDank’s Modpack)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

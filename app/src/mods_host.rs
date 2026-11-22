@@ -275,17 +275,17 @@ pub fn plain_refusal(raw: &str) -> String {
 pub fn plain_pack_error(raw: &str) -> String {
     let t = raw.to_lowercase();
     if t.contains("lists no mods") {
-        "The modpack is empty right now. Try again later.".to_owned()
+        "SirDank's Modpack is empty right now. Try again later.".to_owned()
     } else if t.contains("cannot read the modpack listing")
         || ["connect", "network", "timed out", "dns", "https", "status"]
             .iter()
             .any(|n| t.contains(n))
     {
-        "Could not reach the modpack. Check your internet connection and try again.".to_owned()
+        "Could not reach SirDank's Modpack. Check your internet connection and try again.".to_owned()
     } else if t.contains("permission denied") || t.contains("access is denied") {
         "SKradle is not allowed to write to the mods folder.".to_owned()
     } else {
-        "The modpack could not be updated. Try again.".to_owned()
+        "SirDank's Modpack could not be updated. Try again.".to_owned()
     }
 }
 

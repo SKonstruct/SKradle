@@ -25,7 +25,7 @@ Rectangle {
         anchors.leftMargin: Theme.s3
         anchors.rightMargin: Theme.s1
         spacing: Theme.gapInline
-        Txt { Layout.alignment: Qt.AlignVCenter; text: qsTr("%n selected", "", root.count); font.weight: Font.Medium; wrapMode: Text.NoWrap; numeric: true }
+        Txt { Layout.fillHeight: true; verticalAlignment: Text.AlignVCenter; text: qsTr("%n selected", "", root.count); font.weight: Font.Medium; wrapMode: Text.NoWrap; numeric: true }
         Item { Layout.fillWidth: true }
         SButton { size: "sm"; text: qsTr("Enable"); enabled: root.canAct; onClicked: root.enable()
                   Accessible.name: qsTr("Enable the selected mods") }
@@ -33,7 +33,9 @@ Rectangle {
                   Accessible.name: qsTr("Disable the selected mods") }
         SButton { size: "sm"; text: qsTr("Remove"); variant: "danger"; enabled: root.canAct; onClicked: root.remove()
                   Accessible.name: qsTr("Remove the selected mods") }
-        SButton { size: "sm"; text: qsTr("Clear"); variant: "ghost"; onClicked: root.clear()
+        // the ghost button has no visible edge, so its inner padding is trimmed to put the text where the label
+        // on the left sits (the bar's 12 px margin)
+        SButton { size: "sm"; text: qsTr("Clear"); variant: "ghost"; leftPadding: Theme.s2; rightPadding: Theme.s2; onClicked: root.clear()
                   Accessible.name: qsTr("Clear the selection") }
     }
 }

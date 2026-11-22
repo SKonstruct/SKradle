@@ -14,6 +14,7 @@ RowLayout {
     signal statusPicked(string id)
     signal tagPicked(string id)
     spacing: Theme.s3
+    // the page's section spacing above the row comes from the owner's Layout.topMargin
 
     Segmented {
         label: qsTr("Show by status")
