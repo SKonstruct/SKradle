@@ -145,6 +145,7 @@ PageScaffold {
                         text: page.st === "ready" ? qsTr("Ready to play")
                             : page.st === "error" ? qsTr("Could not start the game")
                             : page.st === "updating" && LaunchModel.step === "downloading" ? qsTr("Updating game files")
+                            : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "steam" ? qsTr("Starting Steam")
                             : page.st === "updating" || page.st === "launching" ? qsTr("Starting the game")
                             : qsTr("Game is running")
                     }
@@ -156,8 +157,9 @@ PageScaffold {
                         // "x of y MB" line: the ring spins and this says what is going on.
                         text: page.st === "ready" ? page.readyLine
                             : page.st === "error" ? LaunchModel.message
-                            : page.st === "updating" && LaunchModel.step === "downloading" ? qsTr("Downloading and verifying game files…")
-                            : page.st === "updating" || page.st === "launching" ? qsTr("Starting the game…")
+                            : page.st === "updating" && LaunchModel.step === "downloading" ? qsTr("Downloading and verifying game files\u2026")
+                            : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "steam" ? qsTr("Starting Steam\u2026")
+                            : page.st === "updating" || page.st === "launching" ? qsTr("Starting the game\u2026")
                             : qsTr("The launcher stays open in the background.")
                         color: Theme.textSecondary
                         Accessible.role: page.st === "error" ? Accessible.AlertMessage : Accessible.StaticText
@@ -220,7 +222,7 @@ PageScaffold {
                     Layout.alignment: Qt.AlignVCenter
                 }
                 Txt {
-                    text: HomeFeed.playersState === "ok" ? qsTr("About %1").arg(page.number(HomeFeed.players)) : "–"
+                    text: HomeFeed.playersState === "ok" ? qsTr("About %1").arg(page.number(HomeFeed.players)) : "\u2013"
                     kind: "heading"
                     numeric: true
                     wrapMode: Text.NoWrap
@@ -232,7 +234,7 @@ PageScaffold {
                     maximumLineCount: 1
                     text: HomeFeed.playersState === "ok" ? qsTr("players online now")
                         : HomeFeed.playersState === "unavailable" ? qsTr("The player count is not available right now.")
-                        : qsTr("Asking Steam…")
+                        : qsTr("Asking Steam\u2026")
                 }
                 IconButton {
                     visible: HomeFeed.playersState === "ok"
@@ -383,7 +385,7 @@ PageScaffold {
                 Txt {
                     Layout.fillWidth: true
                     visible: HomeFeed.newsState === "loading" || HomeFeed.newsState === "unavailable"
-                    text: HomeFeed.newsState === "loading" ? qsTr("Loading news…") : qsTr("The news needs an internet connection, and none is saved yet.")
+                    text: HomeFeed.newsState === "loading" ? qsTr("Loading news\u2026") : qsTr("The news needs an internet connection, and none is saved yet.")
                     color: Theme.textSecondary
                 }
                 Repeater {
@@ -418,7 +420,7 @@ PageScaffold {
                                     Layout.leftMargin: Theme.s2; Layout.rightMargin: Theme.s2
                                     spacing: Theme.s2
                                     Txt { text: row.modelData.label; kind: "micro"; visible: text !== ""; wrapMode: Text.NoWrap }
-                                    Txt { text: "·"; kind: "micro"; visible: row.modelData.label !== ""; color: Theme.textTertiary; wrapMode: Text.NoWrap }
+                                    Txt { text: "\u00b7"; kind: "micro"; visible: row.modelData.label !== ""; color: Theme.textTertiary; wrapMode: Text.NoWrap }
                                     Txt { text: page.formatDate(row.modelData.date); kind: "micro"; color: Theme.textTertiary; wrapMode: Text.NoWrap; Layout.fillWidth: true; elide: Text.ElideRight }
                                 }
                                 Txt { Layout.fillWidth: true; Layout.leftMargin: Theme.s2; Layout.rightMargin: Theme.s2; text: row.modelData.title; font.weight: Font.DemiBold; maximumLineCount: 2; elide: Text.ElideRight }

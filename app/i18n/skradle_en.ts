@@ -365,7 +365,15 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Starting Steam</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Downloading and verifying game files…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starting Steam…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
