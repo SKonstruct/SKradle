@@ -206,19 +206,24 @@ fn events_image_dir() -> std::path::PathBuf {
     settings::config_dir().join("event-images")
 }
 
-/// The file URL of each event's cached banner (downloaded now when needed), "" when it has none. Banners no event
-/// refers to any more are removed, unless the feed is offline (then the list may be a stale one).
-fn banner_urls(feed: &EventsFeed, dir: &std::path::Path) -> Vec<String> {
+/// The file URL of each event's cached banner, "" when it has none. With `download`, banners that are not cached yet
+/// are fetched now and banners no event refers to any more are removed (unless the feed is offline: then the list may
+/// be a stale one). Without it only files already on disk are used, so it never waits for the network.
+fn banner_urls(feed: &EventsFeed, dir: &std::path::Path, download: bool) -> Vec<String> {
     let paths: Vec<Option<std::path::PathBuf>> = feed
         .events
         .iter()
         .map(|e| {
-            e.image_url
-                .as_deref()
-                .and_then(|url| live_events::cached_image(dir, url, &download_banner))
+            e.image_url.as_deref().and_then(|url| {
+                if download {
+                    live_events::cached_image(dir, url, &download_banner)
+                } else {
+                    live_events::cached_image(dir, url, &|_| None)
+                }
+            })
         })
         .collect();
-    if !feed.offline {
+    if download && !feed.offline {
         let keep: Vec<_> = paths.iter().flatten().cloned().collect();
         live_events::prune_images(dir, &keep);
     }
@@ -358,7 +363,10 @@ impl qobject::HomeFeed {
 
     fn show_events(mut self: Pin<&mut Self>, feed: &EventsFeed, images: &[String]) {
         let json = events_to_json(&feed.events, images);
-        self.as_mut().set_events_json(QString::from(json.as_str()));
+        // Unchanged lists are not set again: the page would rebuild its cards and the banners would blink.
+        if self.events_json().to_string() != json {
+            self.as_mut().set_events_json(QString::from(json.as_str()));
+        }
         self.as_mut().set_events_fetched_at(feed.fetched_at as f64);
         self.set_events_state(QString::from(events_state(feed)));
     }
@@ -372,12 +380,30 @@ impl qobject::HomeFeed {
         let spawned = std::thread::Builder::new()
             .name("skradle-events".into())
             .spawn(move || {
+                let dir = events_image_dir();
+                // 1. What is saved, at once: events and banners from disk, before (and without) the network.
+                if let Some(saved) = live_events::cached_feed(&events_cache_path(), unix_now()) {
+                    let images = banner_urls(&saved, &dir, false);
+                    let _ = thread.queue(move |model| model.show_events(&saved, &images));
+                }
+                // 2. The answer; banners already on disk show with it, missing ones are fetched after.
                 let feed = live_events::load_events(
                     events_api().as_ref(),
                     &events_cache_path(),
                     unix_now(),
                 );
-                let images = banner_urls(&feed, &events_image_dir());
+                let quick = banner_urls(&feed, &dir, false);
+                let complete = feed
+                    .events
+                    .iter()
+                    .zip(&quick)
+                    .all(|(e, image)| e.image_url.is_none() || !image.is_empty());
+                if !complete {
+                    let (shown, images) = (feed.clone(), quick);
+                    let _ = thread.queue(move |model| model.show_events(&shown, &images));
+                }
+                // 3. Fetch what is missing, drop what no event uses, show the final list.
+                let images = banner_urls(&feed, &dir, true);
                 let _ = thread.queue(move |mut model| {
                     model.as_mut().rust_mut().events_busy = false;
                     model.show_events(&feed, &images);
@@ -415,7 +441,7 @@ impl qobject::HomeFeed {
                 fetched_at: now,
             },
         };
-        let images = banner_urls(&feed, &events_image_dir());
+        let images = banner_urls(&feed, &events_image_dir(), true);
         self.as_mut().show_events(&feed, &images);
     }
 

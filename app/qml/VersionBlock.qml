@@ -69,14 +69,26 @@ Item {
             id: lineRow
             anchors { left: parent.left; right: parent.right }
             spacing: Theme.s2
-            Txt {
+            Item {   // a drawn bullet (a filled circle on the first line's centre), so no font has to have one
                 Layout.alignment: Qt.AlignTop
                 visible: line.bullet
-                text: line.level > 0 ? "–" : "•"
-                lineHeight: 1.5
-                color: Theme.textSecondary
-                wrapMode: Text.NoWrap
+                implicitWidth: line.level > 0 ? Theme.s2 : 6
+                implicitHeight: loose.implicitHeight
                 Accessible.ignored: true
+                Txt { id: loose; visible: false; text: "M"; paragraph: true; lineHeight: 1.5 }
+                Txt { id: natural; visible: false; text: "M" }
+                Rectangle {
+                    visible: line.level === 0
+                    width: 6; height: 6; radius: 3
+                    color: Theme.textSecondary
+                    y: (natural.implicitHeight - height) / 2
+                }
+                Rectangle {
+                    visible: line.level > 0
+                    width: Theme.s2; height: 2
+                    color: Theme.textSecondary
+                    y: (natural.implicitHeight - height) / 2
+                }
             }
             Txt {
                 id: itemText

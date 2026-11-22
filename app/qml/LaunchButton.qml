@@ -59,22 +59,24 @@ AbstractButton {
     contentItem: Item {
         // READY
         Row {
-            anchors.centerIn: parent
+            height: parent.height
+            anchors.horizontalCenter: parent.horizontalCenter
             spacing: Theme.s2
             opacity: root.phase === "ready" ? 1 : 0
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
             Icon { name: "play"; size: 22; color: Theme.accentText; anchors.verticalCenter: parent.verticalCenter }
-            Txt { text: LaunchModel.state === "error" ? qsTr("Try again") : qsTr("Launch"); font.pixelSize: Theme.fsHeading + 2; font.weight: Font.DemiBold; color: Theme.accentText; wrapMode: Text.NoWrap; anchors.verticalCenter: parent.verticalCenter }
+            Txt { text: LaunchModel.state === "error" ? qsTr("Try again") : qsTr("Launch"); font.pixelSize: Theme.fsHeading + 2; font.weight: Font.DemiBold; color: Theme.accentText; wrapMode: Text.NoWrap; height: parent.height }
         }
         // UPDATING (cancel)
         Row {
-            anchors.centerIn: parent
+            height: parent.height
+            anchors.horizontalCenter: parent.horizontalCenter
             spacing: Theme.s2
             opacity: root.phase === "updating" ? 1 : 0
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
-            Txt { text: qsTr("Cancel"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; wrapMode: Text.NoWrap; anchors.verticalCenter: parent.verticalCenter }
+            Txt { text: qsTr("Cancel"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; wrapMode: Text.NoWrap; height: parent.height }
         }
         // LAUNCHING
         Item {
@@ -82,17 +84,18 @@ AbstractButton {
             opacity: root.phase === "launching" ? 1 : 0
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
-            Txt { anchors.centerIn: parent; text: qsTr("Launching"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; color: Theme.accentText; wrapMode: Text.NoWrap }
+            Txt { anchors.fill: parent; horizontalAlignment: Text.AlignHCenter; text: qsTr("Launching"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; color: Theme.accentText; wrapMode: Text.NoWrap }
         }
         // RUNNING (stop)
         Row {
-            anchors.centerIn: parent
+            height: parent.height
+            anchors.horizontalCenter: parent.horizontalCenter
             spacing: Theme.s2
             opacity: root.phase === "running" ? 1 : 0
             visible: opacity > 0.01
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
             Icon { name: "stop"; size: 20; color: Theme.danger; anchors.verticalCenter: parent.verticalCenter }
-            Txt { text: qsTr("Stop game"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; wrapMode: Text.NoWrap; anchors.verticalCenter: parent.verticalCenter }
+            Txt { text: qsTr("Stop game"); font.pixelSize: Theme.fsHeading; font.weight: Font.DemiBold; wrapMode: Text.NoWrap; height: parent.height }
         }
     }
     FocusRing { grow: 4 }

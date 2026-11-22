@@ -29,7 +29,7 @@ Item {
         spacing: Theme.s2
         Icon { Layout.alignment: Qt.AlignHCenter; name: root.glyph; size: 28; color: Theme.textSecondary }
         Txt { Layout.fillWidth: true; Layout.topMargin: Theme.s1; horizontalAlignment: Text.AlignHCenter; text: root.title; kind: "heading"; Accessible.role: Accessible.Heading }
-        Txt { Layout.fillWidth: true; visible: root.text.length > 0; horizontalAlignment: Text.AlignHCenter; text: root.text; color: Theme.textSecondary }
+        Txt { Layout.fillWidth: true; visible: root.text.length > 0; horizontalAlignment: Text.AlignHCenter; text: root.text; paragraph: true; color: Theme.textSecondary }
         SButton {
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: Theme.s2

@@ -57,6 +57,7 @@ T.Button {
         Behavior on color { ColorAnimation { duration: Motion.fast } }
     }
     contentItem: Row {
+        height: control.availableHeight
         spacing: control.spacing
         layoutDirection: Qt.LeftToRight
         Icon {
@@ -75,7 +76,8 @@ T.Button {
             font: control.font
             color: control.fg
             elide: Text.ElideRight
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
+            verticalAlignment: Text.AlignVCenter
         }
     }
     // swallows clicks while busy

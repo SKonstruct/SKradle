@@ -12,7 +12,7 @@ ServerDialog {
     signal confirmed()
 
     onFocusFirst: cancelBtn.forceActiveFocus()
-    Txt { Layout.fillWidth: true; text: dlg.message; color: Theme.textSecondary }
+    Txt { Layout.fillWidth: true; text: dlg.message; paragraph: true; color: Theme.textSecondary }
     buttons: [
         Item { Layout.fillWidth: true },
         SButton { id: cancelBtn; text: qsTr("Cancel"); onClicked: dlg.close() },

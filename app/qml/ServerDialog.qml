@@ -16,6 +16,9 @@ Popup {
     property Item opener: null
     // Where the focus goes when that control is gone (for example the row that was just deleted).
     property Item fallback: null
+    // An X in the top right corner (accessible name "Close") for dialogs that have no buttons of their own.
+    property bool showClose: false
+    readonly property Item closeButton: closeBtn
     default property alias body: bodyCol.data
     property alias buttons: buttonRow.data
     // Called when the dialog opens: put the focus on the first field or the safest button.
@@ -67,13 +70,27 @@ Popup {
         transform: Translate { y: dlg.rise }
         Accessible.role: Accessible.Dialog
         Accessible.name: dlg.title
-        ColumnLayout {
+        RowLayout {
             Layout.fillWidth: true
             Layout.margins: Theme.padDialog
             Layout.bottomMargin: Theme.s3
-            spacing: Theme.s1
-            Txt { Layout.fillWidth: true; text: dlg.title; kind: "title"; Accessible.role: Accessible.Heading }
-            Txt { Layout.fillWidth: true; visible: dlg.subtitle.length > 0; text: dlg.subtitle; color: Theme.textSecondary }
+            spacing: Theme.s3
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignTop
+                spacing: Theme.s1
+                Txt { Layout.fillWidth: true; text: dlg.title; kind: "title"; Accessible.role: Accessible.Heading }
+                Txt { Layout.fillWidth: true; visible: dlg.subtitle.length > 0; text: dlg.subtitle; paragraph: true; color: Theme.textSecondary }
+            }
+            IconButton {
+                id: closeBtn
+                visible: dlg.showClose
+                Layout.alignment: Qt.AlignTop
+                Layout.rightMargin: -Theme.s2
+                Layout.topMargin: -Theme.s2
+                glyph: "close"; tip: qsTr("Close")
+                onClicked: dlg.close()
+            }
         }
         Flickable {
             id: flick
@@ -93,9 +110,10 @@ Popup {
                 spacing: Theme.s2
             }
         }
-        Divider { Layout.topMargin: Theme.s2 }
+        Divider { Layout.topMargin: Theme.s2; visible: buttonRow.children.length > 0 }
         RowLayout {
             id: buttonRow
+            visible: children.length > 0
             Layout.fillWidth: true
             Layout.margins: Theme.s4
             Layout.leftMargin: Theme.padDialog; Layout.rightMargin: Theme.padDialog

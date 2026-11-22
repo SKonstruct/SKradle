@@ -334,6 +334,17 @@ fn write_cache(path: &Path, body: &str, now: i64) {
     }
 }
 
+/// The last good answer straight from disk, with no request: the Home page shows it at once while the request runs.
+/// `None` when nothing usable is saved. Not marked offline: nothing is known about the network yet.
+pub fn cached_feed(cache: &Path, now: i64) -> Option<EventsFeed> {
+    let (events, fetched_at) = read_cache(cache, now)?;
+    Some(EventsFeed {
+        events,
+        offline: false,
+        fetched_at,
+    })
+}
+
 /// Fetches the events. An answer with events is cached; an answer that is valid but empty means no events (the card
 /// hides); a failed or unreadable answer returns the cache, marked offline. `now` is Unix seconds.
 pub fn load_events(api: &dyn EventsApi, cache: &Path, now: i64) -> EventsFeed {
@@ -481,6 +492,18 @@ mod tests {
         fn fetch(&self) -> Result<String, EventsError> {
             self.0.clone()
         }
+    }
+
+    #[test]
+    fn the_saved_answer_is_available_without_a_request() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join("live-events.json");
+        assert!(cached_feed(&cache, NOW).is_none());
+        let _ = load_events(&Fake(Ok(FIXTURE.to_owned())), &cache, NOW);
+        let saved = cached_feed(&cache, NOW).expect("saved");
+        assert!(!saved.events.is_empty());
+        assert!(!saved.offline);
+        assert_eq!(saved.fetched_at, NOW);
     }
 
     #[test]

@@ -19,6 +19,12 @@ Text {
     color: kind === "caption" || kind === "micro" ? Theme.textSecondary : Theme.text
     textFormat: Text.PlainText
     wrapMode: Text.WordWrap
-    lineHeight: lines[kind]
+    // Centring never depends on font metrics: Qt adds proportional leading above the first line, which pushed
+    // single-line labels down on fonts with large line gaps. So the default is the font's natural line height (1);
+    // only copy that wraps over several lines opts in to the looser `paragraph` leading. Give a label the full
+    // height of its parent and it centres exactly.
+    property bool paragraph: false
+    lineHeight: paragraph ? lines[kind] : 1
     lineHeightMode: Text.ProportionalHeight
+    verticalAlignment: Text.AlignVCenter
 }

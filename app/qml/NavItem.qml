@@ -36,7 +36,7 @@ AbstractButton {
         Txt {
             x: Theme.s4 - 2 + 20 + Theme.s3
             width: parent.width - x - Theme.s2
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
             text: root.text
             wrapMode: Text.NoWrap
             elide: Text.ElideRight

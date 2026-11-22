@@ -32,7 +32,8 @@ AbstractButton {
     contentItem: Item { Row {
         id: row
         spacing: Theme.s1
-        anchors.centerIn: parent
+        height: parent.height
+        anchors.horizontalCenter: parent.horizontalCenter
         Icon {
             visible: root.selected
             name: "check"; size: 14; stroke: 2.4; color: Theme.accentFg
@@ -44,7 +45,7 @@ AbstractButton {
             wrapMode: Text.NoWrap
             font.weight: root.selected ? Font.DemiBold : Font.Medium
             color: root.selected ? Theme.text : Theme.textSecondary
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
         }
         Txt {
             visible: root.badge.length > 0
@@ -53,7 +54,7 @@ AbstractButton {
             numeric: true
             wrapMode: Text.NoWrap
             color: Theme.textSecondary
-            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height
         }
     } }
     FocusRing {}

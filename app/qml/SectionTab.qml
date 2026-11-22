@@ -34,7 +34,9 @@ AbstractButton {
     contentItem: Item {
         Txt {
             id: label
-            anchors.centerIn: parent
+            anchors.fill: parent
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
             text: root.text
             kind: "caption"
             wrapMode: Text.NoWrap

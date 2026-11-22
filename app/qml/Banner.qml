@@ -30,8 +30,11 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: Theme.s3
         spacing: Theme.s3
+        // One text line at the font's own height: the icon is centred on the first line whatever the font's metrics.
+        Txt { id: probe; text: "M"; visible: false }
         Icon {
             Layout.alignment: Qt.AlignTop
+            Layout.topMargin: Math.max(0, (probe.implicitHeight - 16) / 2)
             name: root.kind === "success" ? "check" : root.kind === "warn" ? "warning" : root.kind === "danger" ? "error" : "info"
             size: 16
             color: root.tone
@@ -42,7 +45,7 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
             spacing: Theme.s0
             Txt { Layout.fillWidth: true; visible: root.title.length > 0; text: root.title; font.weight: Font.DemiBold }
-            Txt { Layout.fillWidth: true; text: root.text }
+            Txt { Layout.fillWidth: true; text: root.text; paragraph: true }
         }
         SButton {
             Layout.alignment: Qt.AlignVCenter

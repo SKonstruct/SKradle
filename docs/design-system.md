@@ -31,7 +31,7 @@ Elevation: `Card { elevation }` 0 flat, 1 card (light: one faint line, dark: non
 
 | Component | API | Notes |
 |---|---|---|
-| `Txt` | `kind: display|title|heading|body|caption|micro`, `numeric`, `mono` | The only text element. `numeric` = tabular figures (ping, sizes, counts, ports). `mono` for addresses and paths |
+| `Txt` | `kind: display|title|heading|body|caption|micro`, `numeric`, `mono`, `paragraph` | The only text element. Line height is the font's natural one; `paragraph: true` opts wrapped copy in to looser leading. `numeric` = tabular figures (ping, sizes, counts, ports). `mono` for addresses and paths |
 | `SButton` | `variant: primary|secondary|ghost|danger|danger-primary`, `size: sm|md|lg`, `glyph`, `busy`, `highlighted` (= primary) | One `primary` per region. `busy` shows a spinner in place of the glyph, keeps the label, ignores clicks. Icons all-or-none inside a row |
 | `IconButton` | `glyph`, `tip` (required: tooltip and accessible name), `size: sm|md`, `iconSize`, `toggledOn` | 28 or 36 square |
 | `Chip` | `text`, `badge`, `selected` | Filter toggle, 28 high, check when selected. For one choice among 2-5 use `Segmented` |
@@ -40,7 +40,7 @@ Elevation: `Card { elevation }` 0 flat, 1 card (light: one faint line, dark: non
 | `Card` | `radius`, `fill`, `elevation`, `padding` (the margin to use inside; not applied), `raised`, `outlined`, `surface` | No gradient. Never nest a bordered card: use `Divider` |
 | `Banner` | `kind: info|success|warn|danger`, `text`, `title`, `actionText`, `dismissible`, signals `action()` `dismissed()` | Inline in a page or card; icon plus text, never colour alone. Fills the layout width |
 | `EmptyState` | `glyph`, `title`, `text`, `actionText`, `actionGlyph`, `linkText`, signals `action()` `link()` | One sentence why, one primary action |
-| `ServerDialog` | `title`, `subtitle`, `size: form|reading` (480 / 560; an explicit `preferredWidth` wins), `buttons`, `openFrom(item)`, `focusFirst()` | The dialog base for every dialog. Cancel secondary plus one primary, right aligned |
+| `ServerDialog` | `title`, `subtitle`, `size: form|reading` (480 / 560; an explicit `preferredWidth` wins), `showClose` (X top right, no buttons row needed), `buttons`, `openFrom(item)`, `focusFirst()` | The dialog base for every dialog. Cancel secondary plus one primary, right aligned |
 | `ConfirmDialog` | `title`, `message`, `confirmText`, `danger`, signal `confirmed()` | Cancel has the focus; `danger` makes the confirm button filled red |
 | Toast | `Data.toast(text, kind)` with kind `info` (default), `success`, `error` | 4 s (error 8 s), +1 s per 40 characters over 80; stays while hovered or the close button has focus; errors have a close button |
 | `SettingRow` | `label`, `hint`, `controlWidth` (default 280) | One control column on every row; the switch edge lines up with the selects |
@@ -49,6 +49,14 @@ Elevation: `Card { elevation }` 0 flat, 1 card (light: one faint line, dark: non
 | Fields | `STextField` (`label`, `invalid`, `glyph`), `SComboBox`, `SSpinBox`, `SSlider`, `SSwitch`, `SCheckBox` | 36 high, 8 radius. Give every field an accessible name; never the placeholder alone. Show errors as a sentence below the field, not just a red border |
 | Menus | `SMenu`, `SMenuItem`, `SMenuSeparator`, `SItemDelegate` | Our own popups, elevation 2 |
 | `StatusDot` | `color`, `pulse` | Live things only (game, server, Steam players), always paired with a word or the row's accessible name |
+
+## Vertical centring
+
+Centring never depends on font metrics (Windows fonts have very different ascent, descent and line gap). A label in a button, chip, tag,
+field, tab or row is a `Txt` (or `Text`) given the full height of its parent with `verticalAlignment: Text.AlignVCenter`; never a
+manual `y`, a `topPadding` nudge, or proportional `lineHeight` on a single line (Qt adds that leading above the first line and pushes the
+text down). Only multi-line copy sets `paragraph: true`. Icons beside text use `anchors.verticalCenter` or a `Row` of full-height items.
+Check a change by running the shots with another family (a temporary `QGuiApplication::setFont`, e.g. Courier New or Verdana).
 
 ## Layout
 
