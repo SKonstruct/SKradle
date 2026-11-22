@@ -14,7 +14,9 @@ Rectangle {
     Accessible.name: text
     Txt {
         id: label
-        anchors.centerIn: parent
+        anchors.fill: parent
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
         text: root.text
         kind: "micro"
         wrapMode: Text.NoWrap

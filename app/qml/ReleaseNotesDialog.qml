@@ -8,13 +8,14 @@ import QtQuick.Layouts
 ServerDialog {
     id: dlg
     size: "reading"
+    showClose: true
     title: qsTr("Release notes")
     subtitle: qsTr("What changed in SKradle. You have version %1.").arg(AppEnv.version)
 
     readonly property var versions: { try { return JSON.parse(ReleaseNotes.json) } catch (e) { return [] } }
     property var openSet: []                       // by index: is the block open
     readonly property bool allOpen: versions.length > 0 && versions.every((v, i) => openSet[i] === true)
-    onFocusFirst: closeBtn.forceActiveFocus()
+    onFocusFirst: closeButton.forceActiveFocus()
     onAboutToShow: setAll(false, true)
 
     function show(opener) { openFrom(opener) }
@@ -52,8 +53,4 @@ ServerDialog {
             onToggled: dlg.toggle(index)
         }
     }
-    buttons: [
-        Item { Layout.fillWidth: true },
-        SButton { id: closeBtn; text: qsTr("Close"); variant: "primary"; onClicked: dlg.close() }
-    ]
 }

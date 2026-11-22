@@ -3,7 +3,8 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import com.skradle.app
 
-// An event's banner: a picture from the core's checked cache (PNG or JPEG, size capped) with rounded corners. It
+// An event's banner: a picture from the core's checked cache (PNG or JPEG, size capped) with rounded corners, shown
+// whole in its own aspect ratio. It
 // takes no space until the picture is ready, and none when `source` is "" or the file cannot be shown.
 Item {
     id: root
@@ -14,7 +15,11 @@ Item {
     readonly property bool canMask: GraphicsInfo.api !== GraphicsInfo.Software
 
     visible: shown
-    implicitHeight: shown ? Math.round(width * 0.3125) : 0   // the feed's banners are 16:5
+    // The height follows the picture's own proportions (the feed's banners are 800x550, not a wide strip), so
+    // nothing is cropped or stretched. `maxHeight` caps it for a narrow, tall picture.
+    property int maxHeight: 0
+    readonly property real aspect: shown && pic.implicitHeight > 0 ? pic.implicitWidth / pic.implicitHeight : 1
+    implicitHeight: shown ? Math.round(maxHeight > 0 ? Math.min(width / aspect, maxHeight) : width / aspect) : 0
     Layout.preferredHeight: implicitHeight
 
     Image {
@@ -26,8 +31,7 @@ Item {
         cache: true
         smooth: true
         mipmap: true
-        fillMode: Image.PreserveAspectCrop
-        sourceSize: Qt.size(width * 2, height * 2)
+        fillMode: Image.PreserveAspectFit
     }
     Item {
         id: mask

@@ -338,10 +338,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Checking for updates</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Starting the game</source>
         <translation type="unfinished"></translation>
     </message>
@@ -370,14 +366,6 @@
     </message>
     <message>
         <source>Downloading and verifying game files…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Looking for a newer version…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Preparing the Java runtime…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -441,6 +429,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Starting the game…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Players online: not available</source>
         <translation type="unfinished"></translation>
     </message>
@@ -450,10 +442,6 @@
     </message>
     <message>
         <source>SKradle is free and open source.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Players online</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1180,10 +1168,6 @@
         <source>There are no release notes in this build.</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Close</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>SButton</name>
@@ -1682,6 +1666,13 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Only this computer can connect now.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ServerDialog</name>
+    <message>
+        <source>Close</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
