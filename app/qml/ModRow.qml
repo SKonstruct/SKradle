@@ -28,8 +28,11 @@ Control {
                                       : firstWarning + (item.warnings.length > 1 ? " " + qsTr("(+%1 more)").arg(item.warnings.length - 1) : "")
     hoverEnabled: true
     activeFocusOnTab: false
-    implicitHeight: Theme.hRow + Theme.s2
-    leftPadding: Theme.s4
+    // The picture is a square tile flush to the card's left, top and bottom edges (inside its 1 px border), so the
+    // text block starts after it. The height follows the text when a font runs tall, never below 64.
+    readonly property int tile: Math.max(0, height - 2)
+    implicitHeight: Math.max(Theme.hRow + Theme.s2, (contentItem ? contentItem.implicitHeight : 0) + topPadding + bottomPadding)
+    leftPadding: tile + Theme.s3
     rightPadding: Theme.s4
     topPadding: Theme.s3
     bottomPadding: Theme.s3
@@ -48,13 +51,6 @@ Control {
             acceptedButtons: Qt.LeftButton
             onClicked: (mouse) => root.clicked(mouse.modifiers)
         }
-        Rectangle {   // the selection cue
-            visible: root.selected
-            x: 0; y: Theme.s2
-            width: 3; height: parent.height - 2 * Theme.s2
-            radius: Theme.rXs
-            color: Theme.accent
-        }
     }
 
     contentItem: RowLayout {
@@ -66,11 +62,6 @@ Control {
             opacity: root.item.enabled ? 1 : 0.65
             Behavior on opacity { NumberAnimation { duration: Motion.base } }
 
-            ModImage {
-                Layout.alignment: Qt.AlignVCenter
-                source: root.item.image
-                warned: root.warned
-            }
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
@@ -144,6 +135,22 @@ Control {
             onToggled: root.toggled(checked)
             Accessible.name: qsTr("Enable %1").arg(root.item.name)
         }
+    }
+    ModImage {   // flush left, top and bottom; the card's rounded corners clip it
+        x: 1; y: 1
+        width: root.tile; height: root.tile
+        radius: Theme.rMd - 1
+        source: root.item.image
+        warned: root.warned
+        opacity: root.item.enabled ? 1 : 0.65
+        Behavior on opacity { NumberAnimation { duration: Motion.base } }
+    }
+    Rectangle {   // the selection cue, over the picture's edge
+        visible: root.selected
+        x: 0; y: Theme.s2
+        width: 3; height: root.height - 2 * Theme.s2
+        radius: Theme.rXs
+        color: Theme.accent
     }
     FocusRing { active: root.showFocus; grow: 3; radius: Theme.rMd + 3 }
     Tip {

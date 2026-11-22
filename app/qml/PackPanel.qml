@@ -3,7 +3,7 @@ import com.skradle.app
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// The maintained modpack as a compact card: name, one line of status, the button for the next step. What the last
+// SirDank's Modpack as a compact card: name, one line of status, the button for the next step. What the last
 // sync did opens under it on demand. State comes from ModsModel.
 Card {
     id: root
@@ -56,7 +56,7 @@ Card {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 0
-                Txt { Layout.fillWidth: true; text: qsTr("Modpack"); font.weight: Font.Medium; wrapMode: Text.NoWrap; Accessible.role: Accessible.Heading }
+                Txt { Layout.fillWidth: true; text: qsTr("SirDank\u2019s Modpack"); font.weight: Font.Medium; wrapMode: Text.NoWrap; Accessible.role: Accessible.Heading }
                 Txt {
                     Layout.fillWidth: true
                     text: root.status + (root.report && root.st !== "syncing" && root.st !== "error" ? " · " + root.reportSummary(root.report) : "")
@@ -79,14 +79,14 @@ Card {
             SButton {
                 visible: root.st === "syncing"
                 text: qsTr("Cancel")
-                Accessible.name: qsTr("Cancel the modpack download")
+                Accessible.name: qsTr("Cancel the download of SirDank\u2019s Modpack")
                 onClicked: ModsModel.cancelSync()
             }
             SButton {
                 visible: root.st === "unknown" || root.st === "notinstalled" || root.st === "update"
                 enabled: root.usable && !ModsModel.busy
                 glyph: root.st === "update" ? "refresh" : "download"
-                text: root.st === "update" ? qsTr("Update modpack") : qsTr("Install modpack")
+                text: root.st === "update" ? qsTr("Update SirDank\u2019s Modpack") : qsTr("Install SirDank\u2019s Modpack")
                 onClicked: ModsModel.syncPack()
             }
             SButton {
@@ -105,7 +105,7 @@ Card {
             implicitHeight: Theme.s1; radius: Theme.rXs
             color: Theme.track
             Accessible.role: Accessible.ProgressBar
-            Accessible.name: qsTr("Modpack download progress")
+            Accessible.name: qsTr("SirDank\u2019s Modpack download progress")
             Rectangle {
                 height: parent.height; radius: Theme.rXs
                 color: Theme.accent
@@ -135,7 +135,7 @@ Card {
                 delegate: Txt {
                     required property var modelData
                     Layout.fillWidth: true
-                    text: qsTr("Removed %1 (dropped from the modpack)").arg(modelData)
+                    text: qsTr("Removed %1 (dropped from SirDank\u2019s Modpack)").arg(modelData)
                     kind: "caption"
                 }
             }
@@ -149,7 +149,7 @@ Card {
                 Layout.alignment: Qt.AlignRight
                 variant: "ghost"; size: "sm"
                 text: qsTr("Dismiss")
-                Accessible.name: qsTr("Dismiss the modpack report")
+                Accessible.name: qsTr("Dismiss the report on SirDank\u2019s Modpack")
                 onClicked: { root.open = false; ModsModel.dismissReport() }
             }
         }

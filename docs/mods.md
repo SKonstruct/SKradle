@@ -164,7 +164,7 @@ All archives and listings are untrusted. When an archive is opened (`jar::Archiv
 When writing: every path is checked again; no existing folder on the way may be a link; nothing is written through a
 link (a link at the target is replaced, never followed); a file where a folder is needed is an error.
 
-## Modpack sync
+## Modpack sync (SirDank's Modpack)
 
 `mods::sync::sync_pack(mods_dir, progress)` keeps the mods folder in step with `mods/` of
 `github.com/SirDank/Spiral-Knights-Modpack`.
@@ -193,14 +193,15 @@ The Mods page (`ModsPage.qml`, bridge `ModsModel`, logic in `app/src/mods_host.r
   it is not just the title plus its extension), the size and, for a modpack, how many mods it holds. The type tags sit
   in their own column and the switch (`.skradle-mods.json`, `list::set_enabled`) on the right. A title wraps to a
   second line before it is cut. Problems follow in amber (or red when the file cannot be used at all).
-- **Picture:** the mod's checked picture (see "Mod pictures") at 48 px with rounded corners, else the generic mod
-  glyph. A checked picture is copied to `<cache dir>/SKradle/mod-icons/<hash>.png|jpg` (`SKRADLE_ICON_CACHE`
+- **Picture:** the mod's checked picture (see "Mod pictures") as a square tile flush to the row's left, top and bottom edges (clipped by the card's rounded
+  corners), else the generic mod glyph in the same tile. A checked picture is copied to `<cache dir>/SKradle/mod-icons/<hash>.png|jpg` (`SKRADLE_ICON_CACHE`
   overrides the folder), named by its content so it never goes stale; unused ones older than 30 days are removed.
   Rounded corners use a shader, so the software renderer shows the picture square.
 - **Filters:** three at once, and a mod must pass all of them. One status (All, Enabled, Disabled, Warnings; the
   last only appears when some mod has a warning), one type (the tags below; click the chosen one again for any type)
-  and the search. The numbers on the chips count what the chip would list given the other two filters, so a number
-  always matches the list. A line under the chips says how many of how many are shown.
+  and the search. The status filter is a sliding segmented control (one pill glides to the choice; Left/Right, Home/End; instant under
+  reduced motion). The numbers on the segments count what the chip would list given the other two filters, so a number
+  always matches the list. The subtitle says how many of how many are shown.
 - **Warnings:** a mod has a warning when it cannot be read, a class mod is built for another game version than the
   install, or the scan noted something (a modpack part that was skipped, protected files left out, files all under
   `rsrc/`, an unreadable `mod.json`). The reasons are written on the row.
@@ -214,7 +215,7 @@ The Mods page (`ModsPage.qml`, bridge `ModsModel`, logic in `app/src/mods_host.r
 - **Selection and keys:** click, Ctrl/Cmd+click, Shift+click; Ctrl/Cmd+A, Esc; Up/Down, Shift+Up/Down, Home/End;
   Space switches the selected (else focused) mods, Delete removes after a confirmation. The list is one tab stop.
 - **Remove** deletes the file and its switch entry. A file the modpack sync wrote returns at the next sync while the pack still lists it.
-- **Modpack:** `sync::status` (one listing request) decides "install", "update (N files)" or "up to date"; the button
+- **SirDank's Modpack:** `sync::status` (one listing request) decides "install", "update (N files)" or "up to date"; the button
   runs `sync::sync_cancellable` on a worker thread with file n of total, then shows the report (downloaded, current,
   removed, failed with reasons). Cancel stops before the next file (the running download completes), deletes nothing
   and keeps earlier claims. No network gives an error state with a retry button.

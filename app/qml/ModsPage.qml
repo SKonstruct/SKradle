@@ -5,7 +5,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 
 // The player's mods folder: list, switches, tags found in the mods themselves, adding by drop or dialog, bulk actions
-// on a selection, and the maintained modpack. Everything shown comes from ModsModel (the core's scan).
+// on a selection, and SirDank's Modpack. Everything shown comes from ModsModel (the core's scan).
 Item {
     id: page
 
@@ -224,7 +224,7 @@ Item {
         anchors.fill: parent
         title: qsTr("Mods")
         subtitle: !page.gameOk ? qsTr("Mods are applied when the game starts.")
-                  : page.all.length === 0 ? qsTr("Add mods, or install the modpack.")
+                  : page.all.length === 0 ? qsTr("Add mods, or install SirDank\u2019s Modpack.")
                   : page.filtering ? qsTr("Showing %1 of %2 mods").arg(page.shown.length).arg(page.all.length)
                   : qsTr("%1 of %2 enabled").arg(page.enabledCount).arg(page.all.length)
         actions: [
@@ -315,6 +315,7 @@ Item {
 
             ModFilters {
                 Layout.fillWidth: true
+                Layout.topMargin: Theme.gapSection - Theme.s3   // the page's section spacing above the filter row
                 visible: page.all.length > 0
                 statusModel: page.statusModel
                 typeModel: page.typeModel
@@ -385,7 +386,7 @@ Item {
                 visible: page.all.length === 0 && ModsModel.error === "" && page.gameOk
                 glyph: "mods"
                 title: qsTr("No mods yet")
-                text: qsTr("Drop .zip, .jar or .modpack files anywhere on this page, or choose them. Each file is checked before it is copied in. You can also install the modpack above.")
+                text: qsTr("Drop .zip, .jar or .modpack files anywhere on this page, or choose them. Each file is checked before it is copied in. You can also install SirDank\u2019s Modpack above.")
                 actionText: qsTr("Add mods…")
                 actionGlyph: "plus"
                 onAction: fileDialog.open()
