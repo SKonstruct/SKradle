@@ -1,0 +1,81 @@
+name: Bug report
+description: Something in SKradle does not work as it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. A few details help a lot. **Do not paste passwords, tokens or private server keys.**
+        SKradle is an unofficial fan project: problems inside the game itself belong with the game's own support.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? Screenshots are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The shortest list of steps that shows the problem.
+      placeholder: |
+        1. Open Settings
+        2. ...
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: SKradle version
+      description: Shown in Settings under About, for example 0.1.0, or the build name of a test build.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Linux (x64)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Which copy of Spiral Knights?
+      options:
+        - Steam
+        - Standalone
+        - A custom folder
+        - Not relevant
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      options:
+        - Launching the game
+        - Home
+        - Servers (including my own server)
+        - Mods
+        - Settings
+        - Updates and installing SKradle
+        - Something else
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: |
+        Open the log folder from Settings (About) and attach `skradle.log`, or paste the lines around the problem.
+        The log stays on your computer unless you share it; it hides your user folder name.
+      render: text
+    validations:
+      required: false

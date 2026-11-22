@@ -125,7 +125,25 @@ fn compile_translations(out_dir: &Path) -> Option<std::path::PathBuf> {
     Some(qrc)
 }
 
+/// Puts the SKradle icon and the version information into skradle.exe, so Explorer, the taskbar and the shortcuts
+/// show it. A failure only warns: a missing resource compiler must not stop the build.
+#[cfg(windows)]
+fn embed_windows_resources() {
+    println!("cargo:rerun-if-changed=../assets/icons/skradle.ico");
+    let mut resource = winresource::WindowsResource::new();
+    resource.set_icon("../assets/icons/skradle.ico");
+    resource.set("ProductName", "SKradle");
+    resource.set("FileDescription", "SKradle, an unofficial Spiral Knights launcher");
+    resource.set("LegalCopyright", "MIT license");
+    resource.set("OriginalFilename", "skradle.exe");
+    if let Err(e) = resource.compile() {
+        println!("cargo:warning=could not embed the icon into skradle.exe: {e}");
+    }
+}
+
 fn main() {
+    #[cfg(windows)]
+    embed_windows_resources();
     println!("cargo:rerun-if-env-changed=QMAKE");
     println!("cargo:rerun-if-env-changed=PATH");
     watch_files(Path::new("qml"));
