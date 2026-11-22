@@ -130,6 +130,23 @@ ApplicationWindow {
         Component { id: settingsC; SettingsPage {} }
     }
 
+    // "Update ready": a calm banner once an update has been downloaded (automatically or by hand).
+    Banner {
+        id: updateReady
+        z: 4
+        property bool dismissed: false
+        visible: UpdateModel.state === "ready" && !dismissed
+        kind: "info"
+        title: qsTr("Update ready")
+        text: qsTr("SKradle %1 is downloaded.").arg(UpdateModel.version)
+        actionText: qsTr("Install and restart")
+        dismissible: true
+        width: Math.min(content.width - 2 * Theme.s6, 560)
+        x: content.x + (content.width - width) / 2
+        y: Theme.s3
+        onAction: UpdateModel.install()
+        onDismissed: dismissed = true
+    }
     Toast {
         id: toast
         z: 5
@@ -205,9 +222,9 @@ ApplicationWindow {
     Timer {
         id: autoUpdate
         interval: 2500
-        running: Settings.autoUpdateCheck && !AppEnv.selftest && AppEnv.shotDir === "" && !autoUpdate.done
+        running: Settings.autoUpdate && !AppEnv.selftest && AppEnv.shotDir === "" && !autoUpdate.done
         property bool done: false
-        onTriggered: { done = true; UpdateModel.check() }
+        onTriggered: { done = true; UpdateModel.checkAutomatically() }
     }
 
     function setupShot(name) {

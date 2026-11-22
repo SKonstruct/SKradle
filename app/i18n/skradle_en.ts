@@ -578,6 +578,18 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Update ready</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SKradle %1 is downloaded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install and restart</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Could not open the folder. Check that it still exists.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1851,6 +1863,62 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>No releases yet. You are on the newest build.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Version %1 is out, but not yet for this computer. Try again later.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Version %1 is available.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Version %1 is downloaded and ready to install.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installer is starting. SKradle closes now.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not start the installer. Open the downloaded file from the updates folder yourself.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GitHub is limiting requests from this connection. Try again in about an hour.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not reach GitHub. Check your internet connection and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GitHub is having trouble right now. Try again in a few minutes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GitHub&apos;s answer was not understood. Try again later.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The download did not match its checksum and was discarded. Try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not download the update. Try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not check for updates. Try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Off: the game starts with its own Java and no graphics agent, as the game ships. Turn it on to use the options below; they need Java 24 or newer with the java.instrument module.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Graphics enhancements need Java 24 or newer with the java.instrument module. None was found, so the game starts without them. The game&apos;s own runtime cannot load them.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1904,14 +1972,6 @@ Content URL: %4</source>
     </message>
     <message>
         <source>It comes back when the game exits.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Check for launcher updates automatically</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Looks for a newer SKradle a moment after it starts. You always choose when to install.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2004,6 +2064,14 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Could not open the folder. Check that it still exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update automatically</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Looks for a newer SKradle a moment after it starts and downloads it in the background. You choose when to install. &quot;Check for updates&quot; in About works either way.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2123,14 +2191,6 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Game folder</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No game install was found.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The game is running. Close it to change rendering options.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2188,6 +2248,10 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Not available in this build.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game ships two editors. Its Model Viewer, Particle Editor and Interface Tester are not in the game&apos;s files (only their texts are), so they cannot be started. Models, particles and interfaces can be edited in the Scene editor with its &quot;Configs...&quot; command. Silverweave is an item in the game, not a tool.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2259,15 +2323,19 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Could not check for updates. Check your internet connection and try again.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Buy me a coffee</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights © Grey Havens, LLC.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable graphics enhancements</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adds SKradle&apos;s graphics agent to the game. Off by default.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

@@ -77,10 +77,10 @@ result back with cxx-qt's `CxxQtThread::queue`.
 | Singleton | Properties | Methods |
 | --- | --- | --- |
 | `AppEnv` | `selftest pseudo reduceMotion scheme styleName version qtVersion webViewAvailable initialPage initialCollapsed initialWidth initialHeight shotDir shotPrefix` (constant) | `report(text) localPath(url) grab(path) finishSelftest(ok, text)` |
-| `Settings` | `theme reduceMotion language memoryMb javaPath extraJvmArgs minimizeWhilePlaying collector disableExplicitGc fileCleaning filePurging discordPresence crashReports autoUpdateCheck renderScale sharpening antiAliasing sharpHud showFps frameGenMode targetFps loadWarning` (read/write, validated, saved in the background) | |
+| `Settings` | `theme reduceMotion language memoryMb javaPath extraJvmArgs minimizeWhilePlaying collector disableExplicitGc fileCleaning filePurging discordPresence crashReports autoUpdate graphicsEnabled renderScale sharpening antiAliasing sharpHud showFps frameGenMode targetFps loadWarning` (read/write, validated, saved in the background) | |
 | `GameModel` | `state` (`searching` `ready` `notfound`) `installPaths installKinds selectedPath selectedKind gameVersion detectedMemoryMb error` | `refresh() select(path) addCustomFolder(url) forgetCustom() force(state)` |
 | `LaunchModel` | `state` (`ready` `updating` `launching` `running` `error`) `step` (`checking` `downloading`) `message progress determinate` | `start(path) stop() cancel() dismiss() force(state, progress)` |
-| `UpdateModel` | `state` (`idle checking uptodate available downloading ready error`) `version progress message` | `check() download() install() skip()` |
+| `UpdateModel` | `state` (`idle checking uptodate none noinstaller available downloading ready installing error`) `version progress message failedDuring reason automatic` | `check() checkAutomatically() download() install() skip()` |
 | `HomeFeed` | `newsJson newsState newsFetchedAt playersState players playersJson eventsJson eventsState eventsFetchedAt` | `refreshNews() refreshPlayers() refreshEvents() countdown(startsAt, endsAt) force(state) forceEvents(state) forcePlayers(state)` |
 | `ReleaseNotes` | `json` (constant: the parsed changelog) | |
 | `GameTools` | `javaVersion javaSource javaProblem javaFound javaNeeded agentJavaOk agentInstalled totalMemoryMb memoryMinMb memoryMaxMb editorBlockers busy notice noticeDetail noticeSerial` | `refresh(path) openFolder(path) launchEditor(i, path) resetGameFiles(path)` |
@@ -122,7 +122,7 @@ browser.
 to its default; a file that is not a JSON object is moved to `settings.json.corrupt` and defaults are used; writes are
 atomic (temporary file, then rename) and coalesced. The memory limit is `null` until the player changes it: until then
 the game's own `-Xmx` in `extra.txt` is shown and left alone. When set, it is written to the game's `extra.txt`
-(`-Xmx`, and `-Xms` lowered to fit) before launching. The Graphics page values are stored but **the game does not read
+(`-Xmx`, and `-Xms` lowered to fit) before launching. The Graphics page values are stored (and used only while "Enable graphics enhancements" is on, off by default) but **the game does not read
 them unless the graphics agent is installed (see below; `TODO(graphics)` for downloading it).
 
 ### Launching and the updater's progress

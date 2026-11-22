@@ -174,9 +174,11 @@ pub fn prepare(
     let game_files = Inputs::read(&core_install)
         .map_err(|e| LaunchError::Prepare(format!("could not read the game's files: {e}")))?;
     let options = direct_options(settings);
+    // The master switch: off means no agent, so the planner keeps the game's own Java.
     let graphics = around
         .agent_jar
         .as_deref()
+        .filter(|_| settings.graphics_enabled)
         .map(|jar| agent_args(jar, &graphics_settings(settings)));
     let update_pending = around
         .remote_getdown
@@ -618,6 +620,7 @@ mod tests {
     #[test]
     fn graphics_enhancements_put_the_agent_into_the_direct_launch() {
         let mut w = world();
+        w.request.settings.graphics_enabled = true;
         w.request.settings.render_scale = 150;
         let jar = w.dir.path().join("skgfx-agent.jar");
         fs::write(&jar, b"jar").unwrap();
@@ -631,6 +634,45 @@ mod tests {
         let agent = format!("-javaagent:{}", jar.display());
         assert!(spec.args.contains(&agent.into()), "{:?}", spec.args);
         assert!(spec.args.contains(&"-Dskgfx.scale=1.5".into()));
+    }
+
+    #[test]
+    fn graphics_switched_off_means_no_agent_and_the_games_own_java() {
+        let mut w = world();
+        // The game's own trimmed runtime (no java.instrument) next to a full JDK on JAVA_HOME.
+        let own = w.request.install.path.join("java_vm");
+        fs::create_dir_all(own.join("bin")).unwrap();
+        fs::write(
+            own.join("release"),
+            "JAVA_VERSION=\"25.0.3\"\nMODULES=\"java.base java.desktop\"\n",
+        )
+        .unwrap();
+        fs::write(own.join("bin/java"), b"").unwrap();
+        let jar = w.dir.path().join("skgfx-agent.jar");
+        fs::write(&jar, b"jar").unwrap();
+        let around = Surroundings {
+            agent_jar: Some(jar),
+            ..around()
+        };
+        // Off (the default), with options the player had set before: nothing of the agent is passed.
+        assert!(!w.request.settings.graphics_enabled);
+        w.request.settings.render_scale = 150;
+        let (spec, _) = prepare(&w.request, &w.machine, &around, &mut Recorder::default()).unwrap();
+        let args = arg_strings(&spec);
+        assert!(!args.iter().any(|a| a.contains("skgfx")), "{args:?}");
+        assert!(spec.program.starts_with(&own), "{:?}", spec.program);
+        // On: the agent is passed and the JDK that can load it runs the game instead.
+        w.request.settings.graphics_enabled = true;
+        let (spec, _) = prepare(&w.request, &w.machine, &around, &mut Recorder::default()).unwrap();
+        assert!(arg_strings(&spec).iter().any(|a| a.starts_with("-javaagent:")));
+        assert!(!spec.program.starts_with(&own), "{:?}", spec.program);
+        // Off with the player's own Java: that Java still wins.
+        w.request.settings.graphics_enabled = false;
+        w.request.settings.java_path = w.dir.path().join("jdk").display().to_string();
+        let (spec, _) = prepare(&w.request, &w.machine, &around, &mut Recorder::default()).unwrap();
+        // The player's path is resolved through links (macOS temp folders are one).
+        let jdk = fs::canonicalize(w.dir.path().join("jdk")).unwrap();
+        assert!(spec.program.starts_with(&jdk), "{:?}", spec.program);
     }
 
     #[test]
