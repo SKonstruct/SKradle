@@ -45,7 +45,8 @@ T.Button {
 
     background: Rectangle {
         implicitHeight: control.boxHeight
-        implicitWidth: 72
+        // Text-only buttons are as wide as their label; a minimum width would leave invisible padding.
+        implicitWidth: control.variant === "ghost" || control.variant === "danger" ? 0 : 72
         radius: control.radius
         color: !control.enabled ? (control.solid ? Theme.track : "transparent")
             : control.primary ? (control.down ? Theme.accentPressed : control.live ? Theme.accentHover : Theme.accent)

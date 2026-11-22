@@ -385,7 +385,7 @@ fn follow_game(
                     sink(Event::Finished);
                 } else {
                     drain(readers);
-                    log_game_log_tail(probe.root());
+                    log_game_log_tail(probe.game_root());
                     skradle_core::log::error(
                         "launch",
                         format!("the game's output ended with: {}", tail_text(output)),
@@ -449,7 +449,7 @@ struct GameProbe {
 }
 
 impl GameProbe {
-    fn root(&self) -> &Path {
+    fn game_root(&self) -> &Path {
         &self.root_dir
     }
 
