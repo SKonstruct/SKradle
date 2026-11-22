@@ -35,7 +35,7 @@ Rectangle {
                   Accessible.name: qsTr("Remove the selected mods") }
         // the ghost button has no visible edge, so its inner padding is trimmed to put the text where the label
         // on the left sits (the bar's 12 px margin)
-        SButton { size: "sm"; text: qsTr("Clear"); variant: "ghost"; leftPadding: Theme.s2; rightPadding: Theme.s2; onClicked: root.clear()
+        SButton { size: "sm"; text: qsTr("Clear"); variant: "ghost"; leftPadding: Theme.s2; rightPadding: Theme.s2; implicitWidth: implicitContentWidth + leftPadding + rightPadding; onClicked: root.clear()
                   Accessible.name: qsTr("Clear the selection") }
     }
 }
