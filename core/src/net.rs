@@ -444,6 +444,10 @@ pub fn sha256_file(path: &Path) -> io::Result<String> {
 /// thread, never from the UI.
 pub fn probe_tcp(host: &str, port: u16, timeout: Duration) -> Option<Duration> {
     let host = host.trim().trim_matches(['[', ']']);
+    // An empty name must not resolve (Windows treats it as this computer, which would show a blank server as up).
+    if host.is_empty() {
+        return None;
+    }
     let deadline = Instant::now() + timeout;
     for addr in (host, port).to_socket_addrs().ok()?.take(4) {
         let left = deadline.saturating_duration_since(Instant::now());
