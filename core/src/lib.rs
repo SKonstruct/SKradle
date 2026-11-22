@@ -3,6 +3,7 @@
 pub mod bounded;
 pub mod changelog;
 pub mod digest;
+pub mod editor_pack;
 pub mod editors;
 pub mod extra_txt;
 pub mod game;

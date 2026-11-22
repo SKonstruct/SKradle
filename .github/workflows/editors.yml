@@ -1,0 +1,84 @@
+name: Editors
+
+# Builds the game's editors (Silverweave, Model Viewer, Particle Editor, Interface Tester) from the newest upstream
+# sources and publishes them as the rolling "editors" release, which SKradle downloads and keeps up to date. Runs every
+# day and only rebuilds when something changed: spiralview's newest commit, the newest released Clyde, or the game's own
+# code jar (the editors are compiled against it, and it is never published). See packaging/editors/build.sh.
+# The release is a pre-release on purpose: the launcher's own update check ignores it. The release is the only thing
+# this workflow writes: nothing is committed or pushed.
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild and publish even when nothing changed"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: editors
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  editors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Needed to create and update the release (nothing else in the repository is written).
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Resolve the inputs
+        id: resolve
+        run: |
+          packaging/editors/build.sh resolve "$RUNNER_TEMP/work" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Compare with what is published
+        id: published
+        env:
+          FORCE: ${{ inputs.force }}
+          BUILD: ${{ steps.resolve.outputs.build }}
+        run: |
+          current=$(curl -fsSL "https://github.com/${GITHUB_REPOSITORY}/releases/download/editors/editors.json" 2>/dev/null \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin).get("build",""))' 2>/dev/null || true)
+          echo "published: ${current:-none}, resolved: $BUILD"
+          if [ "$FORCE" = true ] || [ "$current" != "$BUILD" ]; then echo "needed=true" >> "$GITHUB_OUTPUT"
+          else echo "needed=false" >> "$GITHUB_OUTPUT"; echo "Nothing changed."; fi
+
+      - name: Build
+        if: steps.published.outputs.needed == 'true'
+        run: packaging/editors/build.sh build "$RUNNER_TEMP/work" "$RUNNER_TEMP/out"
+
+      - name: Publish the rolling release
+        if: steps.published.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD: ${{ steps.resolve.outputs.build }}
+          SPIRALVIEW: ${{ steps.resolve.outputs.spiralview_commit }}
+          CLYDE: ${{ steps.resolve.outputs.clyde_version }}
+          GAME: ${{ steps.resolve.outputs.game_version }}
+        run: |
+          notes="Rolling build of the game's editors for SKradle (build $BUILD): spiralview ${SPIRALVIEW:0:7}, Clyde $CLYDE, compiled against game version $GAME. SKradle downloads this by itself; licences are in NOTICES.txt."
+          if gh release view editors >/dev/null 2>&1; then
+            gh release edit editors --notes "$notes" --prerelease --latest=false
+          else
+            gh release create editors --target "$GITHUB_SHA" --title "Editors (rolling)" --notes "$notes" --prerelease --latest=false
+          fi
+          # The jar goes first so a reader never sees a new manifest next to an old jar.
+          gh release upload editors "$RUNNER_TEMP/out/skradle-editors.jar" --clobber
+          gh release upload editors "$RUNNER_TEMP/out/NOTICES.txt" "$RUNNER_TEMP/out/editors.json" --clobber
+          echo "Published $BUILD"

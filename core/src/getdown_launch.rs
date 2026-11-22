@@ -178,6 +178,8 @@ pub fn process_arg(
 pub enum ConfigError {
     /// Neither `class` nor `<id>.class` is set.
     MissingClass { app_id: String },
+    /// An editor that comes from the downloadable editors pack was asked for without it.
+    MissingEditorPack,
 }
 
 impl fmt::Display for ConfigError {
@@ -186,6 +188,7 @@ impl fmt::Display for ConfigError {
             Self::MissingClass { app_id } => {
                 write!(f, "getdown.txt has no main class for app id '{app_id}'")
             }
+            Self::MissingEditorPack => write!(f, "the editors have not been downloaded yet"),
         }
     }
 }

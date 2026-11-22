@@ -2,8 +2,9 @@
 //! which Java the game would get and whether the graphics agent can load in it, why an editor cannot start, and
 //! starting an editor. The sentences live in QML (`qsTr`); this module only produces codes.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use skradle_core::editor_pack::{self, Installed};
 use skradle_core::editors::{self, Editor};
 use skradle_core::game::GameInstall;
 use skradle_core::launch::direct::Inputs;
@@ -118,18 +119,73 @@ pub fn java_info(machine: &Machine, game_root: &Path, java_override: &str) -> Ja
     }
 }
 
-/// Why an editor cannot start now: `"game"` (no game), `"java"` (no usable Java) or `"files"` (the game folder lacks
-/// what the editor needs); `None` when it can.
+/// Where the downloaded editors pack lives.
+pub fn pack_dir() -> PathBuf {
+    dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("SKradle")
+        .join("editors")
+}
+
+/// What the editors pack offers on this machine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackAccess {
+    /// Not downloaded.
+    Missing,
+    /// Downloaded; `java_ok` says whether a Java the pack can run on was found.
+    Installed { java_ok: bool },
+}
+
+/// The minimum Java for an editor: the game's, raised to the pack's for the editors that come from it.
+fn java_minimum_for(game_root: &Path, editor: Editor, pack: Option<&Installed>) -> u64 {
+    let minimum = plan::java_minimum(game_root);
+    match pack {
+        Some(p) if editor.needs_pack() => minimum.max(u64::from(p.manifest.java_min) * 1_000_000),
+        _ => minimum,
+    }
+}
+
+/// The pack's state as the Tools section needs it: whether it is installed and whether a Java it runs on exists.
+pub fn pack_access(
+    machine: &Machine,
+    game_root: &Path,
+    java_override: &str,
+    pack: Option<&Installed>,
+) -> PackAccess {
+    let Some(pack) = pack else {
+        return PackAccess::Missing;
+    };
+    let install = Install {
+        path: game_root.to_path_buf(),
+        kind: Kind::Custom,
+    };
+    let minimum = java_minimum_for(game_root, Editor::ModelViewer, Some(pack));
+    PackAccess::Installed {
+        java_ok: plan::pick_java(machine, &install, java_override, minimum).is_ok(),
+    }
+}
+
+/// Why an editor cannot start now: `"game"` (no game), `"java"` (no usable Java), `"pack"` (the editors are not
+/// downloaded), `"javapack"` (no Java new enough for the downloaded editors) or `"files"` (the game folder lacks what
+/// the editor needs); `None` when it can.
 pub fn editor_blocker(
     game_root: Option<&Path>,
     java: &JavaInfo,
     editor: Editor,
+    pack: &PackAccess,
 ) -> Option<&'static str> {
     let Some(root) = game_root else {
         return Some("game");
     };
     if java.problem != JavaProblem::None {
         return Some("java");
+    }
+    if editor.needs_pack() {
+        match pack {
+            PackAccess::Missing => return Some("pack"),
+            PackAccess::Installed { java_ok: false } => return Some("javapack"),
+            PackAccess::Installed { java_ok: true } => {}
+        }
     }
     let install = GameInstall {
         root: root.to_path_buf(),
@@ -152,11 +208,19 @@ pub fn launch_editor(
         path: game_root.to_path_buf(),
         kind: Kind::Custom,
     };
+    let pack = editor
+        .needs_pack()
+        .then(|| editor_pack::installed(&pack_dir()));
+    let pack = match pack {
+        Some(None) => return Err("the editors have not been downloaded yet".to_owned()),
+        Some(Some(p)) => Some(p),
+        None => None,
+    };
     let java = plan::pick_java(
         machine,
         &install,
         java_override,
-        plan::java_minimum(game_root),
+        java_minimum_for(game_root, editor, pack.as_ref()),
     )
     .map_err(|e| e.message())?;
     let core_install = install.to_core();
@@ -167,6 +231,7 @@ pub fn launch_editor(
         &java.java_executable(machine.os),
         editor,
         &inputs,
+        pack.as_ref().map(|p| p.jar.as_path()),
         machine.os,
         std::env::consts::ARCH,
     )
@@ -315,22 +380,53 @@ mod tests {
         let ok = java_info(&w.machine, &w.game, "");
         let bare = world(None, None);
         let none = java_info(&bare.machine, &bare.game, "");
-        assert_eq!(editor_blocker(None, &ok, Editor::Crucible), Some("game"));
+        let missing = PackAccess::Missing;
         assert_eq!(
-            editor_blocker(Some(&w.game), &none, Editor::Crucible),
+            editor_blocker(None, &ok, Editor::Crucible, &missing),
+            Some("game")
+        );
+        assert_eq!(
+            editor_blocker(Some(&w.game), &none, Editor::Crucible, &missing),
             Some("java")
         );
         assert_eq!(
-            editor_blocker(Some(&w.game), &ok, Editor::Crucible),
+            editor_blocker(Some(&w.game), &ok, Editor::Crucible, &missing),
             Some("files")
         );
         assert_eq!(
-            editor_blocker(Some(&w.game), &ok, Editor::ProjectXSceneEditor),
+            editor_blocker(Some(&w.game), &ok, Editor::ProjectXSceneEditor, &missing),
             None
         );
         fs::write(w.game.join("crucible.jar"), b"jar").unwrap();
         fs::create_dir_all(w.game.join("crucible/rsrc/config")).unwrap();
-        assert_eq!(editor_blocker(Some(&w.game), &ok, Editor::Crucible), None);
+        assert_eq!(
+            editor_blocker(Some(&w.game), &ok, Editor::Crucible, &missing),
+            None
+        );
+    }
+
+    #[test]
+    fn the_pack_editors_wait_for_the_download_and_for_a_new_enough_java() {
+        let w = world(Some(TRIMMED), None);
+        let ok = java_info(&w.machine, &w.game, "");
+        let blocker =
+            |pack: &PackAccess| editor_blocker(Some(&w.game), &ok, Editor::ModelViewer, pack);
+        assert_eq!(blocker(&PackAccess::Missing), Some("pack"));
+        assert_eq!(
+            blocker(&PackAccess::Installed { java_ok: false }),
+            Some("javapack")
+        );
+        assert_eq!(blocker(&PackAccess::Installed { java_ok: true }), None);
+        // The game's own editors do not care about the pack.
+        assert_eq!(
+            editor_blocker(
+                Some(&w.game),
+                &ok,
+                Editor::ProjectXSceneEditor,
+                &PackAccess::Missing
+            ),
+            None
+        );
     }
 
     #[test]

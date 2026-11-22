@@ -44,10 +44,12 @@ Item {
         currentSection = cur
     }
 
-    Component.onCompleted: refreshTools()
+    Component.onCompleted: { refreshTools(); EditorPack.check() }
     onVisibleChanged: if (visible) refreshTools()
     Connections { target: GameModel; function onSelectedPathChanged() { page.refreshTools() } }
     Connections { target: Settings; function onJavaPathChanged() { page.refreshTools() } }
+    // A finished download (or an update of the editors) changes which of them can start.
+    Connections { target: EditorPack; function onStateChanged() { if (EditorPack.state === "ready" || EditorPack.state === "none") page.refreshTools() } }
     Connections {
         target: GameTools
         function onNoticeSerialChanged() {
@@ -515,11 +517,36 @@ Item {
                 SettingsSection {
                     id: secTools
                     title: qsTr("Tools")
-                    Notice { text: qsTr("The game ships two editors. Its Model Viewer, Particle Editor and Interface Tester are not in the game's files (only their texts are), so they cannot be started. Models, particles and interfaces can be edited in the Scene editor with its \"Configs...\" command. Silverweave is an item in the game, not a tool.") }
+                    SettingRow {
+                        label: qsTr("Silverweave, Model Viewer, Particle Editor and Interface Tester")
+                        hint: EditorPack.state === "downloading" ? qsTr("Downloading\u2026 %1%").arg(Math.round(EditorPack.progress * 100))
+                            : EditorPack.state === "checking" ? qsTr("Looking for the editors\u2026")
+                            : EditorPack.state === "ready" ? qsTr("Downloaded (build %1). SKradle keeps them up to date by itself.").arg(EditorPack.build)
+                            : EditorPack.state === "error" ? (EditorPack.reason === "unpublished" ? qsTr("The editors have not been published yet. Try again later.")
+                                : EditorPack.reason === "ratelimit" ? qsTr("GitHub is limiting requests from this connection. Try again in about an hour.")
+                                : EditorPack.reason === "offline" ? qsTr("Could not reach GitHub. Check the connection and try again.")
+                                : EditorPack.reason === "server" ? qsTr("GitHub had a problem. Try again later.")
+                                : EditorPack.reason === "checksum" ? qsTr("The download was damaged, so it was discarded. Try again.")
+                                : qsTr("Could not download the editors."))
+                            : qsTr("Open-source tools by Three Rings (Clyde) and spiralview, downloaded once (about 25 MB) and kept up to date.")
+                        Item { Layout.fillWidth: true }
+                        SButton {
+                            visible: EditorPack.state === "none" || EditorPack.state === "error"
+                            text: EditorPack.state === "error" ? qsTr("Try again") : qsTr("Download")
+                            glyph: "download"
+                            Accessible.name: qsTr("Download the editors")
+                            onClicked: EditorPack.install()
+                        }
+                    }
+                    Sep {}
                     Repeater {
                         model: [
                             { label: qsTr("Crucible scene editor"), hint: qsTr("The game's scene and template editor.") },
-                            { label: qsTr("Scene editor"), hint: qsTr("The game's own map and prefab editor. Its name inside the game may change with an update.") }
+                            { label: qsTr("Scene editor"), hint: qsTr("The game's own map and prefab editor. Its name inside the game may change with an update.") },
+                            { label: qsTr("Silverweave"), hint: qsTr("Try knight loadouts and items.") },
+                            { label: qsTr("Model Viewer"), hint: qsTr("Look at the game's models and animations.") },
+                            { label: qsTr("Particle Editor"), hint: qsTr("Edit the game's particle effects.") },
+                            { label: qsTr("Interface Tester"), hint: qsTr("Try the game's interface layouts.") }
                         ]
                         ColumnLayout {
                             id: tool
@@ -533,6 +560,8 @@ Item {
                                 label: tool.modelData.label
                                 hint: tool.blocker === "game" ? qsTr("Needs a game install.")
                                     : tool.blocker === "java" ? (GameTools.javaNeeded > 0 ? qsTr("Needs Java %1 or newer, which was not found.").arg(GameTools.javaNeeded) : qsTr("Needs Java, which was not found."))
+                                    : tool.blocker === "pack" ? qsTr("Download the editors above first.")
+                                    : tool.blocker === "javapack" ? qsTr("Needs Java %1 or newer, which was not found.").arg(EditorPack.javaMin)
                                     : tool.blocker === "files" ? qsTr("The game folder lacks files this editor needs. Start the game once so it downloads them.")
                                     : tool.modelData.hint
                                                                 Item { Layout.fillWidth: true }

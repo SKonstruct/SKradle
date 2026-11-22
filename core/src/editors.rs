@@ -20,20 +20,13 @@
 //! Also found but not offered: `com.threerings.tudey.tools.h` (the generic Tudey scene editor the one above extends,
 //! also with a `main`) and `PseudoPlayer` (a server load tester that needs a server password, not an editor).
 //!
-//! Re-checked for the owner's list (Silverweave, Model Viewer, Interface Editor, Particle Editor): `projectx-pcode.jar`
-//! ships the message bundles `viewer` ("Three Rings Model Viewer"), `particle` ("Three Rings Particle Editor") and
-//! `interface` ("Three Rings Interface Tester"), but the classes behind them were removed from the jar: `ModelTool`
-//! is abstract with no concrete subclass, and a scan of every class finds a `main` only in the five classes named
-//! here (client, Crucible, `projectx.tools.h`, `tudey.tools.h`, `PseudoPlayer`). "Silverweave" is only an item name
-//! (`m.silverweave` in `item-names.properties`). The scene editor's "Configs..." command opens
-//! `com.threerings.config.tools.ConfigEditor`, which edits model, particle and interface configs. Nothing is
-//! downloadable: the missing classes are not in any file the game ships, and no public source is known to match them.
-//!
-//! Could NOT be confirmed: a model viewer, a particle editor and "Silverweave". No class in `projectx-pcode.jar`,
-//! `projectx-config.jar` or `config.jar` with one of those names has a `main` method (only six classes in the whole
-//! jar do; they are the ones above, the client, and `StatType`). The config editor classes (`ProjectXConfigEditor`,
-//! `ConfigEditor`, `ModelTool`) exist without a `main`, so they are probably opened from inside other tools; how
-//! is unknown. Nothing here pretends otherwise.
+//! **Silverweave, Model Viewer, Particle Editor and Interface Tester** are not in the game's jars (only their message
+//! bundles are; `ModelTool` is abstract with no concrete subclass). They come from two open-source projects: Clyde
+//! (`threerings/clyde`, the library the game is built on) and `lucasluqui/spiralview` (a wrapper around Clyde's editors
+//! that also holds Silverweave), both BSD-2-Clause. The `Editors` workflow builds them into one jar from the newest
+//! upstream sources and publishes it as the rolling `editors` release; [`crate::editor_pack`] downloads and updates it.
+//! Their main classes are spiralview's hooks (`ModelViewerHook` and so on; Silverweave is `SilverweaveTool`, a
+//! `static void main()` that only Java 25 can launch). They run with the pack's jar in FRONT of the game's class path.
 //!
 //! All editors run with the client's classpath and JVM arguments (the editors are Swing/LWJGL tools in the same jars),
 //! in the game folder, like the updater would. They skip the graphics agent's `extra.txt` lines.
@@ -52,15 +45,45 @@ pub enum Editor {
     Crucible,
     /// The ProjectX scene editor (`com.threerings.projectx.tools.h`); obfuscated class name, see the module docs.
     ProjectXSceneEditor,
+    /// Knight loadouts and items (spiralview's Silverweave); from the editors pack.
+    Silverweave,
+    /// Three Rings' model viewer; from the editors pack.
+    ModelViewer,
+    /// Three Rings' particle editor; from the editors pack.
+    ParticleEditor,
+    /// Three Rings' interface tester; from the editors pack.
+    InterfaceTester,
 }
 
 impl Editor {
-    pub const ALL: [Editor; 2] = [Editor::Crucible, Editor::ProjectXSceneEditor];
+    pub const ALL: [Editor; 6] = [
+        Editor::Crucible,
+        Editor::ProjectXSceneEditor,
+        Editor::Silverweave,
+        Editor::ModelViewer,
+        Editor::ParticleEditor,
+        Editor::InterfaceTester,
+    ];
+
+    /// True for the editors that live in the downloadable editors pack rather than in the game's own jars.
+    pub fn needs_pack(self) -> bool {
+        matches!(
+            self,
+            Editor::Silverweave
+                | Editor::ModelViewer
+                | Editor::ParticleEditor
+                | Editor::InterfaceTester
+        )
+    }
 
     pub fn label(self) -> &'static str {
         match self {
             Editor::Crucible => "Crucible scene editor",
             Editor::ProjectXSceneEditor => "Scene editor",
+            Editor::Silverweave => "Silverweave",
+            Editor::ModelViewer => "Model Viewer",
+            Editor::ParticleEditor => "Particle Editor",
+            Editor::InterfaceTester => "Interface Tester",
         }
     }
 
@@ -68,7 +91,7 @@ impl Editor {
     pub fn app_id(self) -> Option<&'static str> {
         match self {
             Editor::Crucible => Some("crucible-editor"),
-            Editor::ProjectXSceneEditor => None,
+            _ => None,
         }
     }
 
@@ -76,6 +99,10 @@ impl Editor {
         match self {
             Editor::Crucible => "com.threerings.projectx.tools.CrucibleSceneEditor",
             Editor::ProjectXSceneEditor => "com.threerings.projectx.tools.h",
+            Editor::Silverweave => "com.lucasluqui.silverweave.SilverweaveTool",
+            Editor::ModelViewer => "com.lucasluqui.spiralview.ModelViewerHook",
+            Editor::ParticleEditor => "com.lucasluqui.spiralview.ParticleEditorHook",
+            Editor::InterfaceTester => "com.lucasluqui.spiralview.InterfaceTesterHook",
         }
     }
 
@@ -83,7 +110,7 @@ impl Editor {
     pub fn required_paths(self) -> &'static [&'static str] {
         match self {
             Editor::Crucible => &["crucible.jar", "crucible/rsrc/config"],
-            Editor::ProjectXSceneEditor => &[],
+            _ => &[],
         }
     }
 }
@@ -98,22 +125,35 @@ pub fn missing_resources(install: &GameInstall, editor: Editor) -> Vec<&'static 
         .collect()
 }
 
-/// The command that starts `editor` for this machine's OS and CPU. `java` must satisfy the game's `java_version`.
+/// The command that starts `editor` for this machine's OS and CPU. `java` must satisfy the game's `java_version` (and
+/// the pack's, for the editors from the pack, which also need `pack_jar`).
 pub fn editor_command(
     install: &GameInstall,
     java: &Path,
     editor: Editor,
     inputs: &Inputs,
+    pack_jar: Option<&Path>,
 ) -> Result<CommandSpec, ConfigError> {
     editor_command_for(
         install,
         java,
         editor,
         inputs,
+        pack_jar,
         Os::current(),
         std::env::consts::ARCH,
     )
 }
+
+/// What the pack's editors need on a current Java: Swing and LWJGL reach into the JDK, and the game's own flags (written
+/// for Java 8) do not open anything.
+const PACK_JVM_ARGS: [&str; 5] = [
+    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+    "--add-opens=java.base/java.util=ALL-UNNAMED",
+    "--enable-native-access=ALL-UNNAMED",
+    "-Dcom.threerings.getdown=false",
+    "-Dsun.java2d.d3d=false",
+];
 
 /// [`editor_command`] for a given OS and architecture.
 pub fn editor_command_for(
@@ -121,6 +161,7 @@ pub fn editor_command_for(
     java: &Path,
     editor: Editor,
     inputs: &Inputs,
+    pack_jar: Option<&Path>,
     os: Os,
     arch: &str,
 ) -> Result<CommandSpec, ConfigError> {
@@ -131,6 +172,19 @@ pub fn editor_command_for(
         skip_extra_line: Some(is_skgfx_line),
         ..DirectOptions::default()
     };
+    if editor.needs_pack() {
+        let jar = pack_jar.ok_or(ConfigError::MissingEditorPack)?;
+        options.classpath_prefix.push(jar.to_path_buf());
+        options
+            .jvm_args
+            .extend(PACK_JVM_ARGS.iter().map(|a| (*a).to_owned()));
+        if os == Os::Linux {
+            // LWJGL would pick EGL on a Wayland session, but the editors' AWT canvas still needs GLX.
+            options
+                .jvm_args
+                .push("-Dorg.lwjgl.opengl.contextAPI=native".to_owned());
+        }
+    }
     if editor == Editor::Crucible {
         options.jvm_args.push(format!(
             "-Dcrucible.dir={}",
@@ -162,12 +216,15 @@ mod tests {
         }
     }
 
+    const PACK: &str = "/data/editors/skradle-editors.jar";
+
     fn args(editor: Editor) -> Vec<String> {
         let spec = editor_command_for(
             &install(Path::new("/games/sk")),
             Path::new("/jre/bin/java"),
             editor,
             &inputs(),
+            editor.needs_pack().then(|| Path::new(PACK)),
             Os::Linux,
             "x86_64",
         )
@@ -215,6 +272,60 @@ mod tests {
             assert!(args.contains(&"-Xmx2g".to_owned()));
             assert!(!args.iter().any(|a| a.contains("skgfx")));
         }
+    }
+
+    #[test]
+    fn the_pack_editors_put_the_pack_in_front_of_the_game_and_open_the_jdk() {
+        for (editor, class) in [
+            (
+                Editor::Silverweave,
+                "com.lucasluqui.silverweave.SilverweaveTool",
+            ),
+            (
+                Editor::ModelViewer,
+                "com.lucasluqui.spiralview.ModelViewerHook",
+            ),
+            (
+                Editor::ParticleEditor,
+                "com.lucasluqui.spiralview.ParticleEditorHook",
+            ),
+            (
+                Editor::InterfaceTester,
+                "com.lucasluqui.spiralview.InterfaceTesterHook",
+            ),
+        ] {
+            let args = args(editor);
+            assert_eq!(args.last().unwrap(), class);
+            assert_eq!(args[0], "-classpath");
+            assert!(
+                args[1].starts_with(&format!("{PACK}:")),
+                "the pack comes first: {}",
+                args[1]
+            );
+            assert!(args[1].contains("code/projectx-pcode.jar"));
+            assert!(args.contains(&"--add-opens=java.base/java.lang=ALL-UNNAMED".to_owned()));
+            assert!(args.contains(&"-Dorg.lwjgl.opengl.contextAPI=native".to_owned()));
+            assert!(editor.needs_pack());
+        }
+        assert!(!Editor::Crucible.needs_pack() && !Editor::ProjectXSceneEditor.needs_pack());
+        assert!(!args(Editor::Crucible)
+            .iter()
+            .any(|a| a.contains("skradle-editors")));
+    }
+
+    #[test]
+    fn a_pack_editor_without_the_pack_is_an_error_not_a_broken_command() {
+        let err = editor_command_for(
+            &install(Path::new("/games/sk")),
+            Path::new("/jre/bin/java"),
+            Editor::ModelViewer,
+            &inputs(),
+            None,
+            Os::Linux,
+            "x86_64",
+        )
+        .unwrap_err();
+        assert_eq!(err, ConfigError::MissingEditorPack);
     }
 
     #[test]

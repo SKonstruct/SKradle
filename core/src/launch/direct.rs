@@ -21,7 +21,7 @@
 
 use std::ffi::OsString;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::game::{GameInstall, Os};
 use crate::getdown::CommandSpec;
@@ -93,6 +93,8 @@ pub struct DirectOptions {
     pub system_props: Vec<(String, String)>,
     /// After the `apparg` lines of `getdown.txt`, for example `+connect=host`.
     pub app_args: Vec<String>,
+    /// Jars put in front of the game's own class path, so their classes win (the downloadable editors).
+    pub classpath_prefix: Vec<PathBuf>,
 }
 
 impl Default for DirectOptions {
@@ -107,6 +109,7 @@ impl Default for DirectOptions {
             jvm_args: Vec::new(),
             system_props: Vec::new(),
             app_args: Vec::new(),
+            classpath_prefix: Vec::new(),
         }
     }
 }
@@ -191,7 +194,14 @@ pub fn command_with_env(
     let root = &install.root;
     let process = |arg: &str| process_arg(arg, root, &version, env);
 
-    let mut args: Vec<OsString> = vec!["-classpath".into(), launch.classpath(os).into()];
+    let separator = if os == Os::Windows { ';' } else { ':' };
+    let mut classpath = OsString::new();
+    for jar in &options.classpath_prefix {
+        classpath.push(jar);
+        classpath.push(separator.to_string());
+    }
+    classpath.push(launch.classpath(os));
+    let mut args: Vec<OsString> = vec!["-classpath".into(), classpath];
     if os == Os::MacOs {
         if let Some(name) = config.first("ui.name") {
             let icon = config

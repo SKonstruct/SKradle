@@ -1,13 +1,56 @@
 # SKradle
 
-A desktop launcher for Spiral Knights on Windows, macOS and Linux, with a native look on each.
+A fast, good-looking desktop launcher for [Spiral Knights](https://www.spiralknights.com/) on Windows, macOS and Linux.
+It finds your Steam or standalone copy, applies your mods, picks the server and starts the game. It can also host a
+server of your own.
 
-Work in progress: nothing is released yet (see the [changelog](CHANGELOG.md)). Test builds for macOS, Windows and Linux
-come from the **Build** workflow (Actions tab > Build > Run workflow); they are unsigned, so on macOS run
-`xattr -cr SKradle.app` once and on Windows choose "More info" > "Run anyway".
+![Home: launch card, players online, live events and news](docs/images/home-dark.png)
 
-The launcher logic is in [`core/`](core) (no Qt, `cargo test` builds it); the Qt Quick application is in
-[`app/`](app/README.md) (build with `-p skradle-app`; needs Qt).
+> Work in progress: nothing is released yet (see the [changelog](CHANGELOG.md)). Screenshots show sample data.
+
+## What it does
+
+- **Launch**: finds a Steam or standalone install (or add a folder), signs in through Steam automatically, starts the
+  game directly on a suitable Java, and shows live events, news and an estimate of the players online on Home.
+- **Servers**: a list of servers with live status and ping, add your own, pick the one the game uses. Install, start,
+  stop, back up and update a server on your own computer, with its web interface and a console inside the window.
+- **Mods**: your mods folder with an on/off switch each, pictures, tags, filters and search; drag and drop to add,
+  select several at once, and install or update the maintained modpack in one click.
+- **Settings**: memory, garbage collector and Java, file cleaning and reset, optional graphics enhancements (render
+  scale, sharpening, frame generation, FPS counter), Discord Rich Presence, the game's editors (scene editor, Crucible, Silverweave, Model Viewer, Particle Editor,
+  Interface Tester, kept up to date), light and dark
+  theme, reduced motion, and automatic updates of SKradle itself.
+
+<table>
+  <tr>
+    <td><img src="docs/images/servers.png" alt="Servers"></td>
+    <td><img src="docs/images/mods.png" alt="Mods"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/settings.png" alt="Settings"></td>
+    <td><img src="docs/images/home-light.png" alt="Home in the light theme"></td>
+  </tr>
+</table>
+
+## Download
+
+Test builds come from the **Build** workflow (Actions tab > Build > Run workflow). Each download is one zip holding one
+folder with the package and a `SHA256SUMS.txt`: a `.dmg` for macOS (Apple silicon and Intel), the app folder for
+Windows (x64 and ARM64; run `skradle.exe`) and an AppImage for Linux x64. They are unsigned: on macOS run
+`xattr -cr SKradle.app` once, on Windows choose "More info" > "Run anyway".
+
+Something wrong? [Open an issue](../../issues/new/choose); the form asks for the log (Settings > About > Open log
+folder).
+
+## Build from source
+
+The launcher logic is in [`core/`](core) (no Qt; `cargo test` builds it). The Qt Quick application is in
+[`app/`](app/README.md) (`cargo build -p skradle-app --release`, needs Qt 6.8 or newer and Rust 1.85 or newer; the app
+README has the setup, flags and debugging).
+
+More: [launching](docs/launching.md) · [mods](docs/mods.md) · [hosting a server](docs/server-host.md) ·
+[editors](docs/editors.md) · [live events](docs/live-events.md) · [logging](docs/logging.md) · [crash reports](docs/crash-reports.md) ·
+[design system](docs/design-system.md)
 
 > Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights (c) Grey Havens, LLC.
 

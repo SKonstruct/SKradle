@@ -39,7 +39,8 @@ pub mod qobject {
         #[qproperty(i32, total_memory_mb, cxx_name = "totalMemoryMb", READ, WRITE, NOTIFY)]
         #[qproperty(i32, memory_min_mb, cxx_name = "memoryMinMb", READ, WRITE, NOTIFY)]
         #[qproperty(i32, memory_max_mb, cxx_name = "memoryMaxMb", READ, WRITE, NOTIFY)]
-        /// One entry per editor: "" when it can start, else "game", "java" or "files".
+        /// One entry per editor: "" when it can start, else "game", "java", "pack" (the editors are not downloaded),
+        /// "javapack" (no Java new enough for them) or "files".
         #[qproperty(
             QStringList,
             editor_blockers,
@@ -186,9 +187,14 @@ fn snapshot(path: &str, java_override: &str) -> Snapshot {
             needed_major: 0,
             agent: AgentJava::Missing,
         });
+    let pack = skradle_core::editor_pack::installed(&tools::pack_dir());
+    let access = match root.as_deref() {
+        Some(r) => tools::pack_access(&machine, r, java_override, pack.as_ref()),
+        None => tools::PackAccess::Missing,
+    };
     let blockers = Editor::ALL
         .iter()
-        .map(|e| tools::editor_blocker(root.as_deref(), &java, *e).unwrap_or(""))
+        .map(|e| tools::editor_blocker(root.as_deref(), &java, *e, &access).unwrap_or(""))
         .collect();
     Snapshot {
         agent_installed: agent_jar().is_some_and(|p| p.is_file()),

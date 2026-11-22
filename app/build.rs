@@ -201,6 +201,7 @@ fn main() {
             "src/bridge/feed_model.rs",
             "src/bridge/release_notes_model.rs",
             "src/bridge/tools_model.rs",
+            "src/bridge/editor_pack_model.rs",
             "src/bridge/servers_model.rs",
         ]);
     if webview {

@@ -6,6 +6,7 @@
 #![allow(unsafe_code)]
 
 pub mod app_env;
+pub mod editor_pack_model;
 pub mod feed_model;
 pub mod game_model;
 pub mod glue;

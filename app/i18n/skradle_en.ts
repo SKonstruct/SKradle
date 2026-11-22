@@ -2284,10 +2284,6 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The game ships two editors. Its Model Viewer, Particle Editor and Interface Tester are not in the game&apos;s files (only their texts are), so they cannot be started. Models, particles and interfaces can be edited in the Scene editor with its &quot;Configs...&quot; command. Silverweave is an item in the game, not a tool.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Crucible scene editor</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2369,6 +2365,90 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Adds SKradle&apos;s graphics agent to the game. Off by default.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Silverweave, Model Viewer, Particle Editor and Interface Tester</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Looking for the editors…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloaded (build %1). SKradle keeps them up to date by itself.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The editors have not been published yet. Try again later.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not reach GitHub. Check the connection and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GitHub had a problem. Try again later.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The download was damaged, so it was discarded. Try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not download the editors.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open-source tools by Three Rings (Clyde) and spiralview, downloaded once (about 25 MB) and kept up to date.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download the editors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Silverweave</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try knight loadouts and items.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Model Viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Look at the game&apos;s models and animations.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Particle Editor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit the game&apos;s particle effects.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Interface Tester</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try the game&apos;s interface layouts.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download the editors above first.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

@@ -1,0 +1,30 @@
+<!--
+  Replaces spiralview's own assembly descriptor when SKradle builds the editors jar (see build.sh). The difference:
+  the game's proprietary projectx-pcode.jar (a system-scope dependency) is left out, so nothing of the game is
+  redistributed; at run time the game's own jars are on the class path next to this one.
+-->
+<assembly>
+  <id>jar-with-dependencies</id>
+  <formats>
+    <format>jar</format>
+  </formats>
+  <includeBaseDirectory>false</includeBaseDirectory>
+
+  <!-- dependencies first, the project's own classes last (they win), as spiralview does -->
+  <dependencySets>
+    <dependencySet>
+      <outputDirectory>/</outputDirectory>
+      <unpack>true</unpack>
+      <useProjectArtifact>false</useProjectArtifact>
+      <excludes>
+        <exclude>pcode:pcode</exclude>
+      </excludes>
+    </dependencySet>
+  </dependencySets>
+  <fileSets>
+    <fileSet>
+      <directory>${project.build.outputDirectory}</directory>
+      <outputDirectory>/</outputDirectory>
+    </fileSet>
+  </fileSets>
+</assembly>
