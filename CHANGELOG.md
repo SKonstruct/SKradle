@@ -40,7 +40,7 @@ history has the rest.
 - **Logs**: SKradle writes a log (`skradle.log`, scrubbed of your user name and secrets) with buttons in Settings > About
   to open its folder or copy its path; GitHub issue forms ask for it.
 - **More editors**: Silverweave, Model Viewer, Particle Editor and Interface Tester (open-source Clyde and spiralview tools)
-  in Settings > Tools. Download them once; SKradle keeps them at the newest build by itself (a daily build publishes
+  in Settings > Tools. Download them once; SKradle keeps them at the newest build by itself (a weekly build publishes
   it; they need Java 25 or newer). See `docs/editors.md`.
 - Windows: Steam is found where the registry says it is, so installs on another drive work.
 - **Test builds** from the Actions tab (`Build` workflow). Each download is one zip holding one folder with a

@@ -2,13 +2,13 @@ name: Editors
 
 # Builds the game's editors (Silverweave, Model Viewer, Particle Editor, Interface Tester) from the newest upstream
 # sources and publishes them as the rolling "editors" release, which SKradle downloads and keeps up to date. Runs every
-# day and only rebuilds when something changed: spiralview's newest commit, the newest released Clyde, or the game's own
+# Monday and only rebuilds when something changed: spiralview's newest commit, the newest released Clyde, or the game's own
 # code jar (the editors are compiled against it, and it is never published). See packaging/editors/build.sh.
 # The release is a pre-release on purpose: the launcher's own update check ignores it. The release is the only thing
 # this workflow writes: nothing is committed or pushed.
 on:
   schedule:
-    - cron: "17 4 * * *"
+    - cron: "17 4 * * 1"
   workflow_dispatch:
     inputs:
       force:

@@ -1,6 +1,6 @@
 //! The editors pack: one jar with Silverweave, the Model Viewer, the Particle Editor and the Interface Tester.
 //!
-//! The `Editors` workflow builds it every day from the newest upstream sources (spiralview and Clyde, both BSD-2-Clause)
+//! The `Editors` workflow builds it every week from the newest upstream sources (spiralview and Clyde, both BSD-2-Clause)
 //! and publishes `skradle-editors.jar` plus a small manifest, `editors.json`, as the rolling `editors` release of this
 //! project. This module reads the manifest, says whether the copy on disk is the newest, and downloads the jar, which is
 //! kept only when its SHA-256 matches the manifest's. The pack never contains anything of the game itself (the build

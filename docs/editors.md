@@ -17,7 +17,7 @@ The last four are not in the game's jars (only their texts are). They are open s
 (the Three Rings library the game is built on) and [spiralview](https://github.com/lucasluqui/spiralview) (a wrapper
 around Clyde's editors that also holds Silverweave), both BSD-2-Clause.
 
-- The **Editors** workflow (`.github/workflows/editors.yml`, `packaging/editors/build.sh`) runs every day. It resolves the
+- The **Editors** workflow (`.github/workflows/editors.yml`, `packaging/editors/build.sh`) runs every Monday. It resolves the
   newest spiralview commit, the newest released Clyde (Maven Central) and the game's current code jar, and rebuilds only
   when one of them changed. The result is the rolling `editors` release (a pre-release, so the launcher's own update
   check ignores it): `skradle-editors.jar`, `editors.json` (build id, SHA-256, size, minimum Java) and `NOTICES.txt`.
