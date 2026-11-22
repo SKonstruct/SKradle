@@ -13,8 +13,10 @@ use crate::index::Arch;
 use crate::net::{Client, DownloadOptions, NetError, Progress};
 
 pub const REPO: &str = "SKonstruct/SKradle";
-pub const LATEST_RELEASE_URL: &str =
-    "https://api.github.com/repos/SKonstruct/SKradle/releases/latest";
+/// The release list, newest first. Not `releases/latest`: that answers 404 while nothing is published, which cannot be
+/// told from a wrong address, and it never shows what a draft or pre-release hides.
+pub const RELEASES_URL: &str =
+    "https://api.github.com/repos/SKonstruct/SKradle/releases?per_page=20";
 const DOWNLOAD_PREFIX: &str = "https://github.com/SKonstruct/SKradle/releases/download/";
 const MAX_API_BYTES: u64 = 2 << 20;
 const MAX_INSTALLER_BYTES: u64 = 1 << 30;
@@ -76,10 +78,60 @@ pub struct Update {
     pub asset: Asset,
 }
 
+/// What a check found. Every outcome other than an error is a calm answer, not a failure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Outcome {
+    /// Nothing is published yet (no release, only drafts and pre-releases, or the project's releases page is empty).
+    NoReleases,
+    /// The newest release is not newer than this build (or is the one the player skipped).
+    UpToDate { latest: Version },
+    /// A newer release exists but carries no installer (with a SHA-256) for this OS and CPU.
+    NoInstaller { version: Version },
+    Available(Update),
+}
+
+/// Why a check or download failed, as the page words it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Failure {
+    /// GitHub's limit for anonymous requests (403 or 429); it lifts within the hour.
+    RateLimited,
+    /// No connection, a timeout or a TLS problem.
+    Offline,
+    /// GitHub answered with a server error.
+    Server,
+    /// The answer was not release data.
+    Malformed,
+    /// The downloaded installer did not match its published SHA-256.
+    Checksum,
+    Other,
+}
+
 #[derive(Debug)]
 pub enum UpdateError {
     Net(NetError),
     Malformed(String),
+}
+
+impl UpdateError {
+    pub fn failure(&self) -> Failure {
+        match self {
+            UpdateError::Malformed(_) => Failure::Malformed,
+            UpdateError::Net(e) => failure_of(e),
+        }
+    }
+}
+
+/// Sorts a network error into what the player can do about it.
+pub fn failure_of(error: &NetError) -> Failure {
+    match error {
+        NetError::Status(403 | 429) => Failure::RateLimited,
+        NetError::Status(500..=599) => Failure::Server,
+        NetError::Request(_) => Failure::Offline,
+        NetError::Io(e) if e.kind() != io::ErrorKind::InvalidData => Failure::Offline,
+        NetError::Checksum { .. } => Failure::Checksum,
+        NetError::TooLarge { .. } => Failure::Malformed,
+        _ => Failure::Other,
+    }
 }
 
 impl std::fmt::Display for UpdateError {
@@ -135,17 +187,11 @@ pub fn asset_name(version: Version, os: Os, arch: Arch) -> String {
     format!("SKradle-{version}-{os_name}-{arch_name}.{ext}")
 }
 
-/// Parses GitHub's `releases/latest` JSON. Drafts, pre-releases and versions that are not plain `x.y.z` are rejected
-/// by returning `Ok(None)`; assets that are unusable (no SHA-256, a URL outside this project's releases) are dropped.
-pub fn parse_release(json: &str) -> Result<Option<Release>, UpdateError> {
-    let raw: RawRelease =
-        serde_json::from_str(json).map_err(|e| UpdateError::Malformed(e.to_string()))?;
+fn convert(raw: RawRelease) -> Option<Release> {
     if raw.draft || raw.prerelease {
-        return Ok(None);
+        return None;
     }
-    let Some(version) = Version::parse(&raw.tag_name) else {
-        return Ok(None);
-    };
+    let version = Version::parse(&raw.tag_name)?;
     let assets = raw
         .assets
         .into_iter()
@@ -164,11 +210,30 @@ pub fn parse_release(json: &str) -> Result<Option<Release>, UpdateError> {
                 })
         })
         .collect();
-    Ok(Some(Release {
+    Some(Release {
         version,
         notes: raw.body.unwrap_or_default(),
         assets,
-    }))
+    })
+}
+
+/// Parses one release object. Drafts, pre-releases and versions that are not plain `x.y.z` are rejected by returning
+/// `Ok(None)`; assets that are unusable (no SHA-256, a URL outside this project's releases) are dropped.
+pub fn parse_release(json: &str) -> Result<Option<Release>, UpdateError> {
+    let raw: RawRelease =
+        serde_json::from_str(json).map_err(|e| UpdateError::Malformed(e.to_string()))?;
+    Ok(convert(raw))
+}
+
+/// Parses GitHub's release list and returns the highest usable release, or `Ok(None)` when there is none (an empty
+/// list, or only drafts, pre-releases and odd tags). Anything that is not a list of releases is malformed.
+pub fn parse_releases(json: &str) -> Result<Option<Release>, UpdateError> {
+    let raw: Vec<RawRelease> =
+        serde_json::from_str(json).map_err(|e| UpdateError::Malformed(e.to_string()))?;
+    Ok(raw
+        .into_iter()
+        .filter_map(convert)
+        .max_by_key(|release| release.version))
 }
 
 /// The update to offer, if any: the release is newer than `current`, was not skipped by the player, and has the
@@ -192,16 +257,59 @@ pub fn pick_update(
     })
 }
 
-/// Asks GitHub for the latest release and returns the update to offer, if any.
+/// What to tell the player about `release` for this build: the [`Outcome`] of comparing them.
+pub fn decide(
+    release: Option<&Release>,
+    current: Version,
+    os: Os,
+    arch: Arch,
+    skipped: Option<Version>,
+) -> Outcome {
+    let Some(release) = release else {
+        return Outcome::NoReleases;
+    };
+    if release.version <= current || skipped == Some(release.version) {
+        return Outcome::UpToDate {
+            latest: release.version,
+        };
+    }
+    match pick_update(release, current, os, arch, skipped) {
+        Some(update) => Outcome::Available(update),
+        None => Outcome::NoInstaller {
+            version: release.version,
+        },
+    }
+}
+
+/// [`decide`] from the body and status of the release-list request. A 404 means the project has no releases page
+/// content yet, which is the same calm answer as an empty list.
+pub fn outcome_from_response(
+    response: Result<String, NetError>,
+    current: Version,
+    os: Os,
+    arch: Arch,
+    skipped: Option<Version>,
+) -> Result<Outcome, UpdateError> {
+    match response {
+        Err(NetError::Status(404)) => Ok(Outcome::NoReleases),
+        Err(e) => Err(e.into()),
+        Ok(json) => {
+            let release = parse_releases(&json)?;
+            Ok(decide(release.as_ref(), current, os, arch, skipped))
+        }
+    }
+}
+
+/// Asks GitHub for the project's releases and says what that means for this build.
 pub fn check(
     client: &Client,
     current: Version,
     os: Os,
     arch: Arch,
     skipped: Option<Version>,
-) -> Result<Option<Update>, UpdateError> {
-    let json = client.get_text(LATEST_RELEASE_URL, MAX_API_BYTES)?;
-    Ok(parse_release(&json)?.and_then(|release| pick_update(&release, current, os, arch, skipped)))
+) -> Result<Outcome, UpdateError> {
+    let response = client.get_text(RELEASES_URL, MAX_API_BYTES);
+    outcome_from_response(response, current, os, arch, skipped)
 }
 
 /// A name that is one plain file name: not empty, not `.` or `..`, and no path separator.
@@ -439,5 +547,138 @@ mod tests {
             parse_release("{}"),
             Err(UpdateError::Malformed(_))
         ));
+    }
+
+    fn list(releases: &[String]) -> String {
+        format!("[{}]", releases.join(","))
+    }
+
+    fn outcome(response: Result<String, NetError>, current: &str) -> Result<Outcome, UpdateError> {
+        outcome_from_response(response, v(current), Os::MacOs, Arch::Arm64, None)
+    }
+
+    #[test]
+    fn nothing_published_yet_is_a_calm_answer_in_every_form() {
+        // The list is empty.
+        assert_eq!(outcome(Ok("[]".into()), "1.0.0").unwrap(), Outcome::NoReleases);
+        // The repository answers 404 (nothing there yet).
+        assert_eq!(
+            outcome(Err(NetError::Status(404)), "1.0.0").unwrap(),
+            Outcome::NoReleases
+        );
+        // Only drafts and pre-releases.
+        let assets = good_assets();
+        let only_hidden = list(&[
+            release_json("v1.3.0", r#""draft":true,"#, &assets),
+            release_json("v1.4.0", r#""prerelease":true,"#, &assets),
+            release_json("nightly", "", &assets),
+        ]);
+        assert_eq!(outcome(Ok(only_hidden), "1.0.0").unwrap(), Outcome::NoReleases);
+    }
+
+    #[test]
+    fn a_release_that_is_not_newer_is_up_to_date() {
+        let body = list(&[release_json("v1.3.0", "", &good_assets())]);
+        assert_eq!(
+            outcome(Ok(body.clone()), "1.3.0").unwrap(),
+            Outcome::UpToDate { latest: v("1.3.0") }
+        );
+        assert_eq!(
+            outcome(Ok(body), "2.0.0").unwrap(),
+            Outcome::UpToDate { latest: v("1.3.0") }
+        );
+    }
+
+    #[test]
+    fn the_newest_usable_release_wins_whatever_the_order() {
+        let assets = good_assets();
+        let body = list(&[
+            release_json("v1.4.0", r#""draft":true,"#, &assets),
+            release_json("v1.2.0", "", &assets),
+            release_json("v1.3.0", "", &assets),
+            release_json("v1.5.0", r#""prerelease":true,"#, &assets),
+        ]);
+        match outcome(Ok(body), "1.0.0").unwrap() {
+            Outcome::Available(update) => assert_eq!(update.version, v("1.3.0")),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_newer_release_without_an_installer_for_this_machine_says_so() {
+        // Only Windows installers exist; this is macOS.
+        let digest = format!("sha256:{SHA}");
+        let assets = vec![asset_json(
+            "SKradle-1.3.0-windows-x64.exe",
+            Some(&digest),
+            DOWNLOAD_PREFIX,
+        )];
+        let body = list(&[release_json("v1.3.0", "", &assets)]);
+        assert_eq!(
+            outcome(Ok(body), "1.0.0").unwrap(),
+            Outcome::NoInstaller { version: v("1.3.0") }
+        );
+        // An installer without a published SHA-256 does not count either.
+        let no_hash = vec![asset_json("SKradle-1.3.0-macos-arm64.dmg", None, DOWNLOAD_PREFIX)];
+        let body = list(&[release_json("v1.3.0", "", &no_hash)]);
+        assert!(matches!(
+            outcome(Ok(body), "1.0.0").unwrap(),
+            Outcome::NoInstaller { .. }
+        ));
+    }
+
+    #[test]
+    fn a_newer_release_with_its_installer_is_offered_and_a_skipped_one_is_not() {
+        let body = list(&[release_json("v1.3.0", "", &good_assets())]);
+        match outcome(Ok(body.clone()), "1.0.0").unwrap() {
+            Outcome::Available(update) => {
+                assert_eq!(update.asset.name, "SKradle-1.3.0-macos-arm64.dmg")
+            }
+            other => panic!("{other:?}"),
+        }
+        let skipped = outcome_from_response(
+            Ok(body),
+            v("1.0.0"),
+            Os::MacOs,
+            Arch::Arm64,
+            Some(v("1.3.0")),
+        )
+        .unwrap();
+        assert_eq!(skipped, Outcome::UpToDate { latest: v("1.3.0") });
+    }
+
+    #[test]
+    fn failures_are_sorted_into_what_the_player_can_do() {
+        let kind = |e: NetError| outcome(Err(e), "1.0.0").unwrap_err().failure();
+        assert_eq!(kind(NetError::Status(403)), Failure::RateLimited);
+        assert_eq!(kind(NetError::Status(429)), Failure::RateLimited);
+        assert_eq!(kind(NetError::Status(502)), Failure::Server);
+        assert_eq!(kind(NetError::Status(401)), Failure::Other);
+        assert_eq!(kind(NetError::Request("timeout".into())), Failure::Offline);
+        assert_eq!(
+            kind(NetError::Io(io::Error::new(io::ErrorKind::TimedOut, "t"))),
+            Failure::Offline
+        );
+        assert_eq!(kind(NetError::TooLarge { limit: 1 }), Failure::Malformed);
+        assert_eq!(
+            failure_of(&NetError::Checksum {
+                expected: "a".into(),
+                actual: "b".into()
+            }),
+            Failure::Checksum
+        );
+    }
+
+    #[test]
+    fn malformed_release_lists_are_failures_not_silence() {
+        for body in ["not json", "{}", "{\"tag_name\":\"v1.0.0\"}", "[{\"x\":1}]", ""] {
+            let error = outcome(Ok(body.into()), "1.0.0").unwrap_err();
+            assert_eq!(error.failure(), Failure::Malformed, "{body:?}");
+        }
+        // A list with one release that has the fields but an odd tag is just "nothing usable".
+        assert_eq!(
+            outcome(Ok(list(&[release_json("x", "", &[])])), "1.0.0").unwrap(),
+            Outcome::NoReleases
+        );
     }
 }

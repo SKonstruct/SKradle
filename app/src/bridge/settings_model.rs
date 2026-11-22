@@ -30,7 +30,9 @@ pub mod qobject {
         #[qproperty(bool, file_purging, cxx_name = "filePurging")]
         #[qproperty(bool, discord_presence, cxx_name = "discordPresence")]
         #[qproperty(bool, crash_reports, cxx_name = "crashReports")]
-        #[qproperty(bool, auto_update_check, cxx_name = "autoUpdateCheck")]
+        #[qproperty(bool, auto_update, cxx_name = "autoUpdate")]
+        /// The graphics agent's master switch (off by default).
+        #[qproperty(bool, graphics_enabled, cxx_name = "graphicsEnabled")]
         #[qproperty(i32, render_scale, cxx_name = "renderScale")]
         #[qproperty(i32, sharpening)]
         #[qproperty(i32, anti_aliasing, cxx_name = "antiAliasing")]
@@ -67,7 +69,8 @@ pub struct SettingsRust {
     file_purging: bool,
     discord_presence: bool,
     crash_reports: bool,
-    auto_update_check: bool,
+    auto_update: bool,
+    graphics_enabled: bool,
     render_scale: i32,
     sharpening: i32,
     anti_aliasing: i32,
@@ -99,7 +102,8 @@ impl Default for SettingsRust {
             file_purging: d.file_purging,
             discord_presence: d.discord_presence,
             crash_reports: d.crash_reports,
-            auto_update_check: d.auto_update_check,
+            auto_update: d.auto_update,
+            graphics_enabled: d.graphics_enabled,
             render_scale: d.render_scale as i32,
             sharpening: d.sharpening as i32,
             anti_aliasing: d.anti_aliasing as i32,
@@ -150,7 +154,8 @@ impl qobject::Settings {
         self.as_mut().set_file_purging(s.file_purging);
         self.as_mut().set_discord_presence(s.discord_presence);
         self.as_mut().set_crash_reports(s.crash_reports);
-        self.as_mut().set_auto_update_check(s.auto_update_check);
+        self.as_mut().set_auto_update(s.auto_update);
+        self.as_mut().set_graphics_enabled(s.graphics_enabled);
         self.as_mut().set_render_scale(s.render_scale as i32);
         self.as_mut().set_sharpening(s.sharpening as i32);
         self.as_mut().set_anti_aliasing(s.anti_aliasing as i32);
@@ -179,7 +184,8 @@ impl qobject::Settings {
         let file_purging = *self.file_purging();
         let discord_presence = *self.discord_presence();
         let crash_reports = *self.crash_reports();
-        let auto_update_check = *self.auto_update_check();
+        let auto_update = *self.auto_update();
+        let graphics_enabled = *self.graphics_enabled();
         let render_scale = unsigned(*self.render_scale());
         let sharpening = unsigned(*self.sharpening());
         let anti_aliasing = unsigned(*self.anti_aliasing());
@@ -207,7 +213,8 @@ impl qobject::Settings {
             s.file_purging = file_purging;
             s.discord_presence = discord_presence;
             s.crash_reports = crash_reports;
-            s.auto_update_check = auto_update_check;
+            s.auto_update = auto_update;
+            s.graphics_enabled = graphics_enabled;
             s.render_scale = render_scale;
             s.sharpening = sharpening;
             s.anti_aliasing = anti_aliasing;
@@ -273,7 +280,10 @@ impl Initialize for qobject::Settings {
             .on_crash_reports_changed(|q| q.push())
             .release();
         self.as_mut()
-            .on_auto_update_check_changed(|q| q.push())
+            .on_auto_update_changed(|q| q.push())
+            .release();
+        self.as_mut()
+            .on_graphics_enabled_changed(|q| q.push())
             .release();
         self.as_mut()
             .on_render_scale_changed(|q| q.push())

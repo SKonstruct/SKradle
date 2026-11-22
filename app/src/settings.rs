@@ -114,11 +114,15 @@ pub struct Settings {
     pub discord_presence: bool,
     /// Crash reports (the telemetry switch).
     pub crash_reports: bool,
-    /// Look for a newer launcher a moment after start (on by default; the About page's button always works).
-    pub auto_update_check: bool,
+    /// Update automatically: a moment after start, look for a newer launcher and download it in the background
+    /// (on by default). The About page's "Check for updates" button works either way. Stored as `autoUpdate`; the
+    /// older `autoUpdateCheck` key is read when `autoUpdate` is absent and kept in step for an older launcher.
+    pub auto_update: bool,
     /// A launcher version the player chose not to be offered again.
     pub skipped_update: Option<String>,
-    // The Graphics page. Stored for the page; the game does not read them yet (TODO(graphics)).
+    /// The master switch for the graphics agent. Off (the default): no agent, and the game keeps its own Java.
+    pub graphics_enabled: bool,
+    // The Graphics page's options; used only while `graphics_enabled` is on.
     pub render_scale: u32,
     pub sharpening: u32,
     pub anti_aliasing: u32,
@@ -149,8 +153,9 @@ impl Default for Settings {
             file_purging: true,
             discord_presence: false,
             crash_reports: true,
-            auto_update_check: true,
+            auto_update: true,
             skipped_update: None,
+            graphics_enabled: false,
             render_scale: 100,
             sharpening: 40,
             anti_aliasing: 1,
@@ -180,7 +185,9 @@ const KNOWN_KEYS: &[&str] = &[
     "filePurging",
     "discordPresence",
     "crashReports",
+    "autoUpdate",
     "autoUpdateCheck",
+    "graphicsEnabled",
     "skippedUpdate",
     "renderScale",
     "sharpening",
@@ -226,8 +233,13 @@ impl Settings {
             file_purging: get(map, "filePurging").unwrap_or(d.file_purging),
             discord_presence: get(map, "discordPresence").unwrap_or(d.discord_presence),
             crash_reports: get(map, "crashReports").unwrap_or(d.crash_reports),
-            auto_update_check: get(map, "autoUpdateCheck").unwrap_or(d.auto_update_check),
+            // `autoUpdate` wins; a file from before it existed has only `autoUpdateCheck`, whose "on" now also
+            // downloads in the background (the owner's choice: a player who left it on gets the new behaviour).
+            auto_update: get(map, "autoUpdate")
+                .or_else(|| get(map, "autoUpdateCheck"))
+                .unwrap_or(d.auto_update),
             skipped_update: path_value(map, "skippedUpdate"),
+            graphics_enabled: get(map, "graphicsEnabled").unwrap_or(d.graphics_enabled),
             render_scale: get(map, "renderScale").unwrap_or(d.render_scale),
             sharpening: get(map, "sharpening").unwrap_or(d.sharpening),
             anti_aliasing: get(map, "antiAliasing").unwrap_or(d.anti_aliasing),
@@ -282,7 +294,9 @@ impl Settings {
         put("filePurging", Value::from(self.file_purging));
         put("discordPresence", Value::from(self.discord_presence));
         put("crashReports", Value::from(self.crash_reports));
-        put("autoUpdateCheck", Value::from(self.auto_update_check));
+        put("autoUpdate", Value::from(self.auto_update));
+        put("autoUpdateCheck", Value::from(self.auto_update));
+        put("graphicsEnabled", Value::from(self.graphics_enabled));
         put("skippedUpdate", self.skipped_update.clone().into());
         put("renderScale", Value::from(self.render_scale));
         put("sharpening", Value::from(self.sharpening));
@@ -515,7 +529,8 @@ mod tests {
             memory_mb: Some(4096),
             game_path: Some("/games/sk".into()),
             crash_reports: false,
-            auto_update_check: false,
+            auto_update: false,
+            graphics_enabled: true,
             ..Settings::default()
         };
         save(&path, &s).unwrap();
@@ -576,13 +591,50 @@ mod tests {
     }
 
     #[test]
-    fn the_update_check_is_on_by_default_and_a_wrong_type_falls_back_to_that() {
-        assert!(Settings::default().auto_update_check);
+fn automatic_updates_are_on_by_default_and_a_wrong_type_falls_back_to_that() {
+        assert!(Settings::default().auto_update);
         let mut map = Map::new();
-        map.insert("autoUpdateCheck".into(), Value::from("no"));
-        assert!(Settings::from_map(&map).auto_update_check);
-        map.insert("autoUpdateCheck".into(), Value::from(false));
-        assert!(!Settings::from_map(&map).auto_update_check);
+        map.insert("autoUpdate".into(), Value::from("no"));
+        assert!(Settings::from_map(&map).auto_update);
+        map.insert("autoUpdate".into(), Value::from(false));
+        assert!(!Settings::from_map(&map).auto_update);
+    }
+
+    #[test]
+    fn the_old_update_check_key_migrates_and_the_new_key_wins() {
+        // A file from before "Update automatically" has only the old key; its value carries over.
+        let mut old = Map::new();
+        old.insert("autoUpdateCheck".into(), Value::from(false));
+        assert!(!Settings::from_map(&old).auto_update);
+        old.insert("autoUpdateCheck".into(), Value::from(true));
+        assert!(Settings::from_map(&old).auto_update);
+        // When both exist the new one decides.
+        let mut both = Map::new();
+        both.insert("autoUpdateCheck".into(), Value::from(true));
+        both.insert("autoUpdate".into(), Value::from(false));
+        assert!(!Settings::from_map(&both).auto_update);
+        // Writing keeps both keys in step and no stray copy in the unknown keys.
+        let s = Settings::from_map(&old);
+        assert!(s.extra.is_empty());
+        let map = s.to_map();
+        assert_eq!(map["autoUpdate"], Value::from(true));
+        assert_eq!(map["autoUpdateCheck"], Value::from(true));
+    }
+
+    #[test]
+    fn graphics_enhancements_are_off_by_default_even_for_an_old_file() {
+        assert!(!Settings::default().graphics_enabled);
+        // A settings file from before the switch (it has graphics options but no switch).
+        let mut map = Map::new();
+        map.insert("renderScale".into(), Value::from(150));
+        let s = Settings::from_map(&map);
+        assert!(!s.graphics_enabled);
+        assert_eq!(s.render_scale, 150);
+        map.insert("graphicsEnabled".into(), Value::from(true));
+        assert!(Settings::from_map(&map).graphics_enabled);
+        map.insert("graphicsEnabled".into(), Value::from("yes"));
+        assert!(!Settings::from_map(&map).graphics_enabled);
+        assert_eq!(Settings::from_map(&map).to_map()["graphicsEnabled"], Value::from(false));
     }
 
     #[test]

@@ -106,8 +106,11 @@ from the bytecode and never tried.
 2. **Otherwise:** apply mods, then write the server settings into `config.jar` (applying mods rebuilds that jar from
    the game's original, which discards the settings), then start the client directly. The updater must not start the
    game here: it would see the changed files and put the originals back.
-3. **The graphics agent** needs a Java that can load it (24 or newer with `java.instrument`); the game's own trimmed
-   runtime cannot. The direct launch uses such a runtime and passes the agent as JVM arguments, never through
+3. **The graphics agent** is behind a master switch (`graphicsEnabled`, Settings > Graphics, **off by default**, also
+   for settings files written before it existed). Off: `app/src/launch/planned.rs` passes no agent arguments, so the
+   planner picks the first runtime that satisfies the game, which is the game's own `java_vm` (or the player's Java
+   path override, which always wins). On: the agent needs a Java that can load it (24 or newer with
+   `java.instrument`); the game's own trimmed runtime cannot. The direct launch uses such a runtime and passes the agent as JVM arguments, never through
    `extra.txt`. With none available the game starts without it and the plan carries a warning.
 
 `execute` stops at the first failing step: nothing after it runs and the game is not started on a half-applied state.
@@ -170,3 +173,21 @@ launch's JVM arguments, mods or graphics agent.
 the player's extra arguments last) and `mod_options` (file cleaning and purging as `ApplyOptions`). A chosen collector
 replaces any `-XX:+Use*GC` flag of `getdown.txt` and `extra.txt` (two collectors stop the JVM); the player's own collector
 argument wins. These apply to the direct launch only. Both mod switches are documented in `docs/mods.md`.
+
+## Launcher updates
+
+`core/src/update.rs` reads the project's release list (`releases?per_page=20`, not `releases/latest`, which answers 404
+while nothing is published) and keeps the highest plain `x.y.z` release that is neither a draft nor a pre-release. The
+check ends in one of: no releases yet (empty list, only hidden releases, or 404; a calm answer), up to date (not newer
+or skipped), a newer release without an installer and SHA-256 for this OS and CPU, or an update to offer. Failures are
+sorted into rate limit (403/429, "try again in about an hour"; GitHub's header is not read), offline or timeout, server
+error, malformed data and checksum mismatch. "Update automatically" (`autoUpdate`; the old `autoUpdateCheck` is read
+when the new key is absent and kept in step) checks a moment after the window appears, never in self-test or screenshot
+runs, downloads a found update in the background (SHA-256 verified) and shows an "Update ready" banner with the install
+action; an automatic run never shows an error. "Check for updates" in Settings > About always works.
+
+## Tools
+
+The Tools section starts only editors that the game's own jars contain (Crucible scene editor, ProjectX scene editor);
+they are delivered and updated by the game itself, so there is no download system. The Model Viewer, Particle Editor and
+Interface Tester exist in the game only as message bundles; their classes are not in the jars. See `core/src/editors.rs`.

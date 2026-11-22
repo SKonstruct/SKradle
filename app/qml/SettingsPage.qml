@@ -112,7 +112,28 @@ Item {
                          path: qsTr("found on this computer"), custom: qsTr("your choice") })[GameTools.javaSource] || ""
         return qsTr("Java %1 (%2)").arg(GameTools.javaVersion).arg(where)
     }
-    readonly property string agentLine: !GameTools.agentJavaOk
+    // One sentence per update state; errors say what to do. Rate limit: GitHub's anonymous limit lifts within the hour.
+    readonly property string updateLine: {
+        const s = UpdateModel.state
+        if (s === "uptodate") return qsTr("You are up to date.")
+        if (s === "none") return qsTr("No releases yet. You are on the newest build.")
+        if (s === "noinstaller") return qsTr("Version %1 is out, but not yet for this computer. Try again later.").arg(UpdateModel.version)
+        if (s === "available") return qsTr("Version %1 is available.").arg(UpdateModel.version)
+        if (s === "ready") return qsTr("Version %1 is downloaded and ready to install.").arg(UpdateModel.version)
+        if (s === "installing") return qsTr("The installer is starting. SKradle closes now.")
+        if (s !== "error") return ""
+        const r = UpdateModel.reason
+        if (UpdateModel.failedDuring === "install") return qsTr("Could not start the installer. Open the downloaded file from the updates folder yourself.")
+        if (r === "ratelimit") return qsTr("GitHub is limiting requests from this connection. Try again in about an hour.")
+        if (r === "offline") return qsTr("Could not reach GitHub. Check your internet connection and try again.")
+        if (r === "server") return qsTr("GitHub is having trouble right now. Try again in a few minutes.")
+        if (r === "malformed") return qsTr("GitHub's answer was not understood. Try again later.")
+        if (r === "checksum") return qsTr("The download did not match its checksum and was discarded. Try again.")
+        return UpdateModel.failedDuring === "download" ? qsTr("Could not download the update. Try again.") : qsTr("Could not check for updates. Try again.")
+    }
+    readonly property string agentLine: !Settings.graphicsEnabled
+        ? qsTr("Off: the game starts with its own Java and no graphics agent, as the game ships. Turn it on to use the options below; they need Java 24 or newer with the java.instrument module.")
+        : !GameTools.agentJavaOk
         ? qsTr("Graphics enhancements need Java 24 or newer with the java.instrument module. None was found, so the game starts without them. The game's own runtime cannot load them.")
         : !GameTools.agentInstalled
             ? qsTr("A suitable Java was found, but the graphics agent is not installed yet, so these options are saved and take effect once it is.")
@@ -218,9 +239,9 @@ Item {
                     }
                     Sep {}
                     SettingRow {
-                        label: qsTr("Check for launcher updates automatically"); hint: qsTr("Looks for a newer SKradle a moment after it starts. You always choose when to install.")
+                        label: qsTr("Update automatically"); hint: qsTr("Looks for a newer SKradle a moment after it starts and downloads it in the background. You choose when to install. \"Check for updates\" in About works either way.")
                         Item { Layout.fillWidth: true }
-                        SSwitch { checked: Settings.autoUpdateCheck; onToggled: Settings.autoUpdateCheck = checked; Accessible.name: qsTr("Check for launcher updates automatically") }
+                        SSwitch { checked: Settings.autoUpdate; onToggled: Settings.autoUpdate = checked; Accessible.name: qsTr("Update automatically") }
                     }
                     Sep {}
                     SettingRow {
@@ -286,10 +307,10 @@ Item {
                         SButton { text: qsTr("Browse…"); onClicked: javaDialog.open() }
                     }
                     Notice {   // one banner for Java: what is in use, and whether it can run the graphics agent
-                        text: GameTools.javaProblem !== "" || !page.hasGame || GameTools.javaVersion === "" ? page.javaLine
+                        text: GameTools.javaProblem !== "" || !page.hasGame || GameTools.javaVersion === "" || !Settings.graphicsEnabled ? page.javaLine
                             : GameTools.agentJavaOk ? qsTr("%1. Supports the graphics agent.").arg(page.javaLine)
                             : qsTr("%1. Too old for the graphics agent, which needs Java 24 or newer.").arg(page.javaLine)
-                        kind: page.hasGame && GameTools.javaProblem !== "" ? "warn" : page.hasGame && GameTools.javaVersion !== "" && GameTools.agentJavaOk ? "success" : "info"
+                        kind: page.hasGame && GameTools.javaProblem !== "" ? "warn" : page.hasGame && GameTools.javaVersion !== "" && Settings.graphicsEnabled && GameTools.agentJavaOk ? "success" : "info"
                     }
                     Sep {}
                     SettingRow {
@@ -398,25 +419,24 @@ Item {
                         warn: true
                         text: qsTr("The game is starting or running. Close it to change game files.")
                     }
-                    Sep {}
-                    SettingRow {
-                        label: qsTr("Game folder"); hint: page.hasGame ? GameModel.selectedPath : qsTr("No game install was found.")
-                                                Item { Layout.fillWidth: true }
-                        SButton { text: qsTr("Open game folder"); glyph: "folder"; enabled: page.hasGame; onClicked: GameTools.openFolder(GameModel.selectedPath) }
-                    }
                 }
 
                 // ---- Graphics ---------------------------------------------------------------------------------
                 SettingsSection {
                     id: secGraphics
                     title: qsTr("Graphics")
-                    Notice { text: page.agentLine; warn: !GameTools.agentJavaOk }
+                    SettingRow {
+                        label: qsTr("Enable graphics enhancements"); hint: qsTr("Adds SKradle's graphics agent to the game. Off by default.")
+                        Item { Layout.fillWidth: true }
+                        SSwitch { checked: Settings.graphicsEnabled; onToggled: Settings.graphicsEnabled = checked; Accessible.name: qsTr("Enable graphics enhancements") }
+                    }
+                    Notice { text: page.agentLine; warn: Settings.graphicsEnabled && !GameTools.agentJavaOk }
                     Notice { visible: LaunchModel.state === "running"; warn: true; text: qsTr("The game is running. Close it to change rendering options.") }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 0
-                        enabled: LaunchModel.state !== "running"
-                        opacity: LaunchModel.state === "running" ? 0.5 : 1
+                        enabled: LaunchModel.state !== "running" && Settings.graphicsEnabled
+                        opacity: LaunchModel.state === "running" || !Settings.graphicsEnabled ? 0.5 : 1
                         Behavior on opacity { NumberAnimation { duration: Motion.base } }
                         SettingRow {
                             label: qsTr("Render scale"); hint: qsTr("Lower values trade sharpness for speed.")
@@ -495,6 +515,7 @@ Item {
                 SettingsSection {
                     id: secTools
                     title: qsTr("Tools")
+                    Notice { text: qsTr("The game ships two editors. Its Model Viewer, Particle Editor and Interface Tester are not in the game's files (only their texts are), so they cannot be started. Models, particles and interfaces can be edited in the Scene editor with its \"Configs...\" command. Silverweave is an item in the game, not a tool.") }
                     Repeater {
                         model: [
                             { label: qsTr("Crucible scene editor"), hint: qsTr("The game's scene and template editor.") },
@@ -569,8 +590,7 @@ Item {
                                 kind: "caption"
                                 visible: text !== ""
                                 color: UpdateModel.state === "error" ? Theme.danger : Theme.textSecondary
-                                text: UpdateModel.state === "uptodate" ? qsTr("You are up to date.")
-                                    : UpdateModel.state === "error" ? qsTr("Could not check for updates. Check your internet connection and try again.") : ""
+                                text: page.updateLine
                             }
                         }
                     }

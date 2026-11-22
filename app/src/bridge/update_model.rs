@@ -12,8 +12,9 @@ pub mod qobject {
         #[qobject]
         #[qml_element]
         #[qml_singleton]
-        /// "idle", "checking", "uptodate", "available", "downloading", "ready", "installing" (the installer was
-        /// started and the launcher is about to quit) or "error".
+        /// "idle", "checking", "uptodate", "none" (no release has been published yet), "noinstaller" (a newer
+        /// release exists without an installer for this computer), "available", "downloading", "ready",
+        /// "installing" (the installer was started and the launcher is about to quit) or "error".
         #[qproperty(QString, state, READ, WRITE, NOTIFY)]
         /// The new version while one is offered.
         #[qproperty(QString, version, READ, WRITE, NOTIFY)]
@@ -23,11 +24,22 @@ pub mod qobject {
         #[qproperty(QString, message, READ, WRITE, NOTIFY)]
         /// What was being done when it went wrong: "check", "download" or "install" ("" outside "error").
         #[qproperty(QString, failed_during, cxx_name = "failedDuring", READ, WRITE, NOTIFY)]
+        /// Why it went wrong, in the "error" state: "ratelimit", "offline", "server", "malformed", "checksum" or
+        /// "other" ("" outside "error").
+        #[qproperty(QString, reason, READ, WRITE, NOTIFY)]
+        /// Whether the run in progress (or the last one) is the automatic one started by `checkAutomatically`.
+        #[qproperty(bool, automatic, READ, WRITE, NOTIFY)]
         type UpdateModel = super::UpdateModelRust;
 
         /// Asks GitHub for the newest release.
         #[qinvokable]
         fn check(self: Pin<&mut UpdateModel>);
+
+        /// The check at start-up when "Update automatically" is on: checks, downloads a newer release in the
+        /// background and ends in "ready". It never shows an error; a failed run just goes back to "idle".
+        #[qinvokable]
+        #[cxx_name = "checkAutomatically"]
+        fn check_automatically(self: Pin<&mut UpdateModel>);
 
         /// Downloads the offered installer (verified against its published SHA-256).
         #[qinvokable]
@@ -53,7 +65,7 @@ use cxx_qt_lib::QString;
 use skradle_core::game::Os;
 use skradle_core::index::Arch;
 use skradle_core::net::Client;
-use skradle_core::update::{self, Update, Version};
+use skradle_core::update::{self, Failure, Outcome, Update, Version};
 
 use crate::settings;
 
@@ -63,6 +75,8 @@ pub struct UpdateModelRust {
     progress: f64,
     message: QString,
     failed_during: QString,
+    reason: QString,
+    automatic: bool,
     offered: Option<Update>,
     installer: Option<PathBuf>,
     /// Identifies the latest request; answers from older ones are ignored.
@@ -77,6 +91,8 @@ impl Default for UpdateModelRust {
             progress: 0.0,
             message: QString::default(),
             failed_during: QString::default(),
+            reason: QString::default(),
+            automatic: false,
             offered: None,
             installer: None,
             request: 0,
@@ -94,10 +110,30 @@ fn fraction(done: u64, total: u64) -> f64 {
     (done as f64 / total as f64).clamp(0.0, 1.0)
 }
 
+/// The code QML words a failure with.
+fn reason_code(failure: Failure) -> &'static str {
+    match failure {
+        Failure::RateLimited => "ratelimit",
+        Failure::Offline => "offline",
+        Failure::Server => "server",
+        Failure::Malformed => "malformed",
+        Failure::Checksum => "checksum",
+        Failure::Other => "other",
+    }
+}
+
 impl qobject::UpdateModel {
-    fn fail(mut self: Pin<&mut Self>, during: &str, why: String) {
+    fn fail(mut self: Pin<&mut Self>, during: &str, why: String, failure: Failure) {
+        if self.automatic {
+            // The automatic run is silent: the manual button still works and shows what is wrong when pressed.
+            eprintln!("skradle: automatic update ({during}) failed: {why}");
+            self.as_mut().rust_mut().offered = None;
+            self.as_mut().set_state(QString::from("idle"));
+            return;
+        }
         self.as_mut().set_message(QString::from(why.as_str()));
         self.as_mut().set_failed_during(QString::from(during));
+        self.as_mut().set_reason(QString::from(reason_code(failure)));
         self.set_state(QString::from("error"));
     }
 
@@ -108,7 +144,15 @@ impl qobject::UpdateModel {
         rust.request
     }
 
-    pub fn check(mut self: Pin<&mut Self>) {
+    pub fn check(self: Pin<&mut Self>) {
+        self.run_check(false);
+    }
+
+    pub fn check_automatically(self: Pin<&mut Self>) {
+        self.run_check(true);
+    }
+
+    fn run_check(mut self: Pin<&mut Self>, automatic: bool) {
         if matches!(
             self.state().to_string().as_str(),
             "checking" | "downloading" | "installing"
@@ -116,11 +160,13 @@ impl qobject::UpdateModel {
             return;
         }
         let id = self.as_mut().next_request();
+        self.as_mut().set_automatic(automatic);
         // Nothing of an earlier answer may linger.
         self.as_mut().rust_mut().offered = None;
         self.as_mut().rust_mut().installer = None;
         self.as_mut().set_message(QString::default());
         self.as_mut().set_failed_during(QString::default());
+        self.as_mut().set_reason(QString::default());
         self.as_mut().set_version(QString::default());
         self.as_mut().set_state(QString::from("checking"));
         let thread: Thread = self.qt_thread();
@@ -145,19 +191,35 @@ impl qobject::UpdateModel {
                         return;
                     }
                     match result {
-                        Ok(Some(update)) => {
+                        Ok(Outcome::Available(update)) => {
                             m.as_mut()
                                 .set_version(QString::from(update.version.to_string().as_str()));
                             m.as_mut().rust_mut().offered = Some(update);
-                            m.set_state(QString::from("available"));
+                            m.as_mut().set_state(QString::from("available"));
+                            if m.automatic {
+                                m.download();
+                            }
                         }
-                        Ok(None) => m.set_state(QString::from("uptodate")),
-                        Err(e) => m.fail("check", e.to_string()),
+                        Ok(Outcome::UpToDate { .. }) => {
+                            m.set_state(QString::from(if automatic { "idle" } else { "uptodate" }))
+                        }
+                        Ok(Outcome::NoReleases) => {
+                            m.set_state(QString::from(if automatic { "idle" } else { "none" }))
+                        }
+                        Ok(Outcome::NoInstaller { version }) => {
+                            m.as_mut()
+                                .set_version(QString::from(version.to_string().as_str()));
+                            m.set_state(QString::from(if automatic { "idle" } else { "noinstaller" }))
+                        }
+                        Err(e) => {
+                            let failure = e.failure();
+                            m.fail("check", e.to_string(), failure)
+                        }
                     }
                 });
             });
         if let Err(e) = spawned {
-            self.fail("check", e.to_string());
+            self.fail("check", e.to_string(), Failure::Other);
         }
     }
 
@@ -207,12 +269,15 @@ impl qobject::UpdateModel {
                             m.as_mut().set_progress(1.0);
                             m.set_state(QString::from("ready"));
                         }
-                        Err(e) => m.fail("download", e.to_string()),
+                        Err(e) => {
+                            let failure = update::failure_of(&e);
+                            m.fail("download", e.to_string(), failure)
+                        }
                     }
                 });
             });
         if let Err(e) = spawned {
-            self.fail("download", e.to_string());
+            self.fail("download", e.to_string(), Failure::Other);
         }
     }
 
@@ -226,6 +291,8 @@ impl qobject::UpdateModel {
             return;
         }
         let id = self.as_mut().next_request();
+        // Whatever started the download, the player pressed install: a failure is shown.
+        self.as_mut().set_automatic(false);
         let thread: Thread = self.qt_thread();
         let worker = thread.clone();
         let spawned = std::thread::Builder::new()
@@ -238,12 +305,12 @@ impl qobject::UpdateModel {
                     }
                     match result {
                         Ok(()) => m.set_state(QString::from("installing")),
-                        Err(e) => m.fail("install", e.to_string()),
+                        Err(e) => m.fail("install", e.to_string(), Failure::Other),
                     }
                 });
             });
         if let Err(e) = spawned {
-            self.fail("install", e.to_string());
+            self.fail("install", e.to_string(), Failure::Other);
         }
     }
 

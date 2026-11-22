@@ -20,6 +20,15 @@
 //! Also found but not offered: `com.threerings.tudey.tools.h` (the generic Tudey scene editor the one above extends,
 //! also with a `main`) and `PseudoPlayer` (a server load tester that needs a server password, not an editor).
 //!
+//! Re-checked for the owner's list (Silverweave, Model Viewer, Interface Editor, Particle Editor): `projectx-pcode.jar`
+//! ships the message bundles `viewer` ("Three Rings Model Viewer"), `particle` ("Three Rings Particle Editor") and
+//! `interface` ("Three Rings Interface Tester"), but the classes behind them were removed from the jar: `ModelTool`
+//! is abstract with no concrete subclass, and a scan of every class finds a `main` only in the five classes named
+//! here (client, Crucible, `projectx.tools.h`, `tudey.tools.h`, `PseudoPlayer`). "Silverweave" is only an item name
+//! (`m.silverweave` in `item-names.properties`). The scene editor's "Configs..." command opens
+//! `com.threerings.config.tools.ConfigEditor`, which edits model, particle and interface configs. Nothing is
+//! downloadable: the missing classes are not in any file the game ships, and no public source is known to match them.
+//!
 //! Could NOT be confirmed: a model viewer, a particle editor and "Silverweave". No class in `projectx-pcode.jar`,
 //! `projectx-config.jar` or `config.jar` with one of those names has a `main` method (only six classes in the whole
 //! jar do; they are the ones above, the client, and `StatType`). The config editor classes (`ProjectXConfigEditor`,
