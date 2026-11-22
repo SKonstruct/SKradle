@@ -3,7 +3,7 @@
 The Home page shows the game's live events from a feed that other community launchers read too. SKradle has no events
 backend of its own.
 
-- Address: `http://flamingo.knightlauncher.com:6060/server-list/?machineId=skradle-desktop` (constants in
+- Address: `http://flamingo.knightlauncher.com:6060/server-list/?machineId=skradle` (constants in
   `core/src/net.rs`; the fixed `machineId` identifies nothing about the player).
 - **Third-party, cleartext and optional.** The service has no TLS listener, so this is the only plain HTTP request
   SKradle makes. If the feed is unreachable, changed or gone, everything else works the same; the card shows the last

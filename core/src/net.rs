@@ -525,7 +525,7 @@ mod tests {
 
     #[test]
     fn plain_http_is_allowed_for_the_events_feed_alone() {
-        let feed = "http://flamingo.knightlauncher.com:6060/server-list/?machineId=skradle-desktop";
+        let feed = "http://flamingo.knightlauncher.com:6060/server-list/?machineId=skradle";
         assert!(is_events_feed_url(feed));
         assert!(is_events_feed_url(
             "http://flamingo.knightlauncher.com:6060/server-list/"

@@ -1,7 +1,7 @@
 //! Live events for the Home page, read from the same feed the owner's mobile launchers read.
 //!
 //! The feed is third-party, cleartext and optional: `http://flamingo.knightlauncher.com:6060/server-list/?machineId=
-//! skradle-desktop` (plain HTTP, the service has no TLS listener; see [`crate::net`] for the one narrow exception that
+//! skradle` (plain HTTP, the service has no TLS listener; see [`crate::net`] for the one narrow exception that
 //! allows it). The launcher must work normally when it is unreachable. Everything it returns is untrusted data: the
 //! only things used are text for the card (control characters removed, lengths capped) and `https://` links and
 //! images (images are size capped, PNG or JPEG only, with a pixel cap, and cached on disk).
@@ -29,7 +29,7 @@ use crate::net::{
 };
 
 /// A fixed label, not a device id: the service uses it for beta codes, which SKradle never redeems.
-pub const MACHINE_ID: &str = "skradle-desktop";
+pub const MACHINE_ID: &str = "skradle";
 
 pub const MAX_FEED_BYTES: u64 = 256 * 1024;
 pub const MAX_IMAGE_BYTES: u64 = 1024 * 1024;
@@ -511,7 +511,7 @@ mod tests {
         let url = feed_url();
         assert_eq!(
             url,
-            "http://flamingo.knightlauncher.com:6060/server-list/?machineId=skradle-desktop"
+            "http://flamingo.knightlauncher.com:6060/server-list/?machineId=skradle"
         );
         assert!(crate::net::is_events_feed_url(&url));
     }
