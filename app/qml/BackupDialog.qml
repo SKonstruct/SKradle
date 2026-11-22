@@ -37,7 +37,7 @@ ServerDialog {
             spacing: Theme.gapStack
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 0
-                Txt { Layout.fillWidth: true; text: dlg.whenText(modelData.createdAt) + (modelData.label ? "  ·  " + modelData.label : ""); elide: Text.ElideRight; wrapMode: Text.NoWrap }
+                Txt { Layout.fillWidth: true; text: dlg.whenText(modelData.createdAt) + (modelData.label ? "  \u00B7  " + modelData.label : ""); elide: Text.ElideRight; wrapMode: Text.NoWrap }
                 Txt { text: dlg.sizeText(modelData.bytes); kind: "caption"; numeric: true }
             }
             SButton {

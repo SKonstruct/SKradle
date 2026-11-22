@@ -20,6 +20,7 @@
 pub mod admin;
 pub mod backups;
 pub mod config;
+pub mod console;
 pub mod engine;
 mod fsx;
 pub mod layout;
@@ -27,4 +28,5 @@ pub mod ports;
 pub mod process;
 pub mod prompts;
 pub mod register;
+pub mod signin;
 pub mod terms;

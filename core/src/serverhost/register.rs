@@ -85,6 +85,24 @@ pub fn local_server(layout: &ServerLayout, config: &HostConfig) -> Result<Server
     }
 }
 
+/// The same entry before the engine has made its key: listed so the player can choose "Local Server" before the
+/// first start (the first start fills the key in).
+pub fn local_server_keyless(config: &HostConfig) -> Result<Server, RegisterError> {
+    let server = Server {
+        id: LOCAL_SERVER_ID.to_owned(),
+        name: LOCAL_SERVER_NAME.to_owned(),
+        host: LOOPBACK.to_owned(),
+        port: config.game_port,
+        public_key: String::new(),
+        client_url: String::new(),
+        content_url: config.content_url(LOOPBACK),
+    };
+    match servers::validate(&server, &[]) {
+        None => Ok(server),
+        Some(p) => Err(RegisterError::Invalid(p)),
+    }
+}
+
 /// Adds the local server to the list or replaces the one already there (same id), keeping the selection. A
 /// different server the player named "Local Server" is not overwritten: the call fails with `Duplicate`.
 pub fn register(list: &mut ServerList, server: Server) -> Result<(), RegisterError> {

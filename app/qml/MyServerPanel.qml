@@ -16,6 +16,9 @@ Item {
         : loader.status === Loader.Ready && !failed ? "embedded"
         : loader.status === Loader.Error || failed ? "browser" : "loading"
     property bool failed: false
+    // "http://127.0.0.1:8080" of the page being shown (the script refuses any other origin).
+    readonly property string origin: { const m = /^(https?:\/\/[^\/]+)\//.exec(String(ServerHost.url)); return m ? m[1] : "" }
+    ClipboardHelper { id: clip }
     readonly property int pageProgress: loader.item ? loader.item.loadProgress : -1
     // The loaded page's title (the self-test checks that the page really loaded and ran its script).
     readonly property string pageTitle: loader.item ? loader.item.pageTitle : ""
@@ -55,6 +58,12 @@ Item {
                     onLoaded: item.loadFailed.connect((why) => { console.warn("web view: " + why); root.failed = true })
                     // A Binding, not a one-off assignment: the view follows the server to another address.
                     Binding { target: loader.item; property: "address"; value: ServerHost.url; when: loader.status === Loader.Ready }
+                    // Sign in automatically: the script only runs on the server's own origin and holds the password.
+                    Binding {
+                        target: loader.item; property: "signInScript"
+                        value: root.origin.length > 0 ? ServerHost.signInScript(root.origin) : ""
+                        when: loader.status === Loader.Ready
+                    }
                 }
             }
 
@@ -73,6 +82,13 @@ Item {
                 }
                 SButton {
                     Layout.alignment: Qt.AlignHCenter
+                    text: qsTr("Copy password"); glyph: "copy"
+                    visible: ServerHost.status.indexOf('"adminUser":"') >= 0 && ServerHost.status.indexOf('"adminUser":""') < 0
+                    onClicked: { clip.copy(ServerHost.adminPassword()); Data.toast(qsTr("Password copied")) }
+                    Accessible.name: qsTr("Copy the web interface password. The user name is skradle.")
+                }
+                SButton {
+                    Layout.alignment: Qt.AlignHCenter
                     highlighted: true
                     text: qsTr("Open in browser")
                     // Only a web address can be handed to the browser.
@@ -86,7 +102,7 @@ Item {
                 width: Math.min(parent.width - 2 * Theme.s8, 440)
                 horizontalAlignment: Text.AlignHCenter
                 visible: !root.running
-                text: ServerHost.state === "starting" ? qsTr("Starting the server…") : qsTr("The server isn't running. Start it from the server controls, then open its web interface.")
+                text: ServerHost.state === "starting" ? qsTr("Starting the server\u2026") : qsTr("The server isn't running. Start it from the server controls, then open its web interface.")
                 color: Theme.textSecondary
             }
         }

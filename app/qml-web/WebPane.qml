@@ -11,6 +11,10 @@ Item {
     // asked a bounded number of times per navigation, so a page without a title is not polled forever.
     property string pageTitle: ""
     property int titleTries: 0
+    // A script that signs the page in (supplied by the owner; empty for none). It runs once per address, when the
+    // page has loaded, and reloads the page itself on success.
+    property string signInScript: ""
+    property string signedFor: ""
     function decodeTitle(result) {
         // Some backends answer with a JSON string ("\"Title\""): decode it once instead of stripping quotes.
         const text = String(result)
@@ -28,6 +32,14 @@ Item {
             view.runJavaScript("document.title", (result) => { if (root && result) root.pageTitle = root.decodeTitle(result) })
         }
     }
+    onSignInScriptChanged: trySignIn()
+    function trySignIn() {
+        const a = String(address)
+        if (signInScript === "" || view.loadProgress !== 100 || signedFor === a) return
+        signedFor = a
+        view.runJavaScript(signInScript)
+    }
+    Connections { target: view; function onLoadProgressChanged() { root.trySignIn() } }
     readonly property int loadProgress: view.loadProgress
     signal loadFailed(string reason)
 

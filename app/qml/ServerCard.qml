@@ -33,7 +33,7 @@ Control {
     readonly property color statusColor: live === "up" ? Theme.ok : live === "down" ? Theme.danger : Theme.textTertiary
     // The ping when it answers; a word only for the states that need one.
     readonly property string statusText: live === "up" ? qsTr("%1 ms").arg(ping) : live === "down" ? qsTr("Unreachable")
-        : live === "stopped" ? qsTr("Not running") : live === "checking" ? qsTr("Checking…") : "—"
+        : live === "stopped" ? qsTr("Not running") : live === "checking" ? qsTr("Checking\u2026") : "\u2014"
 
     Accessible.role: Accessible.RadioButton
     Accessible.name: name + ", " + address + ", " + (live === "up" ? qsTr("reachable, %1 milliseconds").arg(ping) : statusText)
@@ -106,6 +106,13 @@ Control {
                 HoverHandler { id: addrHover }
                 Tip { text: root.address; wanted: addrHover.hovered && addrTxt.truncated }
             }
+            Txt {
+                Layout.fillWidth: true
+                visible: root.kind === "local" && root.selected && root.live === "stopped"
+                text: qsTr("Start your server before you launch.")
+                kind: "caption"; color: Theme.amber
+                wrapMode: Text.NoWrap; elide: Text.ElideRight
+            }
         }
 
         // Status: a dot and one value, right aligned so the numbers line up from row to row.
@@ -143,9 +150,9 @@ Control {
         id: menu
         SMenuItem { text: qsTr("Server info"); onTriggered: root.info() }
         SMenuItem { text: qsTr("Copy address"); onTriggered: root.copyAddress() }
-        SMenuItem { text: qsTr("Edit…"); visible: root.editable; height: visible ? implicitHeight : 0; onTriggered: root.edit() }
+        SMenuItem { text: qsTr("Edit\u2026"); visible: root.editable; height: visible ? implicitHeight : 0; onTriggered: root.edit() }
         SMenuSeparator { visible: root.editable }
-        SMenuItem { danger: true; text: qsTr("Delete…"); visible: root.editable; height: visible ? implicitHeight : 0; onTriggered: root.remove() }
+        SMenuItem { danger: true; text: qsTr("Delete\u2026"); visible: root.editable; height: visible ? implicitHeight : 0; onTriggered: root.remove() }
     }
     TapHandler { acceptedButtons: Qt.RightButton; onTapped: menu.popup() }
     Keys.onMenuPressed: root.openMenu()

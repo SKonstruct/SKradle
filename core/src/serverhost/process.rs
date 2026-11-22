@@ -771,6 +771,19 @@ impl ServerHost {
         }
     }
 
+    /// Sends one line to the engine's own console (the built-in console's input). Never waits for the lifecycle
+    /// lock. The text is cleaned first (see [`super::console::clean_command`]); an empty one is not sent.
+    pub fn send_console(&self, text: &str) -> Result<(), HostError> {
+        let Some(line) = super::console::clean_command(text) else {
+            return Ok(());
+        };
+        let run = self.current().ok_or(HostError::NotRunning)?;
+        if !run.has_live_child() {
+            return Err(HostError::NotRunning);
+        }
+        run.send_line(&line).map_err(|_| HostError::NotRunning)
+    }
+
     /// Writes the launcher's web and port settings into `config/server.yml` (see [`super::config`]). Refused while
     /// the server runs, because the engine only reads the file at startup.
     pub fn configure(&self, config: &HostConfig) -> Result<(), HostError> {
