@@ -13,23 +13,25 @@
 //!   TODO(graphics): downloading the agent is not built yet (it needs the release pipeline of the `skgfx` repository).
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
-use skradle_core::game::Os;
+use skradle_core::game::{self, Env};
 use skradle_core::getdown::CommandSpec;
 use skradle_core::graphics::{agent_args, GraphicsSettings};
-use skradle_core::install::LATEST_GETDOWN_TXT_URL;
 use skradle_core::launch::direct::{DirectOptions, GarbageCollector, Inputs, Memory};
 use skradle_core::launch::plan::{self as core_plan, Effects, LaunchKind, PlanInputs, RealEffects};
-use skradle_core::launch::steam;
+use skradle_core::launch::steam::{self, ClientState, Waited, Waiter};
 use skradle_core::mods::ApplyOptions;
-use skradle_core::net;
+use skradle_core::log;
 use skradle_core::runtime::{self, Runtime};
-use skradle_core::servers::{self, Server};
+use skradle_core::servers::Server;
+#[cfg(test)]
+use skradle_core::servers;
 
 use super::plan::{self, Machine};
-use super::supervisor::{self, Prepare, Timing};
+use super::supervisor::{self, Context, Prepare, Timing};
+use super::{pending, Event, Phase, Step};
 use super::{memory, LaunchError, Launcher, Request, Running, Sink};
+use crate::discovery::{self, Kind};
 use crate::settings::{self, Collector, Settings};
 
 /// What a launch depends on besides the game folder and the settings.
@@ -39,19 +41,19 @@ pub struct Surroundings {
     pub server: Option<Server>,
     pub mods_dir: Option<PathBuf>,
     pub agent_jar: Option<PathBuf>,
-    /// The newest `getdown.txt` from the game's server; `None` when it could not be fetched (offline), which counts
-    /// as "no update" so a private server still launches.
-    pub remote_getdown: Option<String>,
-    /// The Steam client is running. Only a Steam install on Official needs it.
+    /// The newest game version an earlier background check recorded (`launch::pending`). A launch never asks the
+    /// network; this is only what is already known locally.
+    pub known_remote_version: Option<String>,
+    /// The Steam client is running and signed in (the launcher waits for it before planning). Only a Steam install
+    /// on Official needs it.
     pub steam_running: bool,
-    /// Starts the Steam client (best effort, returns whether it could be started); `None` in tests.
-    pub start_steam: Option<fn(Os) -> bool>,
+    /// SKradle's data folder, where the pending-update marker lives.
+    pub data_dir: Option<PathBuf>,
 }
 
 impl Surroundings {
-    /// Looks around on this computer. Fetches the remote `getdown.txt` (a few seconds at most).
+    /// Looks around on this computer. Reads local files only: no network, no process probes.
     pub fn detect() -> Self {
-        let os = Os::current();
         let data = dirs::data_dir().map(|d| d.join("SKradle"));
         Self {
             arch: std::env::consts::ARCH.to_owned(),
@@ -62,14 +64,9 @@ impl Surroundings {
                 .as_ref()
                 .map(|d| d.join("skgfx").join("skgfx-agent.jar"))
                 .filter(|p| p.is_file()),
-            remote_getdown: net::Client::with_timeouts(
-                Duration::from_secs(4),
-                Duration::from_secs(8),
-            )
-            .get_text(LATEST_GETDOWN_TXT_URL, 256 * 1024)
-            .ok(),
-            steam_running: steam::client_running(os),
-            start_steam: Some(steam::start_client),
+            known_remote_version: data.as_deref().and_then(pending::read),
+            steam_running: false,
+            data_dir: data,
         }
     }
 }
@@ -178,10 +175,19 @@ pub fn prepare(
         .agent_jar
         .as_deref()
         .map(|jar| agent_args(jar, &graphics_settings(settings)));
-    let update_pending = around
-        .remote_getdown
-        .as_deref()
-        .is_some_and(|remote| servers::update_pending(&game_files.getdown_txt, remote));
+    // Only what is known locally: Steam keeps its own install up to date, so it is never "pending".
+    let update_pending = install.kind != Kind::Steam
+        && pending::is_pending(&game_files.getdown_txt, around.known_remote_version.as_deref());
+    log::info(
+        "launch",
+        format!(
+            "plan inputs: install kind {}, server {}, update known pending {update_pending}, mods folder {}, graphics agent {}",
+            install.kind.as_str(),
+            around.server.as_ref().map_or("official", |s| s.host.as_str()),
+            around.mods_dir.is_some(),
+            around.agent_jar.is_some(),
+        ),
+    );
 
     let plan = core_plan::plan(&PlanInputs {
         install: &core_install,
@@ -197,17 +203,27 @@ pub fn prepare(
         mod_options: mod_options(settings),
         steam_running: around.steam_running,
     })
-    .map_err(|refusal| match refusal {
-        core_plan::Refusal::SteamNotRunning => steam_not_running(machine.os, around),
-        other => LaunchError::Refused(other.to_string()),
+    .map_err(|refusal| {
+        log::warn("launch", format!("the launch was refused: {refusal}"));
+        LaunchError::Refused(refusal.to_string())
     })?;
+    // Steam installs on Windows and Linux also get `steam_appid.txt` in the game folder (best effort).
+    if steam::wants_appid_file(machine.os, core_install.kind, around.server.is_some()) {
+        match steam::ensure_appid_file(&install.path) {
+            Ok(true) => log::info("steam", "wrote steam_appid.txt into the game folder"),
+            Ok(false) => log::debug("steam", "steam_appid.txt is already in place"),
+            Err(e) => log::warn("steam", format!("could not write steam_appid.txt: {e}")),
+        }
+    }
     for warning in &plan.warnings {
         eprintln!("skradle: {warning}");
+        log::info("launch", format!("warning: {warning}"));
     }
     let launched = core_plan::execute(&plan, effects)
         .map_err(|failure| LaunchError::Prepare(failure.message))?;
     for note in &launched.notes {
         eprintln!("skradle: {note}");
+        log::info("mods", note);
     }
     if launched.kind == LaunchKind::Updater {
         // The updater starts the game with the game's own settings, so the limit goes into `extra.txt`.
@@ -219,14 +235,38 @@ pub fn prepare(
     Ok((launched.handle, launched.kind))
 }
 
-/// The error for a Steam install with no Steam client: starts Steam when it can, and says so.
-fn steam_not_running(os: Os, around: &Surroundings) -> LaunchError {
-    let started = around.start_steam.is_some_and(|start| start(os));
-    LaunchError::Refused(if started {
-        "Steam was not running, so SKradle started it. This copy of the game signs in through Steam: wait until Steam has signed in, then launch again.".to_owned()
-    } else {
-        core_plan::Refusal::SteamNotRunning.to_string()
-    })
+/// Makes sure the Steam client is running and signed in, starting it and waiting (up to a minute, cancellable) when it
+/// is not. Reports the "Starting Steam" step to the window while it waits.
+pub fn ensure_steam(waiter: &mut dyn Waiter, ctx: &Context<'_>) -> Result<(), LaunchError> {
+    let mut reported = false;
+    let mut on_wait = |state: ClientState| {
+        if !reported {
+            reported = true;
+            log::info("steam", format!("Steam is {}: starting it and waiting", state.describe()));
+            (ctx.sink)(Event::Phase(Phase::Launching, Step::Steam));
+        }
+    };
+    let outcome = steam::ensure_ready(
+        waiter,
+        &|| ctx.cancelled(),
+        &mut on_wait,
+        steam::WAIT_TIMEOUT,
+        steam::WAIT_POLL,
+        steam::WAIT_SETTLE,
+    );
+    match outcome {
+        Waited::AlreadyReady => log::info("steam", "Steam is running and signed in"),
+        Waited::BecameReady { started } => {
+            log::info("steam", format!("Steam is ready (SKradle started it: {started})"));
+            (ctx.sink)(Event::Phase(Phase::Launching, Step::Preparing));
+        }
+        Waited::Cancelled => log::info("steam", "cancelled while waiting for Steam"),
+        other => log::warn("steam", format!("Steam did not become ready: {other:?}")),
+    }
+    match outcome {
+        Waited::Cancelled => Err(LaunchError::Refused("Cancelled.".to_owned())),
+        other => steam::failure_message(other).map_or(Ok(()), |m| Err(LaunchError::Refused(m))),
+    }
 }
 
 /// Starts the game the way the core's planner decides.
@@ -245,10 +285,41 @@ impl PlannedLauncher {
 impl Launcher for PlannedLauncher {
     fn start(&self, request: Request, sink: Sink) -> Result<Box<dyn Running>, LaunchError> {
         let game_root = request.install.path.clone();
-        let prepared: Prepare = Box::new(move || {
+        let prepared: Prepare = Box::new(move |ctx| {
+            let mut request = request;
             let machine = Machine::current();
-            let around = Surroundings::detect();
-            prepare(&request, &machine, &around, &mut Deferred(RealEffects))
+            let mut around = Surroundings::detect();
+            // The launch button only knows the folder: work out whether this is a Steam install.
+            if request.install.kind == Kind::Custom {
+                request.install.kind =
+                    discovery::detect_kind(&request.install.path, &game::locate(&Env::current()));
+            }
+            let core_kind = request.install.to_core().kind;
+            let private = around.server.is_some();
+            log::info(
+                "launch",
+                format!(
+                    "launch requested: {} install at {}, server {}",
+                    request.install.kind.as_str(),
+                    request.install.path.display(),
+                    around.server.as_ref().map_or("official", |s| s.host.as_str())
+                ),
+            );
+            if steam::needs_client(core_kind, private) {
+                ensure_steam(&mut steam::System::new(machine.os), ctx)?;
+                around.steam_running = true;
+            } else {
+                log::debug("steam", "no Steam sign-in needed for this launch");
+            }
+            let local_getdown = std::fs::read_to_string(request.install.path.join("getdown.txt")).unwrap_or_default();
+            let (spec, kind) = prepare(&request, &machine, &around, &mut Deferred(RealEffects))?;
+            // Standalone installs check for a newer game in the background, after the launch is already going.
+            if kind == LaunchKind::Direct && request.install.kind != Kind::Steam {
+                if let Some(dir) = around.data_dir.clone() {
+                    pending::check_in_background(dir, local_getdown);
+                }
+            }
+            Ok((spec, kind))
         });
         Ok(Box::new(supervisor::start_prepared(
             prepared,
@@ -405,49 +476,65 @@ mod tests {
         }
     }
 
-    /// A `getdown.txt` with a different version than the installed one.
-    fn newer_getdown() -> String {
-        GETDOWN
-            .lines()
-            .map(|l| {
-                if l.trim_start().starts_with("version") {
-                    "version = 99999999999".to_owned()
-                } else {
-                    l.to_owned()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+    /// A Steam client that becomes ready after `after` polls; time passes instantly.
+    struct FakeSteam {
+        polls: u32,
+        after: Option<u32>,
+        now: std::time::Duration,
     }
 
-    static STEAM_STARTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    impl Waiter for FakeSteam {
+        fn state(&mut self) -> ClientState {
+            self.polls += 1;
+            match self.after {
+                Some(n) if self.polls > n => ClientState::Ready,
+                _ => ClientState::NotRunning,
+            }
+        }
+        fn start(&mut self) -> bool {
+            true
+        }
+        fn elapsed(&self) -> std::time::Duration {
+            self.now
+        }
+        fn sleep(&mut self, d: std::time::Duration) {
+            self.now += d;
+        }
+    }
 
-    fn fake_start_steam(_: Os) -> bool {
-        STEAM_STARTS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        true
+    fn run_ensure(steam: &mut FakeSteam, stop: &std::sync::atomic::AtomicBool) -> (Result<(), LaunchError>, Vec<Event>) {
+        let seen = std::sync::Mutex::new(Vec::new());
+        let sink = |e: Event| seen.lock().unwrap().push(e);
+        let result = ensure_steam(steam, &Context { stop, sink: &sink });
+        let events = seen.lock().unwrap().clone();
+        (result, events)
     }
 
     #[test]
-    fn a_steam_install_without_steam_running_starts_steam_and_says_so() {
-        let mut w = world();
-        w.request.install.kind = Kind::Steam;
-        let around = Surroundings {
-            steam_running: false,
-            start_steam: Some(fake_start_steam),
-            ..around()
-        };
-        let before = STEAM_STARTS.load(std::sync::atomic::Ordering::SeqCst);
-        let mut fx = Recorder::default();
-        let error = prepare(&w.request, &w.machine, &around, &mut fx).unwrap_err();
-        let LaunchError::Refused(text) = error else {
-            panic!("expected a refusal");
-        };
-        assert!(text.contains("Steam was not running"), "{text}");
-        assert_eq!(
-            STEAM_STARTS.load(std::sync::atomic::Ordering::SeqCst),
-            before + 1
-        );
-        assert!(!fx.calls.contains(&"spawn"), "the game must not start");
+    fn waiting_for_steam_shows_the_steam_step_and_then_goes_on() {
+        let stop = std::sync::atomic::AtomicBool::new(false);
+        let mut steam = FakeSteam { polls: 0, after: Some(3), now: Default::default() };
+        let (result, events) = run_ensure(&mut steam, &stop);
+        assert!(result.is_ok());
+        assert_eq!(events.first(), Some(&Event::Phase(Phase::Launching, Step::Steam)));
+        assert_eq!(events.last(), Some(&Event::Phase(Phase::Launching, Step::Preparing)));
+    }
+
+    #[test]
+    fn steam_that_never_comes_up_is_an_actionable_error() {
+        let stop = std::sync::atomic::AtomicBool::new(false);
+        let mut steam = FakeSteam { polls: 0, after: None, now: Default::default() };
+        let (result, _) = run_ensure(&mut steam, &stop);
+        let Err(LaunchError::Refused(text)) = result else { panic!("expected an error") };
+        assert!(text.contains("did not start") && text.contains("launch again"), "{text}");
+    }
+
+    #[test]
+    fn a_cancelled_wait_ends_without_an_error_message_for_the_player() {
+        let stop = std::sync::atomic::AtomicBool::new(true);
+        let mut steam = FakeSteam { polls: 0, after: None, now: Default::default() };
+        let (result, _) = run_ensure(&mut steam, &stop);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -577,7 +664,7 @@ mod tests {
         w.request.settings.memory_mb = Some(3072);
         let mut fx = Recorder::default();
         let around = Surroundings {
-            remote_getdown: Some(newer_getdown()),
+            known_remote_version: Some("99999999999".into()),
             ..around()
         };
         let (_, kind) = prepare(&w.request, &w.machine, &around, &mut fx).unwrap();
@@ -593,7 +680,7 @@ mod tests {
         let mut fx = Recorder::default();
         let around = Surroundings {
             server: Some(private_server()),
-            remote_getdown: Some(newer_getdown()),
+            known_remote_version: Some("99999999999".into()),
             ..around()
         };
         let error = prepare(&w.request, &w.machine, &around, &mut fx).unwrap_err();

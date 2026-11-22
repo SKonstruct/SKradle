@@ -24,7 +24,7 @@ pub fn classify(line: &str) -> Option<(Phase, Step)> {
         || message.starts_with("Nothing to install")
         || (message.starts_with("Running ") && !message.contains("headless"))
     {
-        return Some((Phase::Launching, Step::Checking));
+        return Some((Phase::Launching, Step::Preparing));
     }
     None
 }
@@ -139,11 +139,11 @@ mod tests {
         );
         assert_eq!(
             classify(&line("Nothing to install.")),
-            Some((Phase::Launching, Step::Checking))
+            Some((Phase::Launching, Step::Preparing))
         );
         assert_eq!(
             classify(&line("Running /game/java_vm/bin/java -cp x")),
-            Some((Phase::Launching, Step::Checking))
+            Some((Phase::Launching, Step::Preparing))
         );
         assert_eq!(
             classify(&line(

@@ -321,6 +321,7 @@ pub fn plain_folder_error(raw: &str) -> String {
 
 fn log_raw(what: &str, raw: &str) {
     eprintln!("skradle: mods: {what}: {raw}");
+    skradle_core::log::warn("mods", format!("{what}: {raw}"));
 }
 
 fn container_id(c: Container) -> &'static str {
@@ -505,6 +506,10 @@ pub struct Outcome {
 
 /// Switches each named mod. The first failure of the state file stops (every other name would fail the same way).
 pub fn set_enabled_all(dir: &Path, files: &[String], enabled: bool) -> Outcome {
+    skradle_core::log::info(
+        "mods",
+        format!("{} {} mod(s)", if enabled { "enabling" } else { "disabling" }, files.len()),
+    );
     let mut out = Outcome {
         kind: if enabled { "enable" } else { "disable" },
         ..Outcome::default()
@@ -522,6 +527,7 @@ pub fn set_enabled_all(dir: &Path, files: &[String], enabled: bool) -> Outcome {
 }
 
 pub fn remove_all(dir: &Path, files: &[String]) -> Outcome {
+    skradle_core::log::info("mods", format!("removing {} mod(s)", files.len()));
     let mut out = Outcome {
         kind: "remove",
         ..Outcome::default()
@@ -540,6 +546,7 @@ pub fn remove_all(dir: &Path, files: &[String]) -> Outcome {
 
 /// Adds every path (a `file://` URL or a plain path, as a drop or a dialog gives it) after validating it.
 pub fn add_all(dir: &Path, sources: &[String]) -> Outcome {
+    skradle_core::log::info("mods", format!("adding {} file(s)", sources.len()));
     let mut out = Outcome {
         kind: "add",
         ..Outcome::default()

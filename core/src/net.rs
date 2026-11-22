@@ -94,6 +94,27 @@ pub struct Client {
     document_timeout: Duration,
 }
 
+/// Turns a request error into a `NetError` and logs it with the host and status only (never the path or query).
+fn note_failure(url: &str, error: ureq::Error) -> NetError {
+    let host = url
+        .split("://")
+        .nth(1)
+        .and_then(|rest| rest.split(['/', '?', '#']).next())
+        .and_then(|authority| authority.rsplit('@').next())
+        .unwrap_or("?");
+    match error {
+        ureq::Error::StatusCode(code) => {
+            crate::log::warn("net", format!("{host} answered status {code}"));
+            NetError::Status(code)
+        }
+        other => {
+            let why = other.to_string();
+            crate::log::warn("net", format!("request to {host} failed: {why}"));
+            NetError::Request(why)
+        }
+    }
+}
+
 impl Default for Client {
     fn default() -> Self {
         Self::new()
@@ -151,10 +172,7 @@ impl Client {
 
     fn open(&self, url: &str) -> Result<ureq::http::Response<ureq::Body>, NetError> {
         self.check_url(url)?;
-        self.agent.get(url).call().map_err(|e| match e {
-            ureq::Error::StatusCode(code) => NetError::Status(code),
-            other => NetError::Request(other.to_string()),
-        })
+        self.agent.get(url).call().map_err(|e| note_failure(url, e))
     }
 
     /// Like `open`, with the shorter limit for small documents.
@@ -166,10 +184,7 @@ impl Client {
             .timeout_global(Some(self.document_timeout))
             .build()
             .call()
-            .map_err(|e| match e {
-                ureq::Error::StatusCode(code) => NetError::Status(code),
-                other => NetError::Request(other.to_string()),
-            })
+            .map_err(|e| note_failure(url, e))
     }
 
     /// Fetches a small document into memory.

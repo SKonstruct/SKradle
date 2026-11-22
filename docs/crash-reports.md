@@ -13,6 +13,9 @@ Before anything is built, the text is scrubbed: home folders become `~`, user na
 e-mail addresses and long keys or hashes are replaced. File and module paths in the backtrace are kept so the report
 is useful. Sentry itself also sees the connection's IP address, so the project should have IP storage turned off (below).
 
+SKradle's own log (`docs/logging.md`) stays on the machine and is never sent automatically; a panic is written to it
+whether or not crash reports are on.
+
 Not covered: crashes inside Qt's native code, and crashes of the game itself.
 
 ## Turning it off

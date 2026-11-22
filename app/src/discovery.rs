@@ -56,6 +56,39 @@ impl Resolved {
     }
 }
 
+/// True when `path` sits in a Steam library: `...\steamapps\common\<game>` (any case, either slash), the way a Steam
+/// install on another drive or under a path with spaces looks, or next to Steam's own manifest for the game.
+pub fn looks_like_steam_library(path: &Path) -> bool {
+    let text = path.to_string_lossy().replace('\\', "/").to_lowercase();
+    let parts: Vec<&str> = text.split('/').filter(|p| !p.is_empty()).collect();
+    if parts.windows(2).any(|w| w[0] == "steamapps" && w[1] == "common") {
+        return true;
+    }
+    path.parent()
+        .and_then(Path::parent)
+        .is_some_and(|steamapps| {
+            steamapps
+                .join(format!("appmanifest_{}.acf", game::STEAM_APP_ID))
+                .is_file()
+        })
+}
+
+/// What kind of install the folder `path` is: the kind discovery gave it when it found it, otherwise Steam when it
+/// lies in a Steam library, otherwise `Custom`. A launch must know this: only a Steam install signs in through Steam.
+pub fn detect_kind(path: &Path, found: &[GameInstall]) -> Kind {
+    if let Some(known) = found.iter().find(|g| same_folder(&g.root, path)) {
+        return match known.kind {
+            InstallKind::Steam => Kind::Steam,
+            InstallKind::Standalone => Kind::Standalone,
+        };
+    }
+    if looks_like_steam_library(path) {
+        Kind::Steam
+    } else {
+        Kind::Custom
+    }
+}
+
 /// Combines the discovered installs with the custom folder and the saved choice. A custom folder only counts while
 /// it still holds a game. The saved choice is kept if it is still in the list; otherwise the first install is used.
 pub fn resolve(found: Vec<GameInstall>, custom: Option<&Path>, saved: Option<&Path>) -> Resolved {
@@ -412,5 +445,41 @@ mod tests {
             path_from_url_text_for("file://localhost/home/me", true),
             PathBuf::from("/home/me")
         );
+    }
+
+    #[test]
+    fn a_steam_library_path_is_recognised_on_any_drive() {
+        for p in [
+            r"D:\SteamLibrary\steamapps\common\Spiral Knights",
+            r"C:\Program Files (x86)\Steam\SteamApps\Common\Spiral Knights",
+            "/home/ann/.local/share/Steam/steamapps/common/Spiral Knights",
+        ] {
+            assert!(looks_like_steam_library(Path::new(p)), "{p}");
+        }
+        assert!(!looks_like_steam_library(Path::new(r"C:\Games\Spiral Knights")));
+        assert!(!looks_like_steam_library(Path::new("/home/ann/steamapps/other/SK")));
+    }
+
+    #[test]
+    fn the_install_kind_comes_from_discovery_then_from_the_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let found = vec![GameInstall {
+            root: dir.path().to_path_buf(),
+            kind: InstallKind::Steam,
+        }];
+        assert_eq!(detect_kind(dir.path(), &found), Kind::Steam);
+        let other = tempfile::tempdir().unwrap();
+        assert_eq!(detect_kind(other.path(), &found), Kind::Custom);
+        assert_eq!(
+            detect_kind(Path::new(r"E:\Lib\steamapps\common\Spiral Knights"), &[]),
+            Kind::Steam
+        );
+        // Next to Steam's manifest for the game, wherever the library is called.
+        let lib = tempfile::tempdir().unwrap();
+        let game = lib.path().join("steamapps/odd/SK");
+        std::fs::create_dir_all(&game).unwrap();
+        assert_eq!(detect_kind(&game, &[]), Kind::Custom);
+        std::fs::write(lib.path().join("steamapps/appmanifest_99900.acf"), "x").unwrap();
+        assert_eq!(detect_kind(&game, &[]), Kind::Steam);
     }
 }

@@ -15,7 +15,7 @@ pub mod qobject {
         #[qml_singleton]
         /// "ready", "updating", "launching", "running" or "error".
         #[qproperty(QString, state, READ, WRITE, NOTIFY)]
-        /// While updating: "checking" or "downloading".
+        /// While updating: "preparing" or "downloading".
         #[qproperty(QString, step, READ, WRITE, NOTIFY)]
         /// Why the last launch failed, as a sentence ("" unless the state is "error").
         #[qproperty(QString, message, READ, WRITE, NOTIFY)]
@@ -135,10 +135,7 @@ impl qobject::LaunchModel {
         let id = self.launch_id;
         self.as_mut().rust_mut().running = None;
         self.as_mut().rust_mut().status = Status::default();
-        self.as_mut()
-            .rust_mut()
-            .status
-            .apply(Event::Phase(Phase::Updating, Step::Checking));
+        self.as_mut().rust_mut().status.begin();
         self.as_mut().show();
 
         let thread: CxxQtThread<qobject::LaunchModel> = self.qt_thread();
@@ -237,7 +234,7 @@ impl qobject::LaunchModel {
             step: if known.is_some() {
                 Step::Downloading
             } else {
-                Step::Checking
+                Step::Preparing
             },
             progress: known,
             message,
@@ -254,7 +251,7 @@ mod tests {
     fn starts_ready_never_with_an_empty_state() {
         let m = LaunchModelRust::default();
         assert_eq!(m.state.to_string(), "ready");
-        assert_eq!(m.step.to_string(), "checking");
+        assert_eq!(m.step.to_string(), "preparing");
         assert_eq!(m.message.to_string(), "");
         assert!(!m.determinate && m.progress == 0.0);
         assert!(m.status.can_start() && !m.status.can_stop());

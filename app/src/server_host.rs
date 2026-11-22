@@ -524,6 +524,7 @@ impl Inner {
     }
 
     fn fail(&self, e: &HostError) {
+        skradle_core::log::error("server-host", format!("failed: {e:?}"));
         let n = describe(e, &self.host_config());
         self.set_notice(n);
     }
@@ -639,6 +640,7 @@ impl RealHost {
     }
 
     fn spawn(&self, name: &str, work: impl FnOnce(&Inner) + Send + 'static) {
+        skradle_core::log::info("server-host", format!("{name} requested"));
         let inner = self.inner.clone();
         let spawned = std::thread::Builder::new()
             .name(format!("skradle-host-{name}"))

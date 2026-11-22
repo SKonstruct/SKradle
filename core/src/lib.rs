@@ -15,6 +15,7 @@ pub mod install;
 pub mod jar;
 pub mod launch;
 pub mod live_events;
+pub mod log;
 pub mod mods;
 pub mod net;
 pub mod presence;

@@ -393,6 +393,17 @@ impl Store {
     /// Loads `path` and starts the saving thread.
     pub fn open(path: PathBuf) -> Arc<Store> {
         let (settings, outcome) = load(&path);
+        match &outcome {
+            LoadOutcome::Loaded | LoadOutcome::Missing => {}
+            LoadOutcome::Unreadable => skradle_core::log::warn(
+                "settings",
+                "settings.json could not be read just now; defaults are in use",
+            ),
+            LoadOutcome::Corrupt(moved) => skradle_core::log::warn(
+                "settings",
+                format!("settings.json was unusable and was set aside ({moved:?}); defaults are in use"),
+            ),
+        }
         let (tx, rx) = mpsc::channel::<()>();
         let store = Arc::new(Store {
             path,

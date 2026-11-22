@@ -28,6 +28,8 @@ pub mod ffi {
         #[namespace = "skradle"]
         fn qt_version() -> QString;
         #[namespace = "skradle"]
+        fn copy_text(text: &QString);
+        #[namespace = "skradle"]
         fn set_language(language: &QString) -> QString;
     }
 }
@@ -39,6 +41,11 @@ pub use ffi::{
 /// Installs the translator for `language`; returns the catalogue in use (empty for the English source text).
 pub fn set_language(language: &str) -> String {
     ffi::set_language(&cxx_qt_lib::QString::from(language)).to_string()
+}
+
+/// Puts `text` on the clipboard.
+pub fn copy_text(text: &str) {
+    ffi::copy_text(&cxx_qt_lib::QString::from(text));
 }
 
 /// The Qt version in use.
