@@ -599,7 +599,9 @@ impl Inner {
                 let n = match &report.outcome {
                     UpdateOutcome::UpToDate(v) => Some(notice("info", "up_to_date", v.clone())),
                     UpdateOutcome::Installed(_) if task == Task::Install => None,
-                    UpdateOutcome::Installed(e) => Some(notice("info", "installed", e.version.clone())),
+                    UpdateOutcome::Installed(e) => {
+                        Some(notice("info", "installed", e.version.clone()))
+                    }
                 };
                 self.set_notice(n);
                 self.sync_registration();
@@ -1007,7 +1009,11 @@ impl ServerHost for FixtureHost {
         Some("Fixture-password-0000".into())
     }
     fn sign_in_script(&self, origin: &str) -> Option<String> {
-        Some(skradle_core::serverhost::signin::script(origin, "skradle", "Fixture-password-0000"))
+        Some(skradle_core::serverhost::signin::script(
+            origin,
+            "skradle",
+            "Fixture-password-0000",
+        ))
     }
     fn console_since(&self, cursor: u64) -> (Vec<String>, u64, bool) {
         let all = [
@@ -1015,7 +1021,11 @@ impl ServerHost for FixtureHost {
             "[10:00:02] [Main/INFO]: Done! Listening on 127.0.0.1:47624 (TCP)",
             "[10:00:03] [ServerConsole/INFO]: Type help for commands",
         ];
-        let lines = all.iter().skip(cursor as usize).map(|l| (*l).to_owned()).collect();
+        let lines = all
+            .iter()
+            .skip(cursor as usize)
+            .map(|l| (*l).to_owned())
+            .collect();
         (lines, all.len() as u64, true)
     }
     fn console_send(&self, line: &str) -> bool {

@@ -338,11 +338,19 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Starting Steam</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Starting the game</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Game is running</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starting Steam…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -365,15 +373,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Starting Steam</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Downloading and verifying game files…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Starting Steam…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2369,6 +2369,18 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Adds SKradle&apos;s graphics agent to the game. Off by default.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open log folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy log path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Log path copied</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

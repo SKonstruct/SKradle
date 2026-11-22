@@ -21,8 +21,8 @@ Control {
     readonly property bool warned: item.warning
     readonly property int shownTags: Math.min(item.tags.length, 2)
     readonly property string firstWarning: item.warnings.length > 0 ? item.warnings[0] : ""
-    readonly property string fileInfo: (item.file_note.length > 0 ? item.file_note + " · " : "") + ModsText.sizeText(item.size)
-                                       + (item.container === "modpack" ? " · " + (item.parts === 1 ? qsTr("1 mod") : qsTr("%1 mods").arg(item.parts)) : "")
+    readonly property string fileInfo: (item.file_note.length > 0 ? item.file_note + " \u00B7 " : "") + ModsText.sizeText(item.size)
+                                       + (item.container === "modpack" ? " \u00B7 " + (item.parts === 1 ? qsTr("1 mod") : qsTr("%1 mods").arg(item.parts)) : "")
     readonly property string problem: broken ? item.error
                                       : item.incompatible ? qsTr("Built for another game version, so it is skipped at launch")
                                       : firstWarning + (item.warnings.length > 1 ? " " + qsTr("(+%1 more)").arg(item.warnings.length - 1) : "")
@@ -86,7 +86,7 @@ Control {
                         visible: text.length > 0
                         readonly property var bits: [root.item.version.length > 0 ? "v" + root.item.version : "",
                                                      root.item.author.length > 0 ? qsTr("by %1").arg(root.item.author) : ""]
-                        text: bits.filter(b => b.length > 0).join(" · ")
+                        text: bits.filter(b => b.length > 0).join(" \u00B7 ")
                         kind: "caption"
                         wrapMode: Text.NoWrap
                         elide: Text.ElideRight

@@ -70,7 +70,10 @@ pub struct ActiveProcess {
 
 fn reg_dword(rest: &str) -> Option<u32> {
     let value = rest.trim_start().strip_prefix("REG_DWORD")?.trim();
-    match value.strip_prefix("0x").or_else(|| value.strip_prefix("0X")) {
+    match value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+    {
         Some(hex) => u32::from_str_radix(hex, 16).ok(),
         None => value.parse().ok(),
     }
@@ -151,12 +154,10 @@ fn run_text(command: &mut Command) -> Option<String> {
 }
 
 fn windows_state() -> ClientState {
-    let active = run_text(Command::new("reg").args([
-        "query",
-        r"HKCU\Software\Valve\Steam\ActiveProcess",
-    ]))
-    .map(|t| parse_reg_active_process(&t))
-    .unwrap_or_default();
+    let active =
+        run_text(Command::new("reg").args(["query", r"HKCU\Software\Valve\Steam\ActiveProcess"]))
+            .map(|t| parse_reg_active_process(&t))
+            .unwrap_or_default();
     let by_pid = active.pid.filter(|p| *p != 0).is_some_and(|pid| {
         run_text(Command::new("tasklist").args([
             "/FI",
@@ -170,8 +171,14 @@ fn windows_state() -> ClientState {
         .is_some_and(|t| tasklist_has_client(&t))
     });
     let running = by_pid
-        || run_text(Command::new("tasklist").args(["/FI", "IMAGENAME eq steam.exe", "/NH", "/FO", "CSV"]))
-            .is_some_and(|t| tasklist_has_client(&t));
+        || run_text(Command::new("tasklist").args([
+            "/FI",
+            "IMAGENAME eq steam.exe",
+            "/NH",
+            "/FO",
+            "CSV",
+        ]))
+        .is_some_and(|t| tasklist_has_client(&t));
     decide_state(running, active.active_user)
 }
 
@@ -268,9 +275,13 @@ pub enum Waited {
     /// Already up; nothing was started.
     AlreadyReady,
     /// Steam was started or brought up and is now ready.
-    BecameReady { started: bool },
+    BecameReady {
+        started: bool,
+    },
     CouldNotStart,
-    TimedOut { last: ClientState },
+    TimedOut {
+        last: ClientState,
+    },
     Cancelled,
 }
 
@@ -447,7 +458,10 @@ mod tests {
         );
         let signed_out = "    pid    REG_DWORD    0x10\r\n    ActiveUser    REG_DWORD    0x0\r\n";
         assert_eq!(parse_reg_active_process(signed_out).active_user, Some(0));
-        assert_eq!(parse_reg_active_process("ERROR: not found"), ActiveProcess::default());
+        assert_eq!(
+            parse_reg_active_process("ERROR: not found"),
+            ActiveProcess::default()
+        );
         assert_eq!(
             parse_reg_active_process("    ActiveUser    REG_DWORD    77").active_user,
             Some(77)
@@ -472,8 +486,12 @@ mod tests {
 
     #[test]
     fn tasklist_csv_with_quotes_is_understood() {
-        assert!(tasklist_has_client("\"steam.exe\",\"1234\",\"Console\",\"1\",\"80,000 K\"\r\n"));
-        assert!(!tasklist_has_client("\"steamwebhelper.exe\",\"1\",\"Console\""));
+        assert!(tasklist_has_client(
+            "\"steam.exe\",\"1234\",\"Console\",\"1\",\"80,000 K\"\r\n"
+        ));
+        assert!(!tasklist_has_client(
+            "\"steamwebhelper.exe\",\"1\",\"Console\""
+        ));
     }
 
     #[test]
@@ -487,14 +505,23 @@ mod tests {
         assert!(wants_appid_file(Os::Linux, InstallKind::Steam, false));
         assert!(!wants_appid_file(Os::MacOs, InstallKind::Steam, false));
         assert!(!wants_appid_file(Os::Windows, InstallKind::Steam, true));
-        assert!(!wants_appid_file(Os::Windows, InstallKind::Standalone, false));
+        assert!(!wants_appid_file(
+            Os::Windows,
+            InstallKind::Standalone,
+            false
+        ));
     }
 
     #[test]
     fn the_appid_file_is_written_once_and_a_failure_is_an_error_value() {
         let dir = tempfile::tempdir().unwrap();
         assert_eq!(ensure_appid_file(dir.path()), Ok(true));
-        assert_eq!(std::fs::read_to_string(dir.path().join("steam_appid.txt")).unwrap().trim(), "99900");
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("steam_appid.txt"))
+                .unwrap()
+                .trim(),
+            "99900"
+        );
         assert_eq!(ensure_appid_file(dir.path()), Ok(false));
         assert!(ensure_appid_file(&dir.path().join("missing")).is_err());
     }
@@ -510,7 +537,13 @@ mod tests {
 
     impl Fake {
         fn new(ready_after: Option<Duration>) -> Self {
-            Fake { now: Duration::ZERO, ready_after, start_ok: true, starts: 0, running_not_signed_in: false }
+            Fake {
+                now: Duration::ZERO,
+                ready_after,
+                start_ok: true,
+                starts: 0,
+                running_not_signed_in: false,
+            }
         }
     }
 
@@ -543,12 +576,28 @@ mod tests {
             // The probe runs against `fake`; mirror its clock for the cancel check.
             struct Mirror<'a>(&'a mut Fake, &'a std::cell::Cell<Duration>);
             impl Waiter for Mirror<'_> {
-                fn state(&mut self) -> ClientState { self.0.state() }
-                fn start(&mut self) -> bool { self.0.start() }
-                fn elapsed(&self) -> Duration { self.0.elapsed() }
-                fn sleep(&mut self, d: Duration) { self.0.sleep(d); self.1.set(self.0.now); }
+                fn state(&mut self) -> ClientState {
+                    self.0.state()
+                }
+                fn start(&mut self) -> bool {
+                    self.0.start()
+                }
+                fn elapsed(&self) -> Duration {
+                    self.0.elapsed()
+                }
+                fn sleep(&mut self, d: Duration) {
+                    self.0.sleep(d);
+                    self.1.set(self.0.now);
+                }
             }
-            ensure_ready(&mut Mirror(fake, &now), &cancelled, &mut seen, WAIT_TIMEOUT, WAIT_POLL, WAIT_SETTLE)
+            ensure_ready(
+                &mut Mirror(fake, &now),
+                &cancelled,
+                &mut seen,
+                WAIT_TIMEOUT,
+                WAIT_POLL,
+                WAIT_SETTLE,
+            )
         };
         (outcome, rounds)
     }
@@ -576,7 +625,10 @@ mod tests {
     fn a_running_client_that_is_not_signed_in_is_brought_up_and_waited_for() {
         let mut fake = Fake::new(Some(Duration::from_secs(3)));
         fake.running_not_signed_in = true;
-        assert_eq!(wait(&mut fake, None).0, Waited::BecameReady { started: true });
+        assert_eq!(
+            wait(&mut fake, None).0,
+            Waited::BecameReady { started: true }
+        );
         assert_eq!(fake.starts, 1);
     }
 
@@ -585,7 +637,12 @@ mod tests {
         let mut fake = Fake::new(None);
         fake.running_not_signed_in = true;
         let (outcome, rounds) = wait(&mut fake, None);
-        assert_eq!(outcome, Waited::TimedOut { last: ClientState::NotSignedIn });
+        assert_eq!(
+            outcome,
+            Waited::TimedOut {
+                last: ClientState::NotSignedIn
+            }
+        );
         assert_eq!(rounds, 60);
         assert!(failure_message(outcome).unwrap().contains("not signed in"));
         let mut gone = Fake::new(None);
@@ -609,6 +666,8 @@ mod tests {
         let outcome = wait(&mut fake, None).0;
         assert_eq!(outcome, Waited::CouldNotStart);
         assert_eq!(fake.now, Duration::ZERO);
-        assert!(failure_message(outcome).unwrap().contains("could not start"));
+        assert!(failure_message(outcome)
+            .unwrap()
+            .contains("could not start"));
     }
 }

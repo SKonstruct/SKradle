@@ -239,7 +239,7 @@ Item {
                 visible: page.all.length > 0
                 variant: "primary"
                 glyph: "plus"
-                text: qsTr("Add mods…")
+                text: qsTr("Add mods\u2026")
                 enabled: page.gameOk && !page.busy
                 onClicked: fileDialog.open()
             }
@@ -252,7 +252,7 @@ Item {
             Banner {   // no game, but there are mods to look at
                 visible: !page.gameOk && page.all.length > 0
                 kind: "warn"
-                text: GameModel.state === "searching" ? qsTr("Looking for Spiral Knights…")
+                text: GameModel.state === "searching" ? qsTr("Looking for Spiral Knights\u2026")
                       : qsTr("Spiral Knights was not found, so mods are switched off here. Set up the game on the Home page first.")
                 actionText: GameModel.state === "searching" ? "" : qsTr("Open Home")
                 onAction: Data.navigate(0)
@@ -387,14 +387,14 @@ Item {
                 glyph: "mods"
                 title: qsTr("No mods yet")
                 text: qsTr("Drop .zip, .jar or .modpack files anywhere on this page, or choose them. Each file is checked before it is copied in. You can also install SirDank\u2019s Modpack above.")
-                actionText: qsTr("Add mods…")
+                actionText: qsTr("Add mods\u2026")
                 actionGlyph: "plus"
                 onAction: fileDialog.open()
             }
             EmptyState {   // no game
                 visible: page.all.length === 0 && ModsModel.error === "" && !page.gameOk
                 glyph: "warning"
-                title: GameModel.state === "searching" ? qsTr("Looking for Spiral Knights…") : qsTr("Spiral Knights was not found")
+                title: GameModel.state === "searching" ? qsTr("Looking for Spiral Knights\u2026") : qsTr("Spiral Knights was not found")
                 text: qsTr("Mods are applied when the game starts, so the game has to be set up first.")
                 actionText: GameModel.state === "searching" ? "" : qsTr("Open Home")
                 onAction: Data.navigate(0)

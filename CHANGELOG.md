@@ -19,8 +19,8 @@ history has the rest.
   this changelog bundled into the app, readable offline with each version collapsible. News and player counts come
   from Steam's public API, are kept on disk and shown as offline when Steam is unreachable.
 - **Launching Spiral Knights** from a Steam or standalone install, found automatically; a custom folder can be added.
-  A launch checks for an update first (through the game's own updater), then applies mods, writes the server choice
-  and starts the game directly on a suitable Java.
+  A launch applies mods, writes the server choice and starts the game directly on a suitable Java; a Steam copy is
+  signed in through Steam (SKradle starts Steam and waits for it if needed).
 - **Settings**: the game install to use, Java, memory (RAM), garbage collector and explicit-GC behaviour (recommended
   values by default: 4096 MB, G1, explicit GC disabled), extra JVM arguments; file cleaning, file purging and *Reset game files*; the graphics enhancements (render scale, sharpening,
   sharp HUD, frame generation, frame cap, FPS counter) passed to the game as the skgfx agent, which needs Java 24 or
@@ -37,6 +37,8 @@ history has the rest.
   interface shown inside the window while it runs (system web view on macOS and Windows; the browser on Linux).
 - **Updates and reports**: checks GitHub for a newer launcher (can be switched off); optional crash reports, scrubbed
   of personal details, with an off switch.
+- **Logs**: SKradle writes a log (`skradle.log`, scrubbed of your user name and secrets) with buttons in Settings > About
+  to open its folder or copy its path; GitHub issue forms ask for it.
 - Windows: Steam is found where the registry says it is, so installs on another drive work.
 - **Test builds** from the Actions tab (`Build` workflow). Each download is one zip holding one folder with a
   `SHA256SUMS.txt` inside it: a `.dmg` for macOS (Apple silicon and Intel), the app folder for Windows (x64 and
@@ -44,6 +46,17 @@ history has the rest.
   once, on Windows choose "More info" then "Run anyway".
 
 ### Changed
+
+- Home is more compact (launch card, players strip, events and news side by side); event banners keep their own
+  shape and are kept on disk, so events show offline; label text is centred in buttons, tabs and tags.
+- A launch no longer checks for a game update before starting (that made every launch slow); Steam installs update
+  through Steam.
+- Graphics enhancements are off by default (the game's own Java is used); a switch at the top of Graphics turns them on.
+- "Update automatically" replaces the update-check switch: SKradle looks for, and downloads, a newer version when it
+  starts and asks before installing. "Check for updates" says plainly when there is no release yet.
+- The local server is always listed on Servers; the server console (with input) opens from the strip, which has icon
+  buttons for the web interface settings and Stop; the web interface signs in by itself.
+- Mods: a sliding filter, flush image tiles, the modpack is named "SirDank's Modpack".
 
 - A design pass over every page: one spacing, radius and type scale, contrast fixes in both themes, quieter cards,
   one clear primary action per screen, plain-language errors instead of raw engine text, and layouts that hold at the

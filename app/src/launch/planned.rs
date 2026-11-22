@@ -20,17 +20,17 @@ use skradle_core::graphics::{agent_args, GraphicsSettings};
 use skradle_core::launch::direct::{DirectOptions, GarbageCollector, Inputs, Memory};
 use skradle_core::launch::plan::{self as core_plan, Effects, LaunchKind, PlanInputs, RealEffects};
 use skradle_core::launch::steam::{self, ClientState, Waited, Waiter};
-use skradle_core::mods::ApplyOptions;
 use skradle_core::log;
+use skradle_core::mods::ApplyOptions;
 use skradle_core::runtime::{self, Runtime};
-use skradle_core::servers::Server;
 #[cfg(test)]
 use skradle_core::servers;
+use skradle_core::servers::Server;
 
 use super::plan::{self, Machine};
 use super::supervisor::{self, Context, Prepare, Timing};
-use super::{pending, Event, Phase, Step};
 use super::{memory, LaunchError, Launcher, Request, Running, Sink};
+use super::{pending, Event, Phase, Step};
 use crate::discovery::{self, Kind};
 use crate::settings::{self, Collector, Settings};
 
@@ -179,7 +179,10 @@ pub fn prepare(
         .map(|jar| agent_args(jar, &graphics_settings(settings)));
     // Only what is known locally: Steam keeps its own install up to date, so it is never "pending".
     let update_pending = install.kind != Kind::Steam
-        && pending::is_pending(&game_files.getdown_txt, around.known_remote_version.as_deref());
+        && pending::is_pending(
+            &game_files.getdown_txt,
+            around.known_remote_version.as_deref(),
+        );
     log::info(
         "launch",
         format!(
@@ -244,7 +247,10 @@ pub fn ensure_steam(waiter: &mut dyn Waiter, ctx: &Context<'_>) -> Result<(), La
     let mut on_wait = |state: ClientState| {
         if !reported {
             reported = true;
-            log::info("steam", format!("Steam is {}: starting it and waiting", state.describe()));
+            log::info(
+                "steam",
+                format!("Steam is {}: starting it and waiting", state.describe()),
+            );
             (ctx.sink)(Event::Phase(Phase::Launching, Step::Steam));
         }
     };
@@ -259,7 +265,10 @@ pub fn ensure_steam(waiter: &mut dyn Waiter, ctx: &Context<'_>) -> Result<(), La
     match outcome {
         Waited::AlreadyReady => log::info("steam", "Steam is running and signed in"),
         Waited::BecameReady { started } => {
-            log::info("steam", format!("Steam is ready (SKradle started it: {started})"));
+            log::info(
+                "steam",
+                format!("Steam is ready (SKradle started it: {started})"),
+            );
             (ctx.sink)(Event::Phase(Phase::Launching, Step::Preparing));
         }
         Waited::Cancelled => log::info("steam", "cancelled while waiting for Steam"),
@@ -304,7 +313,10 @@ impl Launcher for PlannedLauncher {
                     "launch requested: {} install at {}, server {}",
                     request.install.kind.as_str(),
                     request.install.path.display(),
-                    around.server.as_ref().map_or("official", |s| s.host.as_str())
+                    around
+                        .server
+                        .as_ref()
+                        .map_or("official", |s| s.host.as_str())
                 ),
             );
             if steam::needs_client(core_kind, private) {
@@ -313,7 +325,8 @@ impl Launcher for PlannedLauncher {
             } else {
                 log::debug("steam", "no Steam sign-in needed for this launch");
             }
-            let local_getdown = std::fs::read_to_string(request.install.path.join("getdown.txt")).unwrap_or_default();
+            let local_getdown = std::fs::read_to_string(request.install.path.join("getdown.txt"))
+                .unwrap_or_default();
             let (spec, kind) = prepare(&request, &machine, &around, &mut Deferred(RealEffects))?;
             // Standalone installs check for a newer game in the background, after the launch is already going.
             if kind == LaunchKind::Direct && request.install.kind != Kind::Steam {
@@ -504,7 +517,10 @@ mod tests {
         }
     }
 
-    fn run_ensure(steam: &mut FakeSteam, stop: &std::sync::atomic::AtomicBool) -> (Result<(), LaunchError>, Vec<Event>) {
+    fn run_ensure(
+        steam: &mut FakeSteam,
+        stop: &std::sync::atomic::AtomicBool,
+    ) -> (Result<(), LaunchError>, Vec<Event>) {
         let seen = std::sync::Mutex::new(Vec::new());
         let sink = |e: Event| seen.lock().unwrap().push(e);
         let result = ensure_steam(steam, &Context { stop, sink: &sink });
@@ -515,26 +531,49 @@ mod tests {
     #[test]
     fn waiting_for_steam_shows_the_steam_step_and_then_goes_on() {
         let stop = std::sync::atomic::AtomicBool::new(false);
-        let mut steam = FakeSteam { polls: 0, after: Some(3), now: Default::default() };
+        let mut steam = FakeSteam {
+            polls: 0,
+            after: Some(3),
+            now: Default::default(),
+        };
         let (result, events) = run_ensure(&mut steam, &stop);
         assert!(result.is_ok());
-        assert_eq!(events.first(), Some(&Event::Phase(Phase::Launching, Step::Steam)));
-        assert_eq!(events.last(), Some(&Event::Phase(Phase::Launching, Step::Preparing)));
+        assert_eq!(
+            events.first(),
+            Some(&Event::Phase(Phase::Launching, Step::Steam))
+        );
+        assert_eq!(
+            events.last(),
+            Some(&Event::Phase(Phase::Launching, Step::Preparing))
+        );
     }
 
     #[test]
     fn steam_that_never_comes_up_is_an_actionable_error() {
         let stop = std::sync::atomic::AtomicBool::new(false);
-        let mut steam = FakeSteam { polls: 0, after: None, now: Default::default() };
+        let mut steam = FakeSteam {
+            polls: 0,
+            after: None,
+            now: Default::default(),
+        };
         let (result, _) = run_ensure(&mut steam, &stop);
-        let Err(LaunchError::Refused(text)) = result else { panic!("expected an error") };
-        assert!(text.contains("did not start") && text.contains("launch again"), "{text}");
+        let Err(LaunchError::Refused(text)) = result else {
+            panic!("expected an error")
+        };
+        assert!(
+            text.contains("did not start") && text.contains("launch again"),
+            "{text}"
+        );
     }
 
     #[test]
     fn a_cancelled_wait_ends_without_an_error_message_for_the_player() {
         let stop = std::sync::atomic::AtomicBool::new(true);
-        let mut steam = FakeSteam { polls: 0, after: None, now: Default::default() };
+        let mut steam = FakeSteam {
+            polls: 0,
+            after: None,
+            now: Default::default(),
+        };
         let (result, _) = run_ensure(&mut steam, &stop);
         assert!(result.is_err());
     }
@@ -751,7 +790,9 @@ mod tests {
         // On: the agent is passed and the JDK that can load it runs the game instead.
         w.request.settings.graphics_enabled = true;
         let (spec, _) = prepare(&w.request, &w.machine, &around, &mut Recorder::default()).unwrap();
-        assert!(arg_strings(&spec).iter().any(|a| a.starts_with("-javaagent:")));
+        assert!(arg_strings(&spec)
+            .iter()
+            .any(|a| a.starts_with("-javaagent:")));
         assert!(!spec.program.starts_with(&own), "{:?}", spec.program);
         // Off with the player's own Java: that Java still wins.
         w.request.settings.graphics_enabled = false;

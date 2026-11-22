@@ -166,7 +166,10 @@ fn run(
             if stop.load(Ordering::SeqCst) {
                 sink(Event::Stopped);
             } else {
-                skradle_core::log::error("launch", format!("launch failed before the game started: {}", error.message()));
+                skradle_core::log::error(
+                    "launch",
+                    format!("launch failed before the game started: {}", error.message()),
+                );
                 sink(Event::Failed(error));
             }
             return;
@@ -188,8 +191,16 @@ fn run(
         "launch",
         format!(
             "starting {} ({}): program {}, {} arguments, {} variables set ({}), working folder {}",
-            if kind == LaunchKind::Direct { "the game" } else { "the updater" },
-            if kind == LaunchKind::Direct { "direct" } else { "updater" },
+            if kind == LaunchKind::Direct {
+                "the game"
+            } else {
+                "the updater"
+            },
+            if kind == LaunchKind::Direct {
+                "direct"
+            } else {
+                "updater"
+            },
             spec.program.display(),
             spec.args.len(),
             spec.env.len(),
@@ -269,7 +280,10 @@ fn run(
         log_lines.push_back(line);
     }
 
-    skradle_core::log::info("launch", format!("the updater exited ({})", exit_text(&status)));
+    skradle_core::log::info(
+        "launch",
+        format!("the updater exited ({})", exit_text(&status)),
+    );
     if !status.success() {
         drain(&readers);
         log_game_log_tail(&game_root);
@@ -372,7 +386,10 @@ fn follow_game(
                 } else {
                     drain(readers);
                     log_game_log_tail(probe.root());
-                    skradle_core::log::error("launch", format!("the game's output ended with: {}", tail_text(output)));
+                    skradle_core::log::error(
+                        "launch",
+                        format!("the game's output ended with: {}", tail_text(output)),
+                    );
                     sink(Event::Failed(LaunchError::GameFailed {
                         code: status.code(),
                         detail: tail_text(output),
@@ -786,9 +803,10 @@ echo '{LOG} Running /g/java_vm/bin/java' >> launcher.log\n{extra}\nsleep 600 >/d
                 "config.jar is locked".into()
             )))
         );
-        assert!(!seen
-            .iter()
-            .any(|e| matches!(e, Event::Phase(Phase::Running, _) | Event::Phase(_, Step::Downloading))));
+        assert!(!seen.iter().any(|e| matches!(
+            e,
+            Event::Phase(Phase::Running, _) | Event::Phase(_, Step::Downloading)
+        )));
     }
 
     #[test]

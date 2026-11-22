@@ -84,9 +84,13 @@ pub enum Outcome {
     /// Nothing is published yet (no release, only drafts and pre-releases, or the project's releases page is empty).
     NoReleases,
     /// The newest release is not newer than this build (or is the one the player skipped).
-    UpToDate { latest: Version },
+    UpToDate {
+        latest: Version,
+    },
     /// A newer release exists but carries no installer (with a SHA-256) for this OS and CPU.
-    NoInstaller { version: Version },
+    NoInstaller {
+        version: Version,
+    },
     Available(Update),
 }
 
@@ -560,7 +564,10 @@ mod tests {
     #[test]
     fn nothing_published_yet_is_a_calm_answer_in_every_form() {
         // The list is empty.
-        assert_eq!(outcome(Ok("[]".into()), "1.0.0").unwrap(), Outcome::NoReleases);
+        assert_eq!(
+            outcome(Ok("[]".into()), "1.0.0").unwrap(),
+            Outcome::NoReleases
+        );
         // The repository answers 404 (nothing there yet).
         assert_eq!(
             outcome(Err(NetError::Status(404)), "1.0.0").unwrap(),
@@ -573,7 +580,10 @@ mod tests {
             release_json("v1.4.0", r#""prerelease":true,"#, &assets),
             release_json("nightly", "", &assets),
         ]);
-        assert_eq!(outcome(Ok(only_hidden), "1.0.0").unwrap(), Outcome::NoReleases);
+        assert_eq!(
+            outcome(Ok(only_hidden), "1.0.0").unwrap(),
+            Outcome::NoReleases
+        );
     }
 
     #[test]
@@ -616,10 +626,16 @@ mod tests {
         let body = list(&[release_json("v1.3.0", "", &assets)]);
         assert_eq!(
             outcome(Ok(body), "1.0.0").unwrap(),
-            Outcome::NoInstaller { version: v("1.3.0") }
+            Outcome::NoInstaller {
+                version: v("1.3.0")
+            }
         );
         // An installer without a published SHA-256 does not count either.
-        let no_hash = vec![asset_json("SKradle-1.3.0-macos-arm64.dmg", None, DOWNLOAD_PREFIX)];
+        let no_hash = vec![asset_json(
+            "SKradle-1.3.0-macos-arm64.dmg",
+            None,
+            DOWNLOAD_PREFIX,
+        )];
         let body = list(&[release_json("v1.3.0", "", &no_hash)]);
         assert!(matches!(
             outcome(Ok(body), "1.0.0").unwrap(),
@@ -671,7 +687,13 @@ mod tests {
 
     #[test]
     fn malformed_release_lists_are_failures_not_silence() {
-        for body in ["not json", "{}", "{\"tag_name\":\"v1.0.0\"}", "[{\"x\":1}]", ""] {
+        for body in [
+            "not json",
+            "{}",
+            "{\"tag_name\":\"v1.0.0\"}",
+            "[{\"x\":1}]",
+            "",
+        ] {
             let error = outcome(Ok(body.into()), "1.0.0").unwrap_err();
             assert_eq!(error.failure(), Failure::Malformed, "{body:?}");
         }

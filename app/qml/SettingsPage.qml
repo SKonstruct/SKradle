@@ -107,7 +107,7 @@ Item {
         if (p === "invalid") return qsTr("That path is not a Java runtime.")
         if (p === "tooold") return qsTr("That Java is version %1; the game needs %2 or newer.").arg(GameTools.javaFound).arg(GameTools.javaNeeded)
         if (p !== "") return GameTools.javaNeeded > 0 ? qsTr("No Java %1 or newer was found.").arg(GameTools.javaNeeded) : qsTr("No Java was found.")
-        if (GameTools.javaVersion === "") return qsTr("Looking for Java…")
+        if (GameTools.javaVersion === "") return qsTr("Looking for Java\u2026")
         const where = ({ game: qsTr("the game's own runtime"), managed: qsTr("downloaded by SKradle"), env: qsTr("from JAVA_HOME"),
                          path: qsTr("found on this computer"), custom: qsTr("your choice") })[GameTools.javaSource] || ""
         return qsTr("Java %1 (%2)").arg(GameTools.javaVersion).arg(where)
@@ -287,7 +287,7 @@ Item {
                         Layout.fillWidth: true
                         Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard; Layout.bottomMargin: Theme.s3
                         spacing: Theme.s2
-                        SButton { text: qsTr("Add a folder…"); glyph: "plus"; onClicked: folderDialog.open() }
+                        SButton { text: qsTr("Add a folder\u2026"); glyph: "plus"; onClicked: folderDialog.open() }
                         SButton { text: qsTr("Forget the custom folder"); visible: page.hasCustom; onClicked: GameModel.forgetCustom() }
                         SButton { text: qsTr("Open game folder"); glyph: "folder"; enabled: page.hasGame; onClicked: GameTools.openFolder(GameModel.selectedPath) }
                         Item { Layout.fillWidth: true }
@@ -304,7 +304,7 @@ Item {
                             Connections { target: Settings; function onJavaPathChanged() { if (javaField.text.trim() !== Settings.javaPath) javaField.text = Settings.javaPath } }
                             Accessible.name: qsTr("Java path")
                         }
-                        SButton { text: qsTr("Browse…"); onClicked: javaDialog.open() }
+                        SButton { text: qsTr("Browse\u2026"); onClicked: javaDialog.open() }
                     }
                     Notice {   // one banner for Java: what is in use, and whether it can run the graphics agent
                         text: GameTools.javaProblem !== "" || !page.hasGame || GameTools.javaVersion === "" || !Settings.graphicsEnabled ? page.javaLine
@@ -347,7 +347,7 @@ Item {
                                 if (GameModel.detectedMemoryMb > 0) parts.push(qsTr("The game's own setting: %1 MB").arg(GameModel.detectedMemoryMb))
                                 if (GameTools.totalMemoryMb > 0) parts.push(qsTr("This computer has %1 MB").arg(GameTools.totalMemoryMb))
                                 parts.push(Settings.memoryMb > 0 ? qsTr("Your choice: %1 MB").arg(Settings.memoryMb) : qsTr("You have not changed it, so the game keeps its own setting."))
-                                return parts.join("  ·  ")
+                                return parts.join("  \u00B7  ")
                             }
                         }
                         SButton { variant: "ghost"; text: qsTr("Use the game's setting"); visible: Settings.memoryMb > 0; onClicked: Settings.memoryMb = 0 }
@@ -409,7 +409,7 @@ Item {
                         SButton {
                             variant: "danger"
                             glyph: "refresh"
-                            text: GameTools.busy ? qsTr("Working…") : qsTr("Reset game files…")
+                            text: GameTools.busy ? qsTr("Working\u2026") : qsTr("Reset game files\u2026")
                             enabled: page.hasGame && !page.gameBusy && !GameTools.busy
                             onClicked: resetDialog.open()
                         }
@@ -562,7 +562,7 @@ Item {
                             Layout.preferredWidth: 0
                             spacing: Theme.s1
                             Txt { Layout.fillWidth: true; text: "SKradle"; kind: "heading" }
-                            Txt { Layout.fillWidth: true; text: qsTr("Version %1  ·  Qt %2").arg(AppEnv.version).arg(AppEnv.qtVersion); kind: "caption" }
+                            Txt { Layout.fillWidth: true; text: qsTr("Version %1  \u00B7  Qt %2").arg(AppEnv.version).arg(AppEnv.qtVersion); kind: "caption" }
                         }
                         ColumnLayout {
                             Layout.alignment: Qt.AlignVCenter
@@ -571,9 +571,9 @@ Item {
                                 Layout.alignment: Qt.AlignRight
                                 highlighted: UpdateModel.state === "available" || UpdateModel.state === "ready"
                                 enabled: UpdateModel.state !== "checking" && UpdateModel.state !== "downloading"
-                                text: UpdateModel.state === "checking" ? qsTr("Checking…")
+                                text: UpdateModel.state === "checking" ? qsTr("Checking\u2026")
                                     : UpdateModel.state === "available" ? qsTr("Download %1").arg(UpdateModel.version)
-                                    : UpdateModel.state === "downloading" ? qsTr("Downloading… %1%").arg(Math.round(UpdateModel.progress * 100))
+                                    : UpdateModel.state === "downloading" ? qsTr("Downloading\u2026 %1%").arg(Math.round(UpdateModel.progress * 100))
                                     : UpdateModel.state === "ready" ? qsTr("Install and restart")
                                     : qsTr("Check for updates")
                                 onClicked: {
@@ -594,7 +594,15 @@ Item {
                             }
                         }
                     }
-                    Notice { text: qsTr("Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights © Grey Havens, LLC.") }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard
+                        spacing: Theme.s2
+                        SButton { text: qsTr("Open log folder"); onClicked: Logs.openFolder() }
+                        SButton { text: qsTr("Copy log path"); onClicked: { Logs.copyPath(); Data.toast(qsTr("Log path copied"), "info") } }
+                        Item { Layout.fillWidth: true }
+                    }
+                    Notice { text: qsTr("Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights \u00A9 Grey Havens, LLC.") }
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard; Layout.bottomMargin: Theme.s3

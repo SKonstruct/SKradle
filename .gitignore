@@ -27,3 +27,4 @@ CMakeUserPresets.json
 
 # Screenshots written by the UI shell in CI
 shots/
+aqtinstall.log

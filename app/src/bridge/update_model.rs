@@ -133,7 +133,8 @@ impl qobject::UpdateModel {
         }
         self.as_mut().set_message(QString::from(why.as_str()));
         self.as_mut().set_failed_during(QString::from(during));
-        self.as_mut().set_reason(QString::from(reason_code(failure)));
+        self.as_mut()
+            .set_reason(QString::from(reason_code(failure)));
         self.set_state(QString::from("error"));
     }
 
@@ -209,7 +210,11 @@ impl qobject::UpdateModel {
                         Ok(Outcome::NoInstaller { version }) => {
                             m.as_mut()
                                 .set_version(QString::from(version.to_string().as_str()));
-                            m.set_state(QString::from(if automatic { "idle" } else { "noinstaller" }))
+                            m.set_state(QString::from(if automatic {
+                                "idle"
+                            } else {
+                                "noinstaller"
+                            }))
                         }
                         Err(e) => {
                             let failure = e.failure();

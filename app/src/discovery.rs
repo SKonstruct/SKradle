@@ -61,7 +61,10 @@ impl Resolved {
 pub fn looks_like_steam_library(path: &Path) -> bool {
     let text = path.to_string_lossy().replace('\\', "/").to_lowercase();
     let parts: Vec<&str> = text.split('/').filter(|p| !p.is_empty()).collect();
-    if parts.windows(2).any(|w| w[0] == "steamapps" && w[1] == "common") {
+    if parts
+        .windows(2)
+        .any(|w| w[0] == "steamapps" && w[1] == "common")
+    {
         return true;
     }
     path.parent()
@@ -456,8 +459,12 @@ mod tests {
         ] {
             assert!(looks_like_steam_library(Path::new(p)), "{p}");
         }
-        assert!(!looks_like_steam_library(Path::new(r"C:\Games\Spiral Knights")));
-        assert!(!looks_like_steam_library(Path::new("/home/ann/steamapps/other/SK")));
+        assert!(!looks_like_steam_library(Path::new(
+            r"C:\Games\Spiral Knights"
+        )));
+        assert!(!looks_like_steam_library(Path::new(
+            "/home/ann/steamapps/other/SK"
+        )));
     }
 
     #[test]

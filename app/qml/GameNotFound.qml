@@ -67,7 +67,7 @@ Card {
                 onClicked: root.steam()
             }
             SButton {
-                text: qsTr("Locate existing install…")
+                text: qsTr("Locate existing install\u2026")
                 Accessible.name: text
                 onClicked: folderDialog.open()
             }

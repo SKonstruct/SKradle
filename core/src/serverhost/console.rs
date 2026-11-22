@@ -96,10 +96,14 @@ mod tests {
 
     #[test]
     fn prompts_are_recognised_by_shape() {
-        assert!(looks_like_prompt("[10:00:01] [ServerConsole/INFO]: Password for skradle:"));
+        assert!(looks_like_prompt(
+            "[10:00:01] [ServerConsole/INFO]: Password for skradle:"
+        ));
         assert!(looks_like_prompt("Enter new value: "));
         assert!(looks_like_prompt("Retype PASSWORD please"));
-        assert!(!looks_like_prompt("[10:00:02] [ServerConsole/INFO]: WebUI account saved: skradle"));
+        assert!(!looks_like_prompt(
+            "[10:00:02] [ServerConsole/INFO]: WebUI account saved: skradle"
+        ));
         assert!(!looks_like_prompt(""));
     }
 
@@ -116,7 +120,7 @@ mod tests {
         assert_eq!(clean_command("  list \r\n"), Some("list".into()));
         assert_eq!(clean_command("a\nshutdown"), Some("ashutdown".into()));
         assert_eq!(clean_command("\u{0}\t "), None);
-        assert_eq!(clean_command("").is_none(), true);
+        assert!(clean_command("").is_none());
         assert_eq!(clean_command(&"x".repeat(5000)).unwrap().len(), MAX_COMMAND);
     }
 

@@ -281,7 +281,8 @@ pub fn plain_pack_error(raw: &str) -> String {
             .iter()
             .any(|n| t.contains(n))
     {
-        "Could not reach SirDank's Modpack. Check your internet connection and try again.".to_owned()
+        "Could not reach SirDank's Modpack. Check your internet connection and try again."
+            .to_owned()
     } else if t.contains("permission denied") || t.contains("access is denied") {
         "SKradle is not allowed to write to the mods folder.".to_owned()
     } else {
@@ -508,7 +509,11 @@ pub struct Outcome {
 pub fn set_enabled_all(dir: &Path, files: &[String], enabled: bool) -> Outcome {
     skradle_core::log::info(
         "mods",
-        format!("{} {} mod(s)", if enabled { "enabling" } else { "disabling" }, files.len()),
+        format!(
+            "{} {} mod(s)",
+            if enabled { "enabling" } else { "disabling" },
+            files.len()
+        ),
     );
     let mut out = Outcome {
         kind: if enabled { "enable" } else { "disable" },

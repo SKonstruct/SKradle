@@ -25,7 +25,7 @@ Card {
     }
     readonly property string status: {
         switch (st) {
-        case "checking": return qsTr("Checking for changes…")
+        case "checking": return qsTr("Checking for changes\u2026")
         case "notinstalled": return qsTr("Not installed. %n mod(s) to download.", "", ModsModel.packTotal)
         case "update": return qsTr("Update available. %n file(s) changed.", "", ModsModel.packChanges)
         case "current": return qsTr("Up to date")
@@ -59,7 +59,7 @@ Card {
                 Txt { Layout.fillWidth: true; text: qsTr("SirDank\u2019s Modpack"); font.weight: Font.Medium; wrapMode: Text.NoWrap; Accessible.role: Accessible.Heading }
                 Txt {
                     Layout.fillWidth: true
-                    text: root.status + (root.report && root.st !== "syncing" && root.st !== "error" ? " · " + root.reportSummary(root.report) : "")
+                    text: root.status + (root.report && root.st !== "syncing" && root.st !== "error" ? " \u00B7 " + root.reportSummary(root.report) : "")
                     kind: "caption"
                     color: root.st === "error" ? Theme.amberText : Theme.textSecondary
                     wrapMode: Text.NoWrap

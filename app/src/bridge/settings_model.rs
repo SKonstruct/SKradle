@@ -279,9 +279,7 @@ impl Initialize for qobject::Settings {
         self.as_mut()
             .on_crash_reports_changed(|q| q.push())
             .release();
-        self.as_mut()
-            .on_auto_update_changed(|q| q.push())
-            .release();
+        self.as_mut().on_auto_update_changed(|q| q.push()).release();
         self.as_mut()
             .on_graphics_enabled_changed(|q| q.push())
             .release();

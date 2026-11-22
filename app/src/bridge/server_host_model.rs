@@ -207,8 +207,16 @@ impl qobject::ServerHost {
         if ok && !secret {
             with_console(|c| c.history.push(&command));
         }
-        let echo = if ok { console::echo(&command, secret) } else { String::new() };
-        QString::from(serde_json::json!({ "ok": ok, "echo": echo }).to_string().as_str())
+        let echo = if ok {
+            console::echo(&command, secret)
+        } else {
+            String::new()
+        };
+        QString::from(
+            serde_json::json!({ "ok": ok, "echo": echo })
+                .to_string()
+                .as_str(),
+        )
     }
     pub fn console_recall(&self, older: bool, current: &QString) -> QString {
         let shown = with_console(|c| {

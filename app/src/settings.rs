@@ -415,7 +415,9 @@ impl Store {
             ),
             LoadOutcome::Corrupt(moved) => skradle_core::log::warn(
                 "settings",
-                format!("settings.json was unusable and was set aside ({moved:?}); defaults are in use"),
+                format!(
+                    "settings.json was unusable and was set aside ({moved:?}); defaults are in use"
+                ),
             ),
         }
         let (tx, rx) = mpsc::channel::<()>();
@@ -591,7 +593,7 @@ mod tests {
     }
 
     #[test]
-fn automatic_updates_are_on_by_default_and_a_wrong_type_falls_back_to_that() {
+    fn automatic_updates_are_on_by_default_and_a_wrong_type_falls_back_to_that() {
         assert!(Settings::default().auto_update);
         let mut map = Map::new();
         map.insert("autoUpdate".into(), Value::from("no"));
@@ -634,7 +636,10 @@ fn automatic_updates_are_on_by_default_and_a_wrong_type_falls_back_to_that() {
         assert!(Settings::from_map(&map).graphics_enabled);
         map.insert("graphicsEnabled".into(), Value::from("yes"));
         assert!(!Settings::from_map(&map).graphics_enabled);
-        assert_eq!(Settings::from_map(&map).to_map()["graphicsEnabled"], Value::from(false));
+        assert_eq!(
+            Settings::from_map(&map).to_map()["graphicsEnabled"],
+            Value::from(false)
+        );
     }
 
     #[test]

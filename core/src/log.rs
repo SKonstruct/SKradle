@@ -178,16 +178,28 @@ pub fn scrub(text: &str, home: Option<&str>) -> String {
     let mut out = text.to_owned();
     if let Some(home) = home.filter(|h| h.len() > 1) {
         let trimmed = home.trim_end_matches(['/', '\\']);
-        for variant in [trimmed.to_owned(), trimmed.replace('\\', "/"), trimmed.replace('/', "\\")] {
+        for variant in [
+            trimmed.to_owned(),
+            trimmed.replace('\\', "/"),
+            trimmed.replace('/', "\\"),
+        ] {
             if !variant.is_empty() {
                 out = out.replace(&variant, "~");
             }
         }
     }
-    out = userinfo_pattern().replace_all(&out, "${1}<user>@").into_owned();
-    out = query_pattern().replace_all(&out, "${1}?<query>").into_owned();
-    out = secret_pattern().replace_all(&out, "${1}${2}<redacted>").into_owned();
-    out = long_secret_pattern().replace_all(&out, "<redacted>").into_owned();
+    out = userinfo_pattern()
+        .replace_all(&out, "${1}<user>@")
+        .into_owned();
+    out = query_pattern()
+        .replace_all(&out, "${1}?<query>")
+        .into_owned();
+    out = secret_pattern()
+        .replace_all(&out, "${1}${2}<redacted>")
+        .into_owned();
+    out = long_secret_pattern()
+        .replace_all(&out, "<redacted>")
+        .into_owned();
     out
 }
 
@@ -243,7 +255,10 @@ pub fn session_header(session: &Session) -> Vec<String> {
         format!("SKradle {} started", session.version),
         format!("system: {} {}", session.os, session.arch),
         format!("Qt: {}", session.qt),
-        format!("install kind: {}", or(&session.install_kind, "no game found")),
+        format!(
+            "install kind: {}",
+            or(&session.install_kind, "no game found")
+        ),
         format!("java: {}", or(&session.java, "none found")),
     ]
 }
@@ -397,7 +412,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut log = Logger::open(dir.path(), MAX_BYTES, Level::Info, None);
         log.write("t", Level::Error, "panic", "first\nsecond\nthird");
-        assert_eq!(read(dir.path(), 0), "t ERROR [panic] first\n    second\n    third\n");
+        assert_eq!(
+            read(dir.path(), 0),
+            "t ERROR [panic] first\n    second\n    third\n"
+        );
     }
 
     #[test]
@@ -457,7 +475,10 @@ mod tests {
             "opened ~/Games/SK/x.jar"
         );
         assert_eq!(
-            scrub(r"opened C:\Users\ann\SK and C:/Users/ann/SK", Some(r"C:\Users\ann")),
+            scrub(
+                r"opened C:\Users\ann\SK and C:/Users/ann/SK",
+                Some(r"C:\Users\ann")
+            ),
             r"opened ~\SK and ~/SK"
         );
     }
@@ -468,14 +489,23 @@ mod tests {
             "login password=hunter2 token: abc123 -DsessionKey=zzz https://u:p@host.example/a/b?key=1&x=2 done",
             None,
         );
-        assert!(!out.contains("hunter2") && !out.contains("abc123") && !out.contains("zzz"), "{out}");
+        assert!(
+            !out.contains("hunter2") && !out.contains("abc123") && !out.contains("zzz"),
+            "{out}"
+        );
         assert!(!out.contains("key=1") && !out.contains("u:p@"), "{out}");
-        assert!(out.contains("https://<user>@host.example/a/b?<query>"), "{out}");
+        assert!(
+            out.contains("https://<user>@host.example/a/b?<query>"),
+            "{out}"
+        );
         assert!(out.contains("password=<redacted>"), "{out}");
         assert!(out.ends_with("done"));
         let key = "A".repeat(48);
         assert_eq!(scrub(&format!("key {key} end"), None), "key <redacted> end");
-        assert_eq!(scrub("Authorization: Bearer abc.def", None), "Authorization: <redacted>");
+        assert_eq!(
+            scrub("Authorization: Bearer abc.def", None),
+            "Authorization: <redacted>"
+        );
     }
 
     #[test]
@@ -487,7 +517,12 @@ mod tests {
     #[test]
     fn the_logger_scrubs_what_it_writes() {
         let dir = tempfile::tempdir().unwrap();
-        let mut log = Logger::open(dir.path(), MAX_BYTES, Level::Info, Some(Path::new("/home/bo")));
+        let mut log = Logger::open(
+            dir.path(),
+            MAX_BYTES,
+            Level::Info,
+            Some(Path::new("/home/bo")),
+        );
         log.write("t", Level::Info, "x", "path /home/bo/sk password=abc");
         let text = read(dir.path(), 0);
         assert!(text.contains("path ~/sk password=<redacted>"), "{text}");

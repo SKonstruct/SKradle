@@ -75,7 +75,7 @@ ServerDialog {
         case "address_invalid": return qsTr("This isn't a valid host name or address. Use letters, digits, dots and dashes.")
         case "address_port": return qsTr("The port after the colon must be a number from 1 to 65535.")
         case "address_official": return qsTr("That is the official server, which is always in the list.")
-        case "address_duplicate": return qsTr("This address is already saved as “%1”.").arg(e.detail)
+        case "address_duplicate": return qsTr("This address is already saved as \u201C%1\u201D.").arg(e.detail)
         case "port_required": return qsTr("Enter a port from 1 to 65535.")
         case "port_range": return qsTr("The port must be a number from 1 to 65535.")
         case "port_mismatch": return qsTr("The address says port %1. Make the two match or leave one out.").arg(e.detail)

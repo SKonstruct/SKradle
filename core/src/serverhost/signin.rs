@@ -54,8 +54,15 @@ mod tests {
 
     #[test]
     fn the_password_is_only_a_json_literal() {
-        let s = script("http://127.0.0.1:8080", "skradle", "pa\"ss\\w</script>&\n'x");
-        assert!(s.contains(r#"PASS="pa\"ss\\w\u003c/script\u003e\u0026\n'x""#), "{s}");
+        let s = script(
+            "http://127.0.0.1:8080",
+            "skradle",
+            "pa\"ss\\w</script>&\n'x",
+        );
+        assert!(
+            s.contains(r#"PASS="pa\"ss\\w\u003c/script\u003e\u0026\n'x""#),
+            "{s}"
+        );
         assert!(!s.contains("</script>"));
     }
 

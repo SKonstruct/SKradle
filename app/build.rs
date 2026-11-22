@@ -133,7 +133,10 @@ fn embed_windows_resources() {
     let mut resource = winresource::WindowsResource::new();
     resource.set_icon("../assets/icons/skradle.ico");
     resource.set("ProductName", "SKradle");
-    resource.set("FileDescription", "SKradle, an unofficial Spiral Knights launcher");
+    resource.set(
+        "FileDescription",
+        "SKradle, an unofficial Spiral Knights launcher",
+    );
     resource.set("LegalCopyright", "MIT license");
     resource.set("OriginalFilename", "skradle.exe");
     if let Err(e) = resource.compile() {

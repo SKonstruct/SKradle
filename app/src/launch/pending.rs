@@ -27,7 +27,8 @@ pub fn read(dir: &Path) -> Option<String> {
 
 /// True when the recorded version differs from the installed one (`local_getdown_txt`).
 pub fn is_pending(local_getdown_txt: &str, recorded: Option<&str>) -> bool {
-    recorded.is_some_and(|v| servers::update_pending(local_getdown_txt, &format!("version = {v}\n")))
+    recorded
+        .is_some_and(|v| servers::update_pending(local_getdown_txt, &format!("version = {v}\n")))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,7 +92,10 @@ mod tests {
         assert!(is_pending("version = 1\n", read(dir.path()).as_deref()));
         // After the game updated, the marker no longer counts.
         assert!(!is_pending("version = 2\n", read(dir.path()).as_deref()));
-        assert_eq!(record(dir.path(), "version = 2\n", "version = 2\n"), Recorded::Current);
+        assert_eq!(
+            record(dir.path(), "version = 2\n", "version = 2\n"),
+            Recorded::Current
+        );
         assert_eq!(read(dir.path()), None);
     }
 
@@ -99,7 +103,10 @@ mod tests {
     fn an_answer_without_a_version_changes_nothing() {
         let dir = tempfile::tempdir().unwrap();
         record(dir.path(), "version = 1\n", "version = 2\n");
-        assert_eq!(record(dir.path(), "version = 1\n", "garbage"), Recorded::Unknown);
+        assert_eq!(
+            record(dir.path(), "version = 1\n", "garbage"),
+            Recorded::Unknown
+        );
         assert_eq!(read(dir.path()).as_deref(), Some("2"));
     }
 
