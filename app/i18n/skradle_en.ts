@@ -2416,10 +2416,6 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The game&apos;s editors, and websites for Spiral Knights that open here.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Game editors</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2557,6 +2553,10 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Websites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Websites for Spiral Knights that open here, and the game&apos;s editors.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

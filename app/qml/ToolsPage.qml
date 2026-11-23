@@ -49,7 +49,47 @@ Item {
         anchors.fill: parent
         visible: page.webTool === ""
         title: qsTr("Tools")
-        subtitle: qsTr("The game's editors, and websites for Spiral Knights that open here.")
+        subtitle: qsTr("Websites for Spiral Knights that open here, and the game's editors.")
+
+        SettingsSection {
+            title: qsTr("Websites")
+            Repeater {
+                model: page.webTools
+                ColumnLayout {
+                    id: site
+                    required property int index
+                    required property var modelData
+                    Layout.fillWidth: true
+                    spacing: 0
+                    Sep { visible: site.index > 0 }
+                    SettingRow {
+                        label: site.modelData.name + "  ·  " + site.modelData.site
+                        hint: site.modelData.hint
+                        Item { Layout.fillWidth: true }
+                        IconButton {
+                            glyph: "globe"
+                            tip: qsTr("Open %1 in your browser").arg(site.modelData.site)
+                            onClicked: Qt.openUrlExternally(site.modelData.url)
+                        }
+                        SButton {
+                            text: qsTr("Open")
+                            glyph: "play"
+                            Accessible.name: qsTr("Open %1 here").arg(site.modelData.name)
+                            onClicked: page.webTool = site.modelData.id
+                        }
+                    }
+                }
+            }
+            Txt {
+                Layout.fillWidth: true
+                Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5; Layout.topMargin: Theme.s1; Layout.bottomMargin: Theme.s2
+                text: AppEnv.webViewAvailable
+                    ? qsTr("These open inside SKradle and remember your sign-in, like a browser would. The sites are not part of SKradle or the game.")
+                    : qsTr("This computer has no built-in web view, so the sites open in your browser, which keeps your sign-in as usual.")
+                kind: "caption"
+                paragraph: true
+            }
+        }
 
         SettingsSection {
             title: qsTr("Game editors")
@@ -112,47 +152,8 @@ Item {
                 }
             }
         }
-
-        SettingsSection {
-            title: qsTr("Websites")
-            Repeater {
-                model: page.webTools
-                ColumnLayout {
-                    id: site
-                    required property int index
-                    required property var modelData
-                    Layout.fillWidth: true
-                    spacing: 0
-                    Sep { visible: site.index > 0 }
-                    SettingRow {
-                        label: site.modelData.name + "  ·  " + site.modelData.site
-                        hint: site.modelData.hint
-                        Item { Layout.fillWidth: true }
-                        IconButton {
-                            glyph: "globe"
-                            tip: qsTr("Open %1 in your browser").arg(site.modelData.site)
-                            onClicked: Qt.openUrlExternally(site.modelData.url)
-                        }
-                        SButton {
-                            text: qsTr("Open")
-                            glyph: "play"
-                            Accessible.name: qsTr("Open %1 here").arg(site.modelData.name)
-                            onClicked: page.webTool = site.modelData.id
-                        }
-                    }
-                }
-            }
-            Txt {
-                Layout.fillWidth: true
-                Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5; Layout.topMargin: Theme.s1; Layout.bottomMargin: Theme.s2
-                text: AppEnv.webViewAvailable
-                    ? qsTr("These open inside SKradle and remember your sign-in, like a browser would. The sites are not part of SKradle or the game.")
-                    : qsTr("This computer has no built-in web view, so the sites open in your browser, which keeps your sign-in as usual.")
-                kind: "caption"
-                paragraph: true
-            }
-        }
     }
+
 
     // ---- one website, full page ----------------------------------------------------------------------------------
     ColumnLayout {
