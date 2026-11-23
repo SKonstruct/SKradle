@@ -16,9 +16,11 @@ server of your own.
   stop, back up and update a server on your own computer, with its web interface and a console inside the window.
 - **Mods**: your mods folder with an on/off switch each, pictures, tags, filters and search; drag and drop to add,
   select several at once, and install or update the maintained modpack in one click.
+- **Tools**: the game's editors (Crucible, scene editor, Silverweave, Model Viewer, Particle Editor, Interface Tester;
+  kept up to date) and two Spiral Knights websites, the Auction House and Kozmas, that open inside the launcher and keep
+  your sign-in.
 - **Settings**: memory, garbage collector and Java, file cleaning and reset, optional graphics enhancements (render
-  scale, sharpening, frame generation, FPS counter), Discord Rich Presence, the game's editors (scene editor, Crucible, Silverweave, Model Viewer, Particle Editor,
-  Interface Tester, kept up to date), light and dark
+  scale, sharpening, frame generation, FPS counter), Discord Rich Presence, light and dark
   theme, reduced motion, and automatic updates of SKradle itself.
 
 <table>
@@ -27,8 +29,8 @@ server of your own.
     <td><img src="docs/images/mods.png" alt="Mods"></td>
   </tr>
   <tr>
+    <td><img src="docs/images/tools.png" alt="Tools"></td>
     <td><img src="docs/images/settings.png" alt="Settings"></td>
-    <td><img src="docs/images/home-light.png" alt="Home in the light theme"></td>
   </tr>
 </table>
 
@@ -49,7 +51,7 @@ The launcher logic is in [`core/`](core) (no Qt; `cargo test` builds it). The Qt
 README has the setup, flags and debugging).
 
 More: [launching](docs/launching.md) · [mods](docs/mods.md) · [hosting a server](docs/server-host.md) ·
-[editors](docs/editors.md) · [live events](docs/live-events.md) · [logging](docs/logging.md) · [crash reports](docs/crash-reports.md) ·
+[editors](docs/editors.md) · [websites](docs/web-tools.md) · [live events](docs/live-events.md) · [logging](docs/logging.md) · [crash reports](docs/crash-reports.md) ·
 [design system](docs/design-system.md)
 
 > Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights (c) Grey Havens, LLC.

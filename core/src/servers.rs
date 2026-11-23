@@ -357,7 +357,13 @@ impl ServerList {
     }
 
     pub fn to_json(&self) -> String {
-        serde_json::json!({ "servers": self.servers, "selected": self.selected }).to_string()
+        // Indented, one entry per line: players edit this file by hand.
+        let mut text = serde_json::to_string_pretty(
+            &serde_json::json!({ "servers": self.servers, "selected": self.selected }),
+        )
+        .unwrap_or_default();
+        text.push('\n');
+        text
     }
 
     /// The selected server; `None` for Official, also when the selected one was deleted.

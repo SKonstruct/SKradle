@@ -410,7 +410,8 @@ fn write_cache(path: &Path, items: &[NewsItem], now: i64) {
         fetched_at: now,
         items: items.to_vec(),
     };
-    if let Ok(bytes) = serde_json::to_vec(&file) {
+    if let Ok(mut bytes) = serde_json::to_vec_pretty(&file) {
+        bytes.push(b'\n');
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
         }

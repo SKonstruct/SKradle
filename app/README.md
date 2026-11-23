@@ -28,7 +28,7 @@ build still works and the UI stays English (a build warning says so).
 | `--shots <dir> [--prefix name]` | Saves a screenshot of each state (about 60) into `<dir>` as `<prefix>-<state>.png`, then exits. Uses a temporary settings folder. |
 | `--scheme light\|dark` | Forces the colour scheme (the Appearance setting otherwise). |
 | `--pseudo` | Pseudo-localisation: every word is lengthened and accented to find clipping. |
-| `--style <Name>`, `--page <0-3>`, `--collapsed`, `--size WxH` | Qt Quick Controls style (default Basic), first page, sidebar collapsed, window size. |
+| `--style <Name>`, `--page <0-4>`, `--collapsed`, `--size WxH` | Qt Quick Controls style (default Basic), first page, sidebar collapsed, window size. |
 
 | Variable | Effect |
 | --- | --- |

@@ -8,6 +8,7 @@
 //! - [`list`]: the mods folder and which mods are enabled.
 //! - [`apply`]: [`apply::apply`] and [`apply::restore_pristine`], atomic and fail-closed.
 //! - [`source`]: where an original code jar comes from when none is on disk.
+//! - `stamp`: skipping an apply when nothing it depends on changed.
 //! - [`txn`]: the journaled all-or-nothing file changes `apply` is built on.
 //! - [`tags`]: what a mod contains, as tags derived from the scan.
 //! - [`image`]: a mod's picture, read safely.
@@ -22,6 +23,7 @@ pub mod metadata;
 pub mod model;
 pub mod protected;
 pub mod source;
+mod stamp;
 pub mod sync;
 pub mod tags;
 pub mod txn;

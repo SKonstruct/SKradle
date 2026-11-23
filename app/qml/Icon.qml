@@ -11,16 +11,18 @@ Item {
     width: size
     height: size
     readonly property bool filled: Glyphs.filled.indexOf(name) >= 0
+    readonly property bool solid: Glyphs.solid.indexOf(name) >= 0
+    readonly property real box: Glyphs.boxes[name] || 24
 
     Shape {
-        width: 24
-        height: 24
-        scale: root.size / 24
+        width: root.box
+        height: root.box
+        scale: root.size / root.box
         transformOrigin: Item.TopLeft
         preferredRendererType: Shape.CurveRenderer
         ShapePath {
             strokeColor: root.color
-            strokeWidth: root.filled ? 1.6 : root.stroke
+            strokeWidth: root.solid ? 0 : root.filled ? 1.6 : root.stroke
             fillColor: root.filled ? root.color : "transparent"
             capStyle: ShapePath.RoundCap
             joinStyle: ShapePath.RoundJoin

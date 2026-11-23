@@ -33,6 +33,7 @@ ApplicationWindow {
         { label: qsTr("Home"), icon: "home" },
         { label: qsTr("Servers"), icon: "servers" },
         { label: qsTr("Mods"), icon: "mods" },
+        { label: qsTr("Tools"), icon: "tools" },
         { label: qsTr("Settings"), icon: "graphics" }
     ]
     function go(i) {
@@ -60,6 +61,7 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+2"; onActivated: win.go(1) }
     Shortcut { sequence: "Ctrl+3"; onActivated: win.go(2) }
     Shortcut { sequence: "Ctrl+4"; onActivated: win.go(3) }
+    Shortcut { sequence: "Ctrl+5"; onActivated: win.go(4) }
     Shortcut { sequence: "Ctrl+B"; onActivated: win.collapsed = !win.collapsed }
 
     Sidebar {
@@ -83,7 +85,7 @@ ApplicationWindow {
 
         Repeater {
             id: pages
-            model: 4
+            model: win.navItems.length
             delegate: Item {
                 id: host
                 required property int index
@@ -120,13 +122,14 @@ ApplicationWindow {
                     id: loader
                     anchors.fill: parent
                     active: host.visited
-                    sourceComponent: [homeC, serversC, modsC, settingsC][host.index]
+                    sourceComponent: [homeC, serversC, modsC, toolsC, settingsC][host.index]
                 }
             }
         }
         Component { id: homeC; HomePage {} }
         Component { id: serversC; ServersPage {} }
         Component { id: modsC; ModsPage {} }
+        Component { id: toolsC; ToolsPage {} }
         Component { id: settingsC; SettingsPage {} }
     }
 
@@ -193,7 +196,7 @@ ApplicationWindow {
         "home-collapsed", "home-scrolled", "home-offline", "home-nonews", "home-noevents", "home-events-offline", "home-players-down",
         "home-notes", "home-notes-all", "home-notes-min", "servers", "servers-dialog", "mods", "mods-search", "mods-drop",
         "settings-general", "settings-game", "settings-files", "settings-graphics", "settings-graphics-running", "settings-integrations",
-        "settings-tools", "settings-about", "settings-reset", "toast-error", "toast-info", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
+        "tools", "tools-web", "settings-about", "settings-reset", "toast-error", "toast-info", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
         "mods-selected", "mods-focus", "mods-tag", "mods-empty", "mods-nogame", "mods-confirm", "mods-issues", "mods-pack-update",
         "mods-pack-syncing", "mods-pack-report", "mods-pack-error", "mods-help",
         "mods-enabled", "mods-disabled", "mods-warning", "mods-combo", "mods-long", "mods-nomatch", "mods-scroll1", "mods-scroll2",
@@ -234,7 +237,8 @@ ApplicationWindow {
         LaunchModel.force("ready", 0)
         const hp = pageItem(0); if (hp) hp.scroller.contentY = 0
         const sv = pageItem(1); if (sv) sv.closeAll()
-        const gp = pageItem(3); if (gp) { gp.closeCombo(); gp.closeReset(); gp.scroller.contentY = 0 }
+        const gp = pageItem(4); if (gp) { gp.closeCombo(); gp.closeReset(); gp.scroller.contentY = 0 }
+        const tp = pageItem(3); if (tp) tp.shot("")
         HomeFeed.force("ok"); HomeFeed.forceEvents("present"); HomeFeed.forcePlayers("ok")
         notes.close()
         const md = pageItem(2); if (md) md.resetShot()
@@ -263,20 +267,21 @@ ApplicationWindow {
         case "home-notes": go(0); Qt.callLater(() => notes.show(null)); break
         case "home-notes-all": go(0); Qt.callLater(() => { notes.show(null); notes.setAll(true, false) }); break
         case "home-notes-min": go(0); Qt.callLater(() => { notes.show(null); notes.setAll(false, false) }); break
-        case "settings-general": go(3); break
-        case "settings-game": go(3); Qt.callLater(() => pageItem(3).scrollTo(1)); break
-        case "settings-files": go(3); Qt.callLater(() => pageItem(3).scrollTo(2)); break
-        case "settings-graphics": go(3); Qt.callLater(() => pageItem(3).scrollTo(3)); break
-        case "settings-graphics-running": go(3); LaunchModel.force("running", 0); Qt.callLater(() => pageItem(3).scrollTo(3)); break
-        case "settings-integrations": go(3); Qt.callLater(() => pageItem(3).scrollTo(4)); break
-        case "settings-tools": go(3); Qt.callLater(() => pageItem(3).scrollTo(5)); break
-        case "settings-about": go(3); Qt.callLater(() => pageItem(3).scrollTo(6)); break
-        case "toast-error": go(3); Qt.callLater(() => Data.toast(qsTr("Could not open the folder. Check that it still exists."), "error")); break
+        case "settings-general": go(4); break
+        case "settings-game": go(4); Qt.callLater(() => pageItem(4).scrollTo(1)); break
+        case "settings-files": go(4); Qt.callLater(() => pageItem(4).scrollTo(2)); break
+        case "settings-graphics": go(4); Qt.callLater(() => pageItem(4).scrollTo(3)); break
+        case "settings-graphics-running": go(4); LaunchModel.force("running", 0); Qt.callLater(() => pageItem(4).scrollTo(3)); break
+        case "settings-integrations": go(4); Qt.callLater(() => pageItem(4).scrollTo(4)); break
+        case "tools": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.shot("") }); break
+        case "tools-web": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.shot("web") }); break
+        case "settings-about": go(4); Qt.callLater(() => pageItem(4).scrollTo(5)); break
+        case "toast-error": go(4); Qt.callLater(() => Data.toast(qsTr("Could not open the folder. Check that it still exists."), "error")); break
         case "toast-info": go(0); Qt.callLater(() => Data.toast(qsTr("Address copied"))); break
-        case "settings-reset": go(3); Qt.callLater(() => pageItem(3).scrollTo(2)); Qt.callLater(() => pageItem(3).openReset()); break
+        case "settings-reset": go(4); Qt.callLater(() => pageItem(4).scrollTo(2)); Qt.callLater(() => pageItem(4).openReset()); break
         case "servers-menu": go(1); Qt.callLater(() => { const p = pageItem(1); if (p) p.openMenu() }); break
-        case "settings-combo": go(3); Qt.callLater(() => pageItem(3).scrollTo(1)); Qt.callLater(() => { const p = pageItem(3); if (p) p.openCombo() }); break
-        case "focus-controls": go(3); Qt.callLater(() => pageItem(3).scrollTo(1)); Qt.callLater(() => { const p = pageItem(3); if (p) p.focusSlider() }); break
+        case "settings-combo": go(4); Qt.callLater(() => pageItem(4).scrollTo(1)); Qt.callLater(() => { const p = pageItem(4); if (p) p.openCombo() }); break
+        case "focus-controls": go(4); Qt.callLater(() => pageItem(4).scrollTo(1)); Qt.callLater(() => { const p = pageItem(4); if (p) p.focusSlider() }); break
         case "mods-selected": case "mods-focus": case "mods-tag": case "mods-empty": case "mods-confirm": case "mods-issues":
         case "mods-pack-update": case "mods-pack-syncing": case "mods-pack-report": case "mods-pack-error": case "mods-help":
         case "mods-enabled": case "mods-disabled": case "mods-warning": case "mods-combo": case "mods-long": case "mods-nomatch": case "mods-scroll1": case "mods-scroll2":

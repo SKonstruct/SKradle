@@ -35,8 +35,9 @@ PageScaffold {
     Connections { target: GameModel; function onSelectedPathChanged() { page.facts() } }
     Connections { target: Settings; function onJavaPathChanged() { page.facts() } }
     readonly property int modsOn: { try { return JSON.parse(ModsModel.items).filter(m => m.enabled).length } catch (e) { return 0 } }
+    readonly property string serverName: ServerBook.selectedName !== "" ? ServerBook.selectedName : qsTr("Official server")
     readonly property string readyLine: {
-        const parts = [ServerBook.selectedName !== "" ? ServerBook.selectedName : qsTr("Official server")]
+        const parts = [page.serverName]
         if (ModsModel.loaded) parts.push(qsTr("%n mod(s) on", "", page.modsOn))
         if (GameTools.javaVersion !== "") parts.push(qsTr("Java %1").arg(GameTools.javaVersion.split(".")[0]))
         return parts.join("  \u00b7  ")
@@ -146,7 +147,10 @@ PageScaffold {
                             : page.st === "error" ? qsTr("Could not start the game")
                             : page.st === "updating" && LaunchModel.step === "downloading" ? qsTr("Updating game files")
                             : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "steam" ? qsTr("Starting Steam")
-                            : page.st === "updating" || page.st === "launching" ? qsTr("Starting the game")
+                            : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "mods" ? qsTr("Applying your mods")
+                            : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "server" ? qsTr("Choosing the server")
+                            : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "starting" ? qsTr("Starting the game")
+                            : page.st === "updating" || page.st === "launching" ? qsTr("Getting ready")
                             : qsTr("Game is running")
                     }
                     Txt {
@@ -158,8 +162,11 @@ PageScaffold {
                         text: page.st === "ready" ? page.readyLine
                             : page.st === "error" ? LaunchModel.message
                             : page.st === "updating" && LaunchModel.step === "downloading" ? qsTr("Downloading and verifying game files\u2026")
-                            : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "steam" ? qsTr("Starting Steam\u2026")
-                            : page.st === "updating" || page.st === "launching" ? qsTr("Starting the game\u2026")
+                            : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "steam" ? qsTr("Starting Steam and waiting for it to sign in\u2026")
+                            : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "mods" ? qsTr("Putting your %n enabled mod(s) into the game. This is skipped when nothing changed.", "", page.modsOn)
+                            : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "server" ? qsTr("Pointing the game at %1\u2026").arg(page.serverName)
+                            : (page.st === "updating" || page.st === "launching") && LaunchModel.step === "starting" ? qsTr("Starting Spiral Knights on %1 with Java %2. The window opens in a moment.").arg(page.serverName).arg(GameTools.javaVersion !== "" ? GameTools.javaVersion.split(".")[0] : "")
+                            : page.st === "updating" || page.st === "launching" ? qsTr("Checking Java and the game's files\u2026")
                             : qsTr("The launcher stays open in the background.")
                         color: Theme.textSecondary
                         Accessible.role: page.st === "error" ? Accessible.AlertMessage : Accessible.StaticText
@@ -170,7 +177,7 @@ PageScaffold {
                         size: "sm"
                         glyph: "graphics"
                         text: qsTr("Open Java settings")
-                        onClicked: Data.navigateSection(3, 1)
+                        onClicked: Data.navigateSection(4, 1)
                     }
                 }
 
@@ -303,6 +310,7 @@ PageScaffold {
                         Layout.fillWidth: true
                         spacing: Theme.s2
                         readonly property string when: page.countdownText(modelData)
+                        readonly property bool linked: modelData.link !== ""
                         readonly property bool upcoming: { page.tick; return modelData.startsAt * 1000 > Date.now() }
                         Accessible.role: Accessible.Grouping
                         Accessible.name: when !== "" ? modelData.title + ", " + when : modelData.title
@@ -312,11 +320,18 @@ PageScaffold {
                             spacing: Theme.s3
                             // The banner keeps its own proportions (800 x 550 in the feed): a thumbnail at the left,
                             // nothing cropped. No picture, no space.
+                            // Up to 240 px, and never more than half the card.
                             EventBanner {
-                                Layout.preferredWidth: shown ? 144 : 0
+                                Layout.preferredWidth: shown ? Math.min(240, Math.round(ev.width * 0.46)) : 0
                                 Layout.alignment: Qt.AlignTop
                                 source: ev.modelData.image
                                 Accessible.ignored: true
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: ev.linked
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: page.openArticle(ev.modelData.link)
+                                }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
@@ -325,7 +340,44 @@ PageScaffold {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     spacing: Theme.s2
-                                    Txt { Layout.fillWidth: true; text: ev.modelData.title; font.weight: Font.DemiBold; maximumLineCount: 2; elide: Text.ElideRight }
+                                    // The title opens the article: it looks like a link (brand colour, underline on hover, a small
+                                    // globe after it) and is one for the keyboard and screen readers.
+                                    Item {
+                                        id: titleLink
+                                        Layout.fillWidth: true
+                                        implicitHeight: titleRow.implicitHeight
+                                        activeFocusOnTab: ev.linked
+                                        Accessible.role: ev.linked ? Accessible.Link : Accessible.StaticText
+                                        Accessible.name: ev.linked ? qsTr("%1, opens the article").arg(ev.modelData.title) : ev.modelData.title
+                                        Accessible.onPressAction: if (ev.linked) page.openArticle(ev.modelData.link)
+                                        Keys.onReturnPressed: if (ev.linked) page.openArticle(ev.modelData.link)
+                                        Keys.onSpacePressed: if (ev.linked) page.openArticle(ev.modelData.link)
+                                        RowLayout {
+                                            id: titleRow
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            spacing: Theme.s1
+                                            Txt {
+                                                Layout.fillWidth: true
+                                                text: ev.modelData.title
+                                                font.weight: Font.DemiBold
+                                                font.underline: ev.linked && (titleArea.containsMouse || titleLink.activeFocus)
+                                                color: ev.linked ? Theme.accentFg : Theme.text
+                                                maximumLineCount: 2
+                                                elide: Text.ElideRight
+                                            }
+                                            Icon { visible: ev.linked; name: "globe"; size: 14; color: Theme.accentFg; Layout.alignment: Qt.AlignTop; Layout.topMargin: 3 }
+                                        }
+                                        MouseArea {
+                                            id: titleArea
+                                            anchors.fill: parent
+                                            enabled: ev.linked
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: page.openArticle(ev.modelData.link)
+                                        }
+                                        FocusRing { visible: titleLink.activeFocus }
+                                    }
                                     Tag {
                                         visible: ev.when !== ""
                                         Layout.alignment: Qt.AlignTop
@@ -334,16 +386,6 @@ PageScaffold {
                                     }
                                 }
                                 Txt { Layout.fillWidth: true; visible: text !== ""; text: ev.modelData.description; kind: "caption"; paragraph: true; maximumLineCount: 3; elide: Text.ElideRight }
-                                SButton {
-                                    visible: ev.modelData.link !== ""
-                                    size: "sm"
-                                    variant: "ghost"
-                                    Layout.leftMargin: -Theme.s3
-                                    text: qsTr("Learn more")
-                                    glyph: "globe"
-                                    Accessible.name: qsTr("Learn more about %1").arg(ev.modelData.title)
-                                    onClicked: page.openArticle(ev.modelData.link)
-                                }
                             }
                         }
                     }
@@ -365,10 +407,10 @@ PageScaffold {
                 RowLayout {
                     Layout.fillWidth: true
                     Txt { Layout.fillWidth: true; text: qsTr("Spiral Knights news"); kind: "heading"; Accessible.role: Accessible.Heading }
-                    SButton {
-                        variant: "ghost"
+                    IconButton {
+                        glyph: "globe"
                         size: "sm"
-                        text: qsTr("All news on Steam")
+                        tip: qsTr("All news on Steam")
                         onClicked: Qt.openUrlExternally("https://store.steampowered.com/news/app/99900")
                     }
                 }

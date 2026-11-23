@@ -60,6 +60,7 @@ use super::list;
 use super::metadata::{locale_jar_path, set_properties, ModInfo};
 use super::model::{Kind, Mod, ModError};
 use super::source::{HttpSource, NoSource, PristineSource};
+use super::stamp;
 use super::txn::{self, Txn, STATE_DIR};
 
 /// Largest code jar read or kept.
@@ -125,6 +126,9 @@ pub struct ApplyReport {
     pub class_files_merged: usize,
     pub locale_changes_applied: usize,
     pub code_jars: Vec<(String, JarOutcome)>,
+    /// Nothing the last apply was based on has changed, so this one did nothing (the lists above are then empty
+    /// except for the earlier run's warnings and skipped mods).
+    pub unchanged: bool,
 }
 
 #[derive(Debug)]
@@ -245,18 +249,42 @@ pub fn apply(game_root: &Path, mods_dir: &Path) -> Result<ApplyReport, ApplyErro
     )
 }
 
-/// [`apply`] with the file cleaning and purging choices.
+/// [`apply`] with the file cleaning and purging choices. It does nothing when the previous apply is still in force: no
+/// mod was added, removed, edited, enabled or disabled, no switch changed, the game was not updated and both code
+/// jars are as that apply left them (see [`super::stamp`]).
 pub fn apply_with_options(
     game_root: &Path,
     mods_dir: &Path,
     options: ApplyOptions,
 ) -> Result<ApplyReport, ApplyError> {
-    apply_with(
+    apply_if_changed(
         game_root,
-        Some(mods_dir),
+        mods_dir,
         options,
         default_source(game_root).as_ref(),
     )
+}
+
+/// [`apply_with_options`] with the source of original jars supplied.
+pub(crate) fn apply_if_changed(
+    game_root: &Path,
+    mods_dir: &Path,
+    options: ApplyOptions,
+    source: &dyn PristineSource,
+) -> Result<ApplyReport, ApplyError> {
+    if let Some(report) = stamp::unchanged(game_root, mods_dir, options) {
+        return Ok(report);
+    }
+    match apply_with(game_root, Some(mods_dir), options, source) {
+        Ok(report) => {
+            stamp::record(game_root, mods_dir, options, &report);
+            Ok(report)
+        }
+        Err(e) => {
+            stamp::forget(game_root);
+            Err(e)
+        }
+    }
 }
 
 /// Removes every mod: both code jars go back to the game's original and every loose file a previous apply wrote is
@@ -1194,6 +1222,58 @@ mod tests {
         let source = FakeSource::default();
         apply_with(&fx.root, Some(&fx.mods), options, &source).unwrap();
         fx
+    }
+
+    #[test]
+    fn a_second_apply_with_nothing_changed_does_nothing_and_a_change_applies_again() {
+        let fx = fixture();
+        fx.add_mod("1_res.zip", &resource_mod(&[("texture/a.png", b"MOD-A")]));
+        let options = ApplyOptions::default();
+        let source = fx.source();
+        let first = apply_if_changed(&fx.root, &fx.mods, options, &source).unwrap();
+        assert!(!first.unchanged);
+        assert_eq!(fx.read("rsrc/texture/a.png"), b"MOD-A");
+        assert!(fx.root.join(".skradle/apply-stamp.json").is_file());
+
+        // Someone tampers with a written file: a skipped apply leaves it alone, so it proves nothing ran.
+        fs::write(fx.root.join("rsrc/texture/a.png"), b"TAMPERED").unwrap();
+        let second = apply_if_changed(&fx.root, &fx.mods, options, &source).unwrap();
+        assert!(second.unchanged);
+        assert_eq!(fx.read("rsrc/texture/a.png"), b"TAMPERED");
+
+        // A mod edited (a different size) applies again and puts the file right.
+        fx.add_mod(
+            "1_res.zip",
+            &resource_mod(&[("texture/a.png", b"MOD-A"), ("texture/c.png", b"c")]),
+        );
+        let third = apply_if_changed(&fx.root, &fx.mods, options, &source).unwrap();
+        assert!(!third.unchanged);
+        assert_eq!(fx.read("rsrc/texture/a.png"), b"MOD-A");
+
+        // A switch changed, a mod disabled and a replaced jar each apply again.
+        let cleaning_off = ApplyOptions {
+            keep_modified_originals: true,
+            ..options
+        };
+        assert!(
+            !apply_if_changed(&fx.root, &fx.mods, cleaning_off, &source)
+                .unwrap()
+                .unchanged
+        );
+        assert!(
+            apply_if_changed(&fx.root, &fx.mods, cleaning_off, &source)
+                .unwrap()
+                .unchanged
+        );
+        let jar = fx.root.join("code/config.jar");
+        let bytes = fs::read(&jar).unwrap();
+        fs::write(&jar, [bytes.as_slice(), b" "].concat()).unwrap();
+        assert!(
+            !apply_if_changed(&fx.root, &fx.mods, cleaning_off, &source)
+                .unwrap()
+                .unchanged,
+            "the updater replaced a jar"
+        );
     }
 
     #[test]

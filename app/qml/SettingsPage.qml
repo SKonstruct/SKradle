@@ -11,8 +11,8 @@ Item {
 
     property alias scroller: sv
     property int currentSection: 0
-    readonly property var sections: [secGeneral, secGame, secFiles, secGraphics, secIntegrations, secTools, secAbout]
-    readonly property var sectionNames: [qsTr("General"), qsTr("Game"), qsTr("Files"), qsTr("Graphics"), qsTr("Integrations"), qsTr("Tools"), qsTr("About")]
+    readonly property var sections: [secGeneral, secGame, secFiles, secGraphics, secIntegrations, secAbout]
+    readonly property var sectionNames: [qsTr("General"), qsTr("Game"), qsTr("Files"), qsTr("Graphics"), qsTr("Integrations"), qsTr("About")]
     // A game that is launching or running locks the options that only apply at start-up and the file operations.
     readonly property bool gameBusy: LaunchModel.state !== "ready" && LaunchModel.state !== "error"
     readonly property bool hasGame: GameModel.selectedPath !== ""
@@ -44,12 +44,10 @@ Item {
         currentSection = cur
     }
 
-    Component.onCompleted: { refreshTools(); EditorPack.check() }
+    Component.onCompleted: refreshTools()
     onVisibleChanged: if (visible) refreshTools()
     Connections { target: GameModel; function onSelectedPathChanged() { page.refreshTools() } }
     Connections { target: Settings; function onJavaPathChanged() { page.refreshTools() } }
-    // A finished download (or an update of the editors) changes which of them can start.
-    Connections { target: EditorPack; function onStateChanged() { if (EditorPack.state === "ready" || EditorPack.state === "none") page.refreshTools() } }
     Connections {
         target: GameTools
         function onNoticeSerialChanged() {
@@ -58,7 +56,6 @@ Item {
             switch (GameTools.notice) {
             case "reset-done": Data.toast(qsTr("Game files removed (%1). Launch the game to download them again.").arg(d), "success"); break
             case "reset-error": console.warn("reset game files:", d); Data.toast(qsTr("Could not reset the game files. Close the game and anything using its folder, then try again."), "error"); break
-            case "editor-error": console.warn("start editor:", d); Data.toast(qsTr("Could not start the editor. Check the Java setting in Settings > Game."), "error"); break
             case "folder-error": console.warn("open folder:", d); Data.toast(qsTr("Could not open the folder. Check that it still exists."), "error"); break
             }
         }
@@ -513,70 +510,6 @@ Item {
                     }
                 }
 
-                // ---- Tools ------------------------------------------------------------------------------------
-                SettingsSection {
-                    id: secTools
-                    title: qsTr("Tools")
-                    SettingRow {
-                        label: qsTr("Silverweave, Model Viewer, Particle Editor and Interface Tester")
-                        hint: EditorPack.state === "downloading" ? qsTr("Downloading\u2026 %1%").arg(Math.round(EditorPack.progress * 100))
-                            : EditorPack.state === "checking" ? qsTr("Looking for the editors\u2026")
-                            : EditorPack.state === "ready" ? qsTr("Downloaded (build %1). SKradle keeps them up to date by itself.").arg(EditorPack.build)
-                            : EditorPack.state === "error" ? (EditorPack.reason === "unpublished" ? qsTr("The editors have not been published yet. Try again later.")
-                                : EditorPack.reason === "ratelimit" ? qsTr("GitHub is limiting requests from this connection. Try again in about an hour.")
-                                : EditorPack.reason === "offline" ? qsTr("Could not reach GitHub. Check the connection and try again.")
-                                : EditorPack.reason === "server" ? qsTr("GitHub had a problem. Try again later.")
-                                : EditorPack.reason === "checksum" ? qsTr("The download was damaged, so it was discarded. Try again.")
-                                : qsTr("Could not download the editors."))
-                            : qsTr("Open-source tools by Three Rings (Clyde) and spiralview, downloaded once (about 25 MB) and kept up to date.")
-                        Item { Layout.fillWidth: true }
-                        SButton {
-                            visible: EditorPack.state === "none" || EditorPack.state === "error"
-                            text: EditorPack.state === "error" ? qsTr("Try again") : qsTr("Download")
-                            glyph: "download"
-                            Accessible.name: qsTr("Download the editors")
-                            onClicked: EditorPack.install()
-                        }
-                    }
-                    Sep {}
-                    Repeater {
-                        model: [
-                            { label: qsTr("Crucible scene editor"), hint: qsTr("The game's scene and template editor.") },
-                            { label: qsTr("Scene editor"), hint: qsTr("The game's own map and prefab editor. Its name inside the game may change with an update.") },
-                            { label: qsTr("Silverweave"), hint: qsTr("Try knight loadouts and items.") },
-                            { label: qsTr("Model Viewer"), hint: qsTr("Look at the game's models and animations.") },
-                            { label: qsTr("Particle Editor"), hint: qsTr("Edit the game's particle effects.") },
-                            { label: qsTr("Interface Tester"), hint: qsTr("Try the game's interface layouts.") }
-                        ]
-                        ColumnLayout {
-                            id: tool
-                            required property int index
-                            required property var modelData
-                            readonly property string blocker: index < GameTools.editorBlockers.length ? GameTools.editorBlockers[index] : "game"
-                            Layout.fillWidth: true
-                            spacing: 0
-                            Sep { visible: tool.index > 0 }
-                            SettingRow {
-                                label: tool.modelData.label
-                                hint: tool.blocker === "game" ? qsTr("Needs a game install.")
-                                    : tool.blocker === "java" ? (GameTools.javaNeeded > 0 ? qsTr("Needs Java %1 or newer, which was not found.").arg(GameTools.javaNeeded) : qsTr("Needs Java, which was not found."))
-                                    : tool.blocker === "pack" ? qsTr("Download the editors above first.")
-                                    : tool.blocker === "javapack" ? qsTr("Needs Java %1 or newer, which was not found.").arg(EditorPack.javaMin)
-                                    : tool.blocker === "files" ? qsTr("The game folder lacks files this editor needs. Start the game once so it downloads them.")
-                                    : tool.modelData.hint
-                                                                Item { Layout.fillWidth: true }
-                                SButton {
-                                    text: qsTr("Open")
-                                    glyph: "play"
-                                    enabled: tool.blocker === ""
-                                    Accessible.name: qsTr("Open %1").arg(tool.modelData.label)
-                                    onClicked: GameTools.launchEditor(tool.index, GameModel.selectedPath)
-                                }
-                            }
-                        }
-                    }
-                }
-
                 // ---- About ------------------------------------------------------------------------------------
                 SettingsSection {
                     id: secAbout
@@ -600,6 +533,7 @@ Item {
                                 Layout.alignment: Qt.AlignRight
                                 highlighted: UpdateModel.state === "available" || UpdateModel.state === "ready"
                                 enabled: UpdateModel.state !== "checking" && UpdateModel.state !== "downloading"
+                                glyph: UpdateModel.state === "available" || UpdateModel.state === "downloading" ? "download" : "refresh"
                                 text: UpdateModel.state === "checking" ? qsTr("Checking\u2026")
                                     : UpdateModel.state === "available" ? qsTr("Download %1").arg(UpdateModel.version)
                                     : UpdateModel.state === "downloading" ? qsTr("Downloading\u2026 %1%").arg(Math.round(UpdateModel.progress * 100))
@@ -627,8 +561,8 @@ Item {
                         Layout.fillWidth: true
                         Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard
                         spacing: Theme.s2
-                        SButton { text: qsTr("Open log folder"); onClicked: Logs.openFolder() }
-                        SButton { text: qsTr("Copy log path"); onClicked: { Logs.copyPath(); Data.toast(qsTr("Log path copied"), "info") } }
+                        SButton { text: qsTr("Open log folder"); glyph: "folder"; onClicked: Logs.openFolder() }
+                        SButton { text: qsTr("Copy log path"); glyph: "copy"; onClicked: { Logs.copyPath(); Data.toast(qsTr("Log path copied"), "info") } }
                         Item { Layout.fillWidth: true }
                     }
                     Notice { text: qsTr("Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights \u00A9 Grey Havens, LLC.") }
@@ -637,7 +571,7 @@ Item {
                         Layout.leftMargin: Theme.padCard; Layout.rightMargin: Theme.padCard; Layout.bottomMargin: Theme.s3
                         spacing: Theme.s2
                         SButton { text: qsTr("Release notes"); glyph: "info"; onClicked: Data.releaseNotes() }
-                        SButton { text: qsTr("SKradle on GitHub"); glyph: "globe"; onClicked: Qt.openUrlExternally("https://github.com/SKonstruct/SKradle") }
+                        SButton { text: qsTr("SKradle on GitHub"); glyph: "github"; onClicked: Qt.openUrlExternally("https://github.com/SKonstruct/SKradle") }
                         SButton { text: qsTr("Buy me a coffee"); glyph: "coffee"; onClicked: Qt.openUrlExternally("https://buymeacoffee.com/sirdankk") }
                         Item { Layout.fillWidth: true }
                     }

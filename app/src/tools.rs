@@ -393,10 +393,6 @@ mod tests {
             editor_blocker(Some(&w.game), &ok, Editor::Crucible, &missing),
             Some("files")
         );
-        assert_eq!(
-            editor_blocker(Some(&w.game), &ok, Editor::ProjectXSceneEditor, &missing),
-            None
-        );
         fs::write(w.game.join("crucible.jar"), b"jar").unwrap();
         fs::create_dir_all(w.game.join("crucible/rsrc/config")).unwrap();
         assert_eq!(
@@ -417,14 +413,20 @@ mod tests {
             Some("javapack")
         );
         assert_eq!(blocker(&PackAccess::Installed { java_ok: true }), None);
-        // The game's own editors do not care about the pack.
         assert_eq!(
             editor_blocker(
                 Some(&w.game),
                 &ok,
-                Editor::ProjectXSceneEditor,
+                Editor::SceneEditor,
                 &PackAccess::Missing
             ),
+            Some("pack")
+        );
+        // The game's own editor does not care about the pack.
+        fs::write(w.game.join("crucible.jar"), b"jar").unwrap();
+        fs::create_dir_all(w.game.join("crucible/rsrc/config")).unwrap();
+        assert_eq!(
+            editor_blocker(Some(&w.game), &ok, Editor::Crucible, &PackAccess::Missing),
             None
         );
     }

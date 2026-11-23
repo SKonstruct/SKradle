@@ -95,6 +95,15 @@ The game's updater downloads `digest2.txt`, which lists the SHA-256 every file m
 So: run the updater first, apply right before starting the game, and apply again after each update. Never apply while
 the game runs. Whether the updater's `.jarv` marker files let a modified jar pass unchecked was not verified.
 
+**Not on every launch.** An apply rebuilds both code jars and restores loose files, so a launch skips it when nothing it
+depends on has changed. After a successful apply the game folder gets `.skradle/apply-stamp.json`: a hash of the inputs
+(the names, sizes and modification times of everything in the mods folder, including the file that records which mods
+are enabled; the file cleaning, file purging and rebuild choices; the game's `getdown.txt` and `digest2.txt`) and a hash
+of the outputs (the two code jars and `.skradle/applied.json`). The next launch applies again only when either hash
+differs: a mod was added, removed, edited, enabled or disabled, a switch changed, the game was updated, or something
+replaced a jar. Contents are never hashed, only names, sizes and times. The stamp also keeps the last run's warnings so
+the launch can still report them.
+
 **Pristine** means "matches `digest2.txt`". The two code jars are rebuilt from a pristine copy on every apply, never
 from the previous output. The copy is, in order:
 

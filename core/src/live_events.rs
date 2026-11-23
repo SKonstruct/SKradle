@@ -325,7 +325,8 @@ fn write_cache(path: &Path, body: &str, now: i64) {
         fetched_at: now,
         body: body.to_owned(),
     };
-    if let Ok(bytes) = serde_json::to_vec(&file) {
+    if let Ok(mut bytes) = serde_json::to_vec_pretty(&file) {
+        bytes.push(b'\n');
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
@@ -433,9 +434,25 @@ pub fn is_acceptable_image(bytes: &[u8]) -> bool {
     })
 }
 
-/// Where a banner is cached: a name derived from the address, never from the feed's text.
-pub fn image_cache_path(dir: &Path, url: &str) -> PathBuf {
-    dir.join(format!("{}.img", &sha256_hex(url.as_bytes())[..32]))
+/// The extension a cached banner of this kind gets: what the file really is, so the folder is readable by hand.
+fn extension(kind: ImageKind) -> &'static str {
+    match kind {
+        ImageKind::Png => "png",
+        ImageKind::Jpeg => "jpg",
+    }
+}
+
+/// The extensions a cached banner can have: by kind, and `img`, what earlier versions wrote for every banner.
+const CACHE_EXTENSIONS: [&str; 3] = ["png", "jpg", "img"];
+
+/// Where a banner of this kind is cached: a name derived from the address (never from the feed's text or the
+/// address's own extension, which cannot be trusted) plus the extension of what the file really is.
+pub fn image_cache_path(dir: &Path, url: &str, kind: ImageKind) -> PathBuf {
+    dir.join(format!(
+        "{}.{}",
+        &sha256_hex(url.as_bytes())[..32],
+        extension(kind)
+    ))
 }
 
 /// The cached file of a banner, downloading it with `download` when it is not there (or no longer acceptable).
@@ -445,14 +462,19 @@ pub fn cached_image(
     url: &str,
     download: &dyn Fn(&str) -> Option<Vec<u8>>,
 ) -> Option<PathBuf> {
-    let path = image_cache_path(dir, url);
-    if let Ok(bytes) = crate::bounded::read_regular(&path, MAX_IMAGE_BYTES) {
-        if is_acceptable_image(&bytes) {
-            return Some(path);
+    let stem = &sha256_hex(url.as_bytes())[..32];
+    for extension in CACHE_EXTENSIONS {
+        let path = dir.join(format!("{stem}.{extension}"));
+        if let Ok(bytes) = crate::bounded::read_regular(&path, MAX_IMAGE_BYTES) {
+            if is_acceptable_image(&bytes) {
+                return Some(path);
+            }
         }
     }
     let bytes = download(url).filter(|b| is_acceptable_image(b))?;
+    let (kind, _, _) = image_header(&bytes)?;
     std::fs::create_dir_all(dir).ok()?;
+    let path = image_cache_path(dir, url, kind);
     write_atomic(&path, &bytes).ok()?;
     Some(path)
 }
@@ -473,7 +495,10 @@ pub fn prune_images(dir: &Path, keep: &[PathBuf]) {
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().is_some_and(|e| e == "img") && !keep.contains(&path) {
+        let ours = path
+            .extension()
+            .is_some_and(|e| CACHE_EXTENSIONS.iter().any(|x| e == *x));
+        if ours && !keep.contains(&path) {
             let _ = std::fs::remove_file(path);
         }
     }
@@ -769,7 +794,19 @@ mod tests {
             Some(png(10, 10))
         };
         let path = cached_image(dir.path(), url, &fetch).unwrap();
-        assert!(path.starts_with(dir.path()) && path.extension().unwrap() == "img");
+        assert!(path.starts_with(dir.path()) && path.extension().unwrap() == "png");
+        // A file an earlier version wrote (`.img`) is still found, and pruned with the others.
+        let old = dir.path().join(format!(
+            "{}.img",
+            &sha256_hex("https://cdn.example.org/old.png".as_bytes())[..32]
+        ));
+        std::fs::write(&old, png(10, 10)).unwrap();
+        assert_eq!(
+            cached_image(dir.path(), "https://cdn.example.org/old.png", &|_| None).unwrap(),
+            old
+        );
+        prune_images(dir.path(), std::slice::from_ref(&path));
+        assert!(!old.exists() && path.exists());
         assert_eq!(cached_image(dir.path(), url, &fetch).unwrap(), path);
         assert_eq!(calls.get(), 1);
 

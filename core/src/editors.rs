@@ -4,21 +4,18 @@
 //! `getdown.txt`; none was started):
 //!
 //! * **Crucible scene editor**: `getdown.txt` defines the app id `crucible-editor` with
-//!   `crucible-editor.class = com.threerings.projectx.tools.CrucibleSceneEditor` and a `crucible.jar` resource; the class
-//!   has `public static void main` (`new CrucibleSceneEditor(..).startup()`). It reads the system property
-//!   `crucible.dir` (it throws "crucible.dir not defined." without it) and uses `<crucible.dir>/rsrc/config` and the
-//!   `examples`/`templates` inside. `getdown.txt` passes `-Dcrucible.dir=../crucible` to every app, which is relative
-//!   to the folder above the game, while `crucible.jar` unpacks to `crucible/` INSIDE the game folder; the command here
-//!   therefore adds `-Dcrucible.dir=<game folder>/crucible` last, where it wins. The mismatch is read from the files,
-//!   not observed.
-//! * **ProjectX scene editor**: `com.threerings.projectx.tools.h` has a `main` (`new h(..).startup()`, message
-//!   bundle `editor.projectx`, a `Tudey` scene editor subclass with map and prefab actions). It is not a
-//!   `getdown.txt` app id, so the updater has no way to start it and nothing in the files says how the developers did.
-//!   The class name is obfuscated and may change in any game update; the main class is therefore only as stable as
-//!   that name. Which resources it needs beyond the game's `rsrc` is unknown.
+//!   `crucible-editor.class = com.threerings.projectx.tools.CrucibleSceneEditor` and a `crucible.jar` resource, which
+//!   unpacks to `crucible/` inside the game folder. The class has `public static void main` and reads the system
+//!   property `crucible.dir`. `getdown.txt` passes `-Dcrucible.dir=../crucible`, and that RELATIVE value is right: the
+//!   editor resolves it against `-Dresource_dir` (`<game>/rsrc`), so it lands on `<game>/crucible`. An absolute path
+//!   there breaks it (the lookup of `crucible/rsrc/config/manager.properties` then fails and the editor dies with a
+//!   NullPointerException in `ConfigManager`; confirmed by running it), so the game's own value is used.
+//! * **The game's own scene editor** (`com.threerings.projectx.tools.h`, a Tudey scene editor) does NOT start: it builds a
+//!   Guice injector for a tool server and needs `com.threerings.presents.server.*` classes the game does not ship
+//!   (`MissingConstructor` errors; confirmed by running it). It is replaced by spiralview's `SceneEditorHook` from the
+//!   editors pack, which wraps Clyde's Tudey `SceneEditor`.
 //!
-//! Also found but not offered: `com.threerings.tudey.tools.h` (the generic Tudey scene editor the one above extends,
-//! also with a `main`) and `PseudoPlayer` (a server load tester that needs a server password, not an editor).
+//! Also found but not offered: `PseudoPlayer` (a server load tester that needs a server password, not an editor).
 //!
 //! **Silverweave, Model Viewer, Particle Editor and Interface Tester** are not in the game's jars (only their message
 //! bundles are; `ModelTool` is abstract with no concrete subclass). They come from two open-source projects: Clyde
@@ -43,8 +40,8 @@ use crate::launch::direct::{self, DirectOptions, Inputs};
 pub enum Editor {
     /// The Crucible scene editor, the one the game's `getdown.txt` names.
     Crucible,
-    /// The ProjectX scene editor (`com.threerings.projectx.tools.h`); obfuscated class name, see the module docs.
-    ProjectXSceneEditor,
+    /// The scene editor (spiralview's `SceneEditorHook`); from the editors pack.
+    SceneEditor,
     /// Knight loadouts and items (spiralview's Silverweave); from the editors pack.
     Silverweave,
     /// Three Rings' model viewer; from the editors pack.
@@ -58,7 +55,7 @@ pub enum Editor {
 impl Editor {
     pub const ALL: [Editor; 6] = [
         Editor::Crucible,
-        Editor::ProjectXSceneEditor,
+        Editor::SceneEditor,
         Editor::Silverweave,
         Editor::ModelViewer,
         Editor::ParticleEditor,
@@ -69,7 +66,8 @@ impl Editor {
     pub fn needs_pack(self) -> bool {
         matches!(
             self,
-            Editor::Silverweave
+            Editor::SceneEditor
+                | Editor::Silverweave
                 | Editor::ModelViewer
                 | Editor::ParticleEditor
                 | Editor::InterfaceTester
@@ -79,7 +77,7 @@ impl Editor {
     pub fn label(self) -> &'static str {
         match self {
             Editor::Crucible => "Crucible scene editor",
-            Editor::ProjectXSceneEditor => "Scene editor",
+            Editor::SceneEditor => "Scene editor",
             Editor::Silverweave => "Silverweave",
             Editor::ModelViewer => "Model Viewer",
             Editor::ParticleEditor => "Particle Editor",
@@ -98,7 +96,7 @@ impl Editor {
     pub fn main_class(self) -> &'static str {
         match self {
             Editor::Crucible => "com.threerings.projectx.tools.CrucibleSceneEditor",
-            Editor::ProjectXSceneEditor => "com.threerings.projectx.tools.h",
+            Editor::SceneEditor => "com.lucasluqui.spiralview.SceneEditorHook",
             Editor::Silverweave => "com.lucasluqui.silverweave.SilverweaveTool",
             Editor::ModelViewer => "com.lucasluqui.spiralview.ModelViewerHook",
             Editor::ParticleEditor => "com.lucasluqui.spiralview.ParticleEditorHook",
@@ -186,10 +184,11 @@ pub fn editor_command_for(
         }
     }
     if editor == Editor::Crucible {
-        options.jvm_args.push(format!(
-            "-Dcrucible.dir={}",
-            install.root.join("crucible").display()
-        ));
+        // The game's own (relative) value, repeated in case an older `getdown.txt` lacks it: the editor resolves it
+        // against `resource_dir`, and an absolute path breaks it (see the module docs).
+        options
+            .jvm_args
+            .push("-Dcrucible.dir=../crucible".to_owned());
     }
     direct::command_with_env(install, java, inputs, &options, os, arch, &|n| {
         std::env::var(n).ok()
@@ -238,31 +237,36 @@ mod tests {
     }
 
     #[test]
-    fn crucible_uses_its_app_id_class_and_the_unpacked_resource_folder() {
+    fn crucible_uses_its_app_id_class_and_the_games_relative_resource_folder() {
         let args = args(Editor::Crucible);
         assert_eq!(
             args.last().unwrap(),
             "com.threerings.projectx.tools.CrucibleSceneEditor"
         );
-        // The corrected property comes after the game's relative one, so it wins.
-        let wrong = args
+        // Never an absolute path: the editor resolves the value against resource_dir and an absolute one breaks it.
+        let dirs: Vec<_> = args
             .iter()
-            .position(|a| a == "-Dcrucible.dir=../crucible")
-            .unwrap();
-        let right = args
-            .iter()
-            .position(|a| a == "-Dcrucible.dir=/games/sk/crucible")
-            .unwrap();
-        assert!(wrong < right);
-        assert!(right < args.len() - 1, "JVM flags come before the class");
+            .filter(|a| a.starts_with("-Dcrucible.dir="))
+            .collect();
+        assert!(!dirs.is_empty());
+        assert!(dirs.iter().all(|a| **a == "-Dcrucible.dir=../crucible"));
+        assert!(
+            args.iter()
+                .position(|a| a == "-Dcrucible.dir=../crucible")
+                .unwrap()
+                < args.len() - 1,
+            "JVM flags come before the class"
+        );
     }
 
     #[test]
-    fn scene_editor_uses_the_default_classpath_and_its_own_class() {
-        let args = args(Editor::ProjectXSceneEditor);
-        assert_eq!(args.last().unwrap(), "com.threerings.projectx.tools.h");
-        assert!(args[1].contains("code/projectx-pcode.jar"));
-        assert!(!args.iter().any(|a| a.starts_with("-Dcrucible.dir=/games")));
+    fn the_scene_editor_comes_from_the_pack_not_from_the_games_server_dependent_class() {
+        let args = args(Editor::SceneEditor);
+        assert_eq!(
+            args.last().unwrap(),
+            "com.lucasluqui.spiralview.SceneEditorHook"
+        );
+        assert!(args[1].starts_with(&format!("{PACK}:")));
     }
 
     #[test]
@@ -280,6 +284,10 @@ mod tests {
             (
                 Editor::Silverweave,
                 "com.lucasluqui.silverweave.SilverweaveTool",
+            ),
+            (
+                Editor::SceneEditor,
+                "com.lucasluqui.spiralview.SceneEditorHook",
             ),
             (
                 Editor::ModelViewer,
@@ -307,7 +315,7 @@ mod tests {
             assert!(args.contains(&"-Dorg.lwjgl.opengl.contextAPI=native".to_owned()));
             assert!(editor.needs_pack());
         }
-        assert!(!Editor::Crucible.needs_pack() && !Editor::ProjectXSceneEditor.needs_pack());
+        assert!(!Editor::Crucible.needs_pack());
         assert!(!args(Editor::Crucible)
             .iter()
             .any(|a| a.contains("skradle-editors")));
@@ -331,11 +339,8 @@ mod tests {
     #[test]
     fn labels_and_ids() {
         assert_eq!(Editor::Crucible.app_id(), Some("crucible-editor"));
-        assert_eq!(Editor::ProjectXSceneEditor.app_id(), None);
-        assert_ne!(
-            Editor::Crucible.label(),
-            Editor::ProjectXSceneEditor.label()
-        );
+        assert_eq!(Editor::SceneEditor.app_id(), None);
+        assert_ne!(Editor::Crucible.label(), Editor::SceneEditor.label());
     }
 
     #[test]
@@ -346,7 +351,7 @@ mod tests {
             missing_resources(&install, Editor::Crucible),
             ["crucible.jar", "crucible/rsrc/config"]
         );
-        assert!(missing_resources(&install, Editor::ProjectXSceneEditor).is_empty());
+        assert!(missing_resources(&install, Editor::SceneEditor).is_empty());
         std::fs::write(dir.path().join("crucible.jar"), b"").unwrap();
         std::fs::create_dir_all(dir.path().join("crucible/rsrc/config")).unwrap();
         assert!(missing_resources(&install, Editor::Crucible).is_empty());

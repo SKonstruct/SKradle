@@ -72,14 +72,18 @@ impl Surroundings {
 }
 
 /// The planner's effects, except that "start the game" only hands the command back: the supervisor starts it in
-/// its own way (output captured, its own process group).
-struct Deferred(RealEffects);
+/// its own way (output captured, its own process group). Each effect first says which step it is, so the window can
+/// show what is going on instead of one generic line.
+struct Deferred<'a> {
+    inner: RealEffects,
+    report: &'a dyn Fn(Step),
+}
 
-impl Effects for Deferred {
+impl Effects for Deferred<'_> {
     type Handle = CommandSpec;
 
     fn clean_extra_txt(&mut self, game_root: &Path) -> Result<(), String> {
-        self.0.clean_extra_txt(game_root)
+        self.inner.clean_extra_txt(game_root)
     }
 
     fn apply_mods(
@@ -88,7 +92,8 @@ impl Effects for Deferred {
         mods_dir: &Path,
         options: ApplyOptions,
     ) -> Result<Vec<String>, String> {
-        self.0.apply_mods(game_root, mods_dir, options)
+        (self.report)(Step::Mods);
+        self.inner.apply_mods(game_root, mods_dir, options)
     }
 
     fn apply_connection(
@@ -96,10 +101,12 @@ impl Effects for Deferred {
         game_root: &Path,
         server: Option<&Server>,
     ) -> Result<(), String> {
-        self.0.apply_connection(game_root, server)
+        (self.report)(Step::Server);
+        self.inner.apply_connection(game_root, server)
     }
 
     fn spawn(&mut self, command: &CommandSpec) -> Result<CommandSpec, String> {
+        (self.report)(Step::Starting);
         Ok(command.clone())
     }
 }
@@ -327,7 +334,12 @@ impl Launcher for PlannedLauncher {
             }
             let local_getdown = std::fs::read_to_string(request.install.path.join("getdown.txt"))
                 .unwrap_or_default();
-            let (spec, kind) = prepare(&request, &machine, &around, &mut Deferred(RealEffects))?;
+            let report = |step: Step| (ctx.sink)(Event::Phase(Phase::Launching, step));
+            let mut effects = Deferred {
+                inner: RealEffects,
+                report: &report,
+            };
+            let (spec, kind) = prepare(&request, &machine, &around, &mut effects)?;
             // Standalone installs check for a newer game in the background, after the launch is already going.
             if kind == LaunchKind::Direct && request.install.kind != Kind::Steam {
                 if let Some(dir) = around.data_dir.clone() {

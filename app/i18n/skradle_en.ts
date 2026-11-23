@@ -342,15 +342,23 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Applying your mods</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choosing the server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Starting the game</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Game is running</source>
+        <source>Getting ready</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Starting Steam…</source>
+        <source>Game is running</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -377,6 +385,29 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Starting Steam and waiting for it to sign in…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Putting your %n enabled mod(s) into the game. This is skipped when nothing changed.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Pointing the game at %1…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starting Spiral Knights on %1 with Java %2. The window opens in a moment.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking Java and the game&apos;s files…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>The launcher stays open in the background.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -398,14 +429,6 @@
     </message>
     <message>
         <source>Offline. Showing saved events.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Learn more</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Learn more about %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -437,15 +460,15 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Starting the game…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Players online: not available</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>About %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1, opens the article</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -567,6 +590,10 @@
     </message>
     <message>
         <source>Mods</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tools</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -773,6 +800,46 @@
     </message>
     <message>
         <source>Installed mods</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SirDank’s Modpack</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n downloaded</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n already current</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n removed</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n failed</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Stopped. </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removed %1 (dropped from SirDank’s Modpack)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1026,43 +1093,7 @@
     </message>
 </context>
 <context>
-    <name>PackPanel</name>
-    <message numerus="yes">
-        <source>%n downloaded</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%n already current</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%n removed</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%n failed</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Stopped. </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Up to date</source>
-        <translation type="unfinished"></translation>
-    </message>
+    <name>PackButton</name>
     <message>
         <source>Checking for changes…</source>
         <translation type="unfinished"></translation>
@@ -1082,6 +1113,10 @@
         </translation>
     </message>
     <message>
+        <source>Up to date. Click to check again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Downloading %1 of %2: %3</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1090,67 +1125,35 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>SirDank’s Modpack</source>
+        <source>Update modpack</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Hide details</source>
+        <source>Modpack up to date</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Details</source>
+        <source>Checking modpack…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Hide what the last sync did</source>
+        <source>Downloading %1 of %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Show what the last sync did</source>
+        <source>Try modpack again</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Cancel</source>
+        <source>Install modpack</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SirDank’s Modpack: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cancel the download of SirDank’s Modpack</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Update SirDank’s Modpack</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Install SirDank’s Modpack</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Try again</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Check again</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>SirDank’s Modpack download progress</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Nothing needed attention.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dismiss</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dismiss the report on SirDank’s Modpack</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Removed %1 (dropped from SirDank’s Modpack)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1522,6 +1525,14 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Open folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the server&apos;s folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Copy address</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1824,10 +1835,6 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Tools</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>About</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2092,10 +2099,6 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Could not start the editor. Check the Java setting in Settings &gt; Game.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Could not open the folder. Check that it still exists.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2284,46 +2287,6 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Crucible scene editor</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The game&apos;s scene and template editor.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Scene editor</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The game&apos;s own map and prefab editor. Its name inside the game may change with an update.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Needs a game install.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Needs Java %1 or newer, which was not found.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Needs Java, which was not found.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The game folder lacks files this editor needs. Start the game once so it downloads them.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Version %1  ·  Qt %2</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2365,90 +2328,6 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Adds SKradle&apos;s graphics agent to the game. Off by default.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Silverweave, Model Viewer, Particle Editor and Interface Tester</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Looking for the editors…</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Downloaded (build %1). SKradle keeps them up to date by itself.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The editors have not been published yet. Try again later.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not reach GitHub. Check the connection and try again.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>GitHub had a problem. Try again later.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The download was damaged, so it was discarded. Try again.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not download the editors.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Open-source tools by Three Rings (Clyde) and spiralview, downloaded once (about 25 MB) and kept up to date.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Try again</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Download</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Download the editors</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Silverweave</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Try knight loadouts and items.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Model Viewer</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Look at the game&apos;s models and animations.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Particle Editor</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Edit the game&apos;s particle effects.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Interface Tester</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Try the game&apos;s interface layouts.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Download the editors above first.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2503,6 +2382,221 @@ Content URL: %4</source>
     <name>Toast</name>
     <message>
         <source>Dismiss</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ToolsPage</name>
+    <message>
+        <source>Auction House</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Live Spiral Knights Auction House prices: search by item, UVs and price, and set alerts.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Kozmas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find items, discover merchants with stock, and build your next costume.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not start the editor. Check the Java setting in Settings &gt; Game.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open the folder. Check that it still exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game&apos;s editors, and websites for Spiral Knights that open here.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Game editors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scene editor, Silverweave, Model Viewer, Particle Editor and Interface Tester</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading… %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Looking for the editors…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloaded (build %1). SKradle keeps them up to date by itself.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The editors have not been published yet. Try again later.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GitHub is limiting requests from this connection. Try again in about an hour.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not reach GitHub. Check the connection and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GitHub had a problem. Try again later.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The download was damaged, so it was discarded. Try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not download the editors.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open-source tools by Three Rings (Clyde) and spiralview, downloaded once (about 25 MB) and kept up to date.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download the editors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crucible scene editor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game&apos;s scene and template editor.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scene editor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit scenes, maps and prefabs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Silverweave</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try knight loadouts and items.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Model Viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Look at the game&apos;s models and animations.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Particle Editor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit the game&apos;s particle effects.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Interface Tester</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try the game&apos;s interface layouts.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Needs a game install.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Needs Java %1 or newer, which was not found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Needs Java, which was not found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Download the editors above first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game folder lacks files this editor needs. Start the game once so it downloads them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Websites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open %1 in your browser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open %1 here</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These open inside SKradle and remember your sign-in, like a browser would. The sites are not part of SKradle or the game.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This computer has no built-in web view, so the sites open in your browser, which keeps your sign-in as usual.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reload the page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open in your browser</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back to tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The built-in web view could not show this site, so it opens in your browser.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This computer has no built-in web view, so the site opens in your browser.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open in browser</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

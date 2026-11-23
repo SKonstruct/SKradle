@@ -74,7 +74,7 @@ Item {
         dropForced = false; shotEmpty = false; setSearch(""); status = "all"; tag = ""
         sel = ({}); cur = -1; issues = []; confirm.close(); keyboardNav = false
         ModsModel.forcePack("")
-        pack.open = false; help.close()
+        help.close()
     }
     function shotState(name) {
         switch (name) {
@@ -94,7 +94,7 @@ Item {
         case "issues": issues = [{ file: "notes.txt", text: qsTr("not a .zip, .jar or .modpack file"), bad: true }, { file: "Sharp HUD.zip", text: qsTr("added as Sharp HUD (2).zip"), bad: false }]; break
         case "pack-update": ModsModel.forcePack("update"); break
         case "pack-syncing": ModsModel.forcePack("syncing"); break
-        case "pack-report": ModsModel.forcePack("report"); pack.open = true; break
+        case "pack-report": ModsModel.forcePack("report"); break
         case "pack-error": ModsModel.forcePack("error"); break
         case "help": Qt.callLater(() => help.open()); break
         }
@@ -228,6 +228,12 @@ Item {
                   : page.filtering ? qsTr("Showing %1 of %2 mods").arg(page.shown.length).arg(page.all.length)
                   : qsTr("%1 of %2 enabled").arg(page.enabledCount).arg(page.all.length)
         actions: [
+            PackButton {
+                id: packBtn
+                visible: page.gameOk || page.all.length > 0
+                usable: page.gameOk
+                onCheckRequested: ModsModel.checkPack()
+            },
             SButton {
                 visible: page.all.length > 0
                 glyph: "folder"
@@ -258,12 +264,29 @@ Item {
                 onAction: Data.navigate(0)
             }
 
-            PackPanel {
-                id: pack
-                Layout.fillWidth: true
-                visible: page.gameOk || page.all.length > 0
-                usable: page.gameOk
-                onCheckRequested: ModsModel.checkPack()
+            // What the last modpack sync did, or why it failed: only when there is something to say.
+            Banner {
+                id: packNote
+                readonly property var report: { try { return ModsModel.packReport === "" ? null : JSON.parse(ModsModel.packReport) } catch (e) { return null } }
+                readonly property bool failed: ModsModel.packState === "error"
+                readonly property bool bad: failed || (report !== null && report.failed.length > 0)
+                visible: (failed || (report !== null && ModsModel.packState !== "syncing")) && (page.gameOk || page.all.length > 0)
+                kind: bad ? "warn" : "info"
+                title: qsTr("SirDank\u2019s Modpack")
+                text: {
+                    if (failed) return ModsModel.packMessage
+                    if (!report) return ""
+                    const parts = [qsTr("%n downloaded", "", report.downloaded.length)]
+                    if (report.skipped > 0) parts.push(qsTr("%n already current", "", report.skipped))
+                    if (report.deleted.length > 0) parts.push(qsTr("%n removed", "", report.deleted.length))
+                    if (report.failed.length > 0) parts.push(qsTr("%n failed", "", report.failed.length))
+                    const lines = [(report.cancelled ? qsTr("Stopped. ") : "") + parts.join(", ")]
+                    for (const f of report.failed) lines.push(f[0] + ": " + f[1])
+                    for (const d of report.deleted) lines.push(qsTr("Removed %1 (dropped from SirDank\u2019s Modpack)").arg(d))
+                    return lines.join("\n")
+                }
+                dismissible: report !== null && !failed
+                onDismissed: ModsModel.dismissReport()
             }
 
             Banner {   // what the last action did, when it needs a word

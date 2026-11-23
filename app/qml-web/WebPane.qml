@@ -42,6 +42,7 @@ Item {
     Connections { target: view; function onLoadProgressChanged() { root.trySignIn() } }
     readonly property int loadProgress: view.loadProgress
     signal loadFailed(string reason)
+    function reload() { view.reload() }
 
     WebView {
         id: view

@@ -239,8 +239,13 @@ Card {
                 SButton { visible: root.st === "running"; text: qsTr("Restart"); glyph: "refresh"; onClicked: ServerHost.restart() }
                 SButton {
                     id: backupBtn
-                    text: qsTr("Back up and restore"); glyph: "folder"
+                    text: qsTr("Back up and restore"); glyph: "download"
                     onClicked: backupDlg.openFrom(backupBtn)
+                }
+                SButton {
+                    text: qsTr("Open folder"); glyph: "folder"
+                    Accessible.name: qsTr("Open the server's folder")
+                    onClicked: ServerHost.openFolder()
                 }
                 SButton {
                     id: updateBtn

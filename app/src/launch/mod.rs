@@ -59,6 +59,12 @@ pub enum Step {
     Steam,
     /// The game's updater is running (files missing or an update known locally).
     Downloading,
+    /// Putting the enabled mods into the game's files.
+    Mods,
+    /// Pointing the game at the chosen server.
+    Server,
+    /// Everything is ready and the game's process is being started.
+    Starting,
 }
 
 impl Step {
@@ -67,6 +73,9 @@ impl Step {
             Step::Preparing => "preparing",
             Step::Steam => "steam",
             Step::Downloading => "downloading",
+            Step::Mods => "mods",
+            Step::Server => "server",
+            Step::Starting => "starting",
         }
     }
 }

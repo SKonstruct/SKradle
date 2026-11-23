@@ -79,6 +79,10 @@ pub mod qobject {
         /// Clears the message shown in the control strip.
         #[qinvokable]
         fn dismiss(self: &ServerHost);
+        /// Opens the server's folder (engine, data, backups, config) in the file manager.
+        #[qinvokable]
+        #[cxx_name = "openFolder"]
+        fn open_folder(self: &ServerHost);
         /// The licence summary the install dialog shows, as JSON.
         #[qinvokable]
         #[cxx_name = "termsJson"]
@@ -230,6 +234,18 @@ impl qobject::ServerHost {
     }
     pub fn dismiss(&self) {
         server_host::global().dismiss();
+    }
+    pub fn open_folder(&self) {
+        // Screenshot and self-test runs never open windows of the system.
+        if crate::options::get().is_test_run() {
+            return;
+        }
+        let dir = server_host::server_dir(false);
+        // A server that was never installed has no folder yet; make it so the button always does something.
+        let _ = std::fs::create_dir_all(&dir);
+        if let Err(why) = crate::tools::open_folder(&dir) {
+            eprintln!("skradle: could not open the server folder: {why}");
+        }
     }
     pub fn terms_json(&self) -> QString {
         let json = serde_json::json!({

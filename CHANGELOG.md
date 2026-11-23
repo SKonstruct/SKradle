@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to SKradle. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
-follow [Semantic Versioning](https://semver.org/). Nothing is released yet, so everything is under Unreleased and the
+follow [Semantic Versioning](https://semver.org/). Nothing is released yet, so everything is under Unreleased (the first release is described by Added alone) and the
 number in `Cargo.toml` (`0.1.0`) is a placeholder. Entries say what a player or a tester would notice; the commit
 history has the rest.
 
@@ -9,78 +9,50 @@ history has the rest.
 
 ### Added
 
-- **Launcher app** (Qt Quick, one look on every OS) with four pages: **Home**, **Servers**, **Mods** and **Settings**;
+- **Launcher app** (Qt Quick, one look on every OS) with five pages: **Home**, **Servers**, **Mods**, **Tools** and **Settings**;
   light and dark theme; reduced-motion setting; English with a translation catalogue and a pseudo-language for layout
   testing.
 - **Home**: the launch card (update, launching and running states); the three latest Spiral Knights news items; an
   estimate of the players online (the Steam counts of the Live and Preview servers, each multiplied by 1.4 for
-  standalone players, with the breakdown shown); the game's live events (the same event feed the mobile apps use) with a countdown, a banner and a Learn more
-  button, hidden when there are none or the feed is unreachable; a donation button; and **Release notes**,
+  standalone players, with the breakdown shown); the game's live events (the same event feed the mobile apps use) with a countdown and a large banner, the title
+  opens the article; hidden when there are none or the feed is unreachable (banners are kept on disk); a donation button; and **Release notes**,
   this changelog bundled into the app, readable offline with each version collapsible. News and player counts come
   from Steam's public API, are kept on disk and shown as offline when Steam is unreachable.
 - **Launching Spiral Knights** from a Steam or standalone install, found automatically; a custom folder can be added.
-  A launch applies mods, writes the server choice and starts the game directly on a suitable Java; a Steam copy is
+  A launch applies mods (only when something changed: a mod added, removed, edited, enabled or disabled, a file
+  cleaning or purging switch, or a game update), writes the server choice and starts the game directly on a suitable
+  Java, and Home says which of these it is doing; a Steam copy is
   signed in through Steam (SKradle starts Steam and waits for it if needed).
 - **Settings**: the game install to use, Java, memory (RAM), garbage collector and explicit-GC behaviour (recommended
   values by default: 4096 MB, G1, explicit GC disabled), extra JVM arguments; file cleaning, file purging and *Reset game files*; the graphics enhancements (render scale, sharpening,
   sharp HUD, frame generation, frame cap, FPS counter) passed to the game as the skgfx agent, which needs Java 24 or
-  newer; Discord Rich Presence (off by default); the game's editors; appearance,
+  newer; Discord Rich Presence (off by default); appearance,
   language, reduced motion, hiding the launcher while playing, update check, crash reports; version and links.
 - **Mods**: the mods in your mods folder with an on/off switch each, a picture per mod (from `mod.json` or `mod.png`,
   a generic icon otherwise), tags found automatically, filters for enabled, disabled, mods with warnings and each tag,
   search, drag and drop (or browse) to add mods (only valid ones are copied in), select several mods and enable,
   disable or remove them with the keyboard, open the mods folder, and a one-button install and update of the
-  maintained modpack (hash-checked, only changed files downloaded, cancellable).
+  maintained modpack from one compact button next to the other actions (hash-checked, only changed files downloaded,
+  cancellable).
 - **Servers**: your saved servers with live reachability and ping, choose which one the game uses, add and edit servers
   (name, address, port, public key, getdown URL, content URL), and the **Your server** strip above the list to install,
-  start, stop, restart, back up and update a local Tortodrone server (after accepting its licence), with its web
+  start, stop, restart, back up, open the folder of and update a local Tortodrone server (after accepting its licence), with its web
   interface shown inside the window while it runs (system web view on macOS and Windows; the browser on Linux).
 - **Updates and reports**: checks GitHub for a newer launcher (can be switched off); optional crash reports, scrubbed
   of personal details, with an off switch.
 - **Logs**: SKradle writes a log (`skradle.log`, scrubbed of your user name and secrets) with buttons in Settings > About
   to open its folder or copy its path; GitHub issue forms ask for it.
-- **More editors**: Silverweave, Model Viewer, Particle Editor and Interface Tester (open-source Clyde and spiralview tools)
-  in Settings > Tools. Download them once; SKradle keeps them at the newest build by itself (a weekly build publishes
-  it; they need Java 25 or newer). See `docs/editors.md`.
+- **Tools** page: the game's Crucible editor and, from an editors pack that SKradle downloads once and keeps at the
+  newest build by itself (a weekly build of the open-source Clyde and spiralview tools; Java 25 or newer), the scene
+  editor, Silverweave, Model Viewer, Particle Editor and Interface Tester; and two Spiral Knights websites (Auction
+  House, Kozmas) that open inside SKradle and keep your sign-in. See `docs/editors.md` and `docs/web-tools.md`.
+- Files SKradle writes for you to read (`settings.json`, `servers.json`, the saved feeds) are indented, one entry per
+  line, so they can be edited by hand.
 - Windows: Steam is found where the registry says it is, so installs on another drive work.
 - **Test builds** from the Actions tab (`Build` workflow). Each download is one zip holding one folder with a
   `SHA256SUMS.txt` inside it: a `.dmg` for macOS (Apple silicon and Intel), the app folder for Windows (x64 and
   ARM64; run `skradle.exe`) and an AppImage for Linux x64. They are unsigned: on macOS run `xattr -cr SKradle.app`
   once, on Windows choose "More info" then "Run anyway".
-
-### Changed
-
-- Home is more compact (launch card, players strip, events and news side by side); event banners keep their own
-  shape and are kept on disk, so events show offline; label text is centred in buttons, tabs and tags.
-- A launch no longer checks for a game update before starting (that made every launch slow); Steam installs update
-  through Steam.
-- Graphics enhancements are off by default (the game's own Java is used); a switch at the top of Graphics turns them on.
-- "Update automatically" replaces the update-check switch: SKradle looks for, and downloads, a newer version when it
-  starts and asks before installing. "Check for updates" says plainly when there is no release yet.
-- The local server is always listed on Servers; the server console (with input) opens from the strip, which has icon
-  buttons for the web interface settings and Stop; the web interface signs in by itself.
-- Mods: a sliding filter, flush image tiles, the modpack is named "SirDank's Modpack".
-
-- A design pass over every page: one spacing, radius and type scale, contrast fixes in both themes, quieter cards,
-  one clear primary action per screen, plain-language errors instead of raw engine text, and layouts that hold at the
-  900 x 600 minimum window size. Servers lists the servers first and tucks the local server's controls under
-  "Manage"; Mods has compact 64 px rows, status filters (All, Enabled, Disabled, Warnings) and one type menu; the
-  release notes read in a comfortable column. See `docs/design-system.md`.
-
-### Fixed
-
-- Launching a Steam copy of the game on the Official server now signs in through Steam automatically instead of
-  showing the password screen; if Steam is not running, SKradle starts it and asks you to launch again.
-- The app crashed on exit on macOS (Qt's destructors ran with the interface still alive); it now closes in order.
-- The Launching button was hard to read in the light theme; it is now an opaque brand pink with white text.
-- Mod downloads are streamed to disk and verified there instead of being held in memory.
-- Stopping the local server during start-up ends the wait at once; a failed start leaves nothing running.
-- Several smaller safety and correctness fixes found by the code review (names that Windows cannot store, links
-  inside mod archives and backups, Java 8 version numbers, Discord presence replies, `getdown.txt` comments).
-
-### Removed
-
-- The early UI prototypes (`spikes/`); the app replaced them. They stay in the git history.
 
 ### Known gaps
 
