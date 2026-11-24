@@ -37,10 +37,11 @@ server of your own.
 ## Download
 
 Test builds come from the **CI** workflow: open a run on the Actions tab (any push to main, or Run workflow) and download the
-package for your system under Artifacts. Each download is one zip holding one
-folder with the package and a `SHA256SUMS.txt`: a `.dmg` for macOS (Apple silicon and Intel), the app folder for
-Windows (x64 and ARM64; run `skradle.exe`) and an AppImage for Linux x64. They are unsigned: on macOS run
-`xattr -cr SKradle.app` once, on Windows choose "More info" > "Run anyway".
+package for your system under Artifacts. Each download is one zip holding the installer and a `SHA256SUMS.txt`: a
+`.dmg` for macOS (Apple silicon and Intel), an installer `.exe` for Windows (x64 and ARM64; per user, no administrator
+rights) and an AppImage for Linux x64. Version tags (`v*`) publish the same files as a GitHub Release, which is what
+the launcher's own update reads. They are unsigned: on macOS run `xattr -cr SKradle.app` once, on Windows choose "More
+info" > "Run anyway".
 
 Something wrong? [Open an issue](../../issues/new/choose); the form asks for the log (Settings > About > Open log
 folder).

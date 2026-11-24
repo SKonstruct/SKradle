@@ -61,10 +61,12 @@ history has the rest.
   line, so they can be edited by hand.
 - Windows: Steam is found where the registry says it is, so installs on another drive work.
 - **Test builds** from every CI run on the Actions tab (pushes to main, version tags and manual runs). Each download is
-  one zip holding one folder with a
-  `SHA256SUMS.txt` inside it: a `.dmg` for macOS (Apple silicon and Intel), the app folder for Windows (x64 and
-  ARM64; run `skradle.exe`) and an AppImage for Linux x64. They are unsigned: on macOS run `xattr -cr SKradle.app`
-  once, on Windows choose "More info" then "Run anyway".
+  one zip holding the installer and a `SHA256SUMS.txt`: a `.dmg` for macOS (Apple silicon and Intel), an installer
+  `.exe` for Windows (x64 and ARM64; per user, no administrator rights; there is no portable version) and an
+  AppImage for Linux x64. A version tag also publishes them as a GitHub Release. They are unsigned: on macOS run
+  `xattr -cr SKradle.app` once, on Windows choose "More info" then "Run anyway".
+- **Updating the launcher**: new releases are offered in the app; the Windows installer runs silently and starts SKradle
+  again, an AppImage replaces itself, and the macOS disk image opens for you to drag the app over the old one.
 
 ### Known gaps
 
@@ -73,5 +75,5 @@ history has the rest.
 - Everything is untested against a real Tortodrone engine, a real game launch and Windows; the first real runs will
   find problems.
 - Players on the Official servers are shown as Steam's count (the standalone client is not counted).
-- No installer, no code signing, no automatic update of the launcher itself yet.
+- No code signing yet (Windows SmartScreen and macOS Gatekeeper warn about the downloads).
 - Linux arm64 is not supported (the game ships no Linux arm64 runtime).

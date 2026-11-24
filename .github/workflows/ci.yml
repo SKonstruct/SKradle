@@ -2,10 +2,11 @@ name: CI
 
 # Builds, tests and lints the core and the app on every platform SKradle v1 targets, starts the app headless for its
 # self-test and screenshots, and packages it for download: one artifact per platform named SKradle-<version>-<platform>,
-# a zip holding one folder with the package and a SHA256SUMS.txt (a .dmg for macOS, the app folder for Windows, an
+# a zip holding the installer and its SHA256SUMS.txt (a .dmg for macOS, a per-user .exe installer for Windows, an
 # AppImage for Linux). Packages are made for pushes to main, version tags (v*) and manual runs, not for pull requests.
-# Builds are unsigned (macOS needs `xattr -cr`, Windows SmartScreen asks once). Nothing is released, committed or
-# published. Linux arm64 is not part of v1: the game ships no Linux arm64 runtime or natives.
+# A version tag also publishes a GitHub Release with the installers and SHA256SUMS.txt as assets: that is what the
+# launcher's own update reads. Builds are unsigned (macOS needs `xattr -cr`, Windows SmartScreen asks once). Nothing
+# is committed. Linux arm64 is not part of v1: the game ships no Linux arm64 runtime or natives.
 on:
   push:
     branches: [main]
@@ -18,8 +19,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  # Superseded pull request runs are cancelled; runs on main finish, so every commit gets a result.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # A newer run of the same ref cancels the one in progress, so runs never queue up behind each other.
+  cancel-in-progress: true
 
 env:
   # macOS needs 6.11 (6.10's headers do not compile with the macOS 26 compiler). aqtinstall 3.3.0 cannot find 6.11's
@@ -183,11 +184,12 @@ jobs:
           mkdir dist
           packaging/macos.sh target/release/skradle "$VERSION" dist "${{ matrix.name }}"
 
-      - name: Package (Windows folder)
+      - name: Package (Windows installer)
         if: github.event_name != 'pull_request' && runner.os == 'Windows'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          command -v makensis >/dev/null || choco install nsis -y --no-progress
           mkdir dist
           packaging/windows.sh target/release/skradle.exe "$VERSION" dist "${{ matrix.name }}"
 
@@ -212,7 +214,7 @@ jobs:
           folder=$(find dist -mindepth 1 -maxdepth 1 -type d | head -1)
           [ -n "$folder" ] || { echo "no package folder was produced" >&2; exit 1; }
           # A package must exist (the checksum file alone would make a 200-byte "build").
-          ls "$folder" | grep -E '\.(dmg|AppImage)$|^skradle\.exe$' || { echo "no package was produced" >&2; exit 1; }
+          ls "$folder" | grep -E '^SKradle-.*\.(dmg|AppImage|exe)$' || { echo "no package was produced" >&2; exit 1; }
           (cd "$folder" && find . -type f ! -name SHA256SUMS.txt | sed 's|^\./||' | sort | while IFS= read -r f; do
             sha256sum "$f" 2>/dev/null || shasum -a 256 "$f"
           done > SHA256SUMS.txt)
@@ -226,3 +228,39 @@ jobs:
           path: dist
           if-no-files-found: error
           retention-days: 30
+
+  # A version tag publishes the installers (as they are, not zipped: the launcher's update downloads them by name and
+  # checks GitHub's SHA-256 of each) with one SHA256SUMS.txt. Needs every package; runs only for tags.
+  release:
+    name: release
+    if: github.ref_type == 'tag'
+    needs: [core, app]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: SKradle-*
+          path: packages
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Each artifact is one folder holding its installer; the release wants them side by side.
+          mkdir release
+          find packages -type f \( -name 'SKradle-*.dmg' -o -name 'SKradle-*.exe' -o -name 'SKradle-*.AppImage' \) -exec cp {} release/ \;
+          cd release
+          ls -l
+          files=$(ls SKradle-*.dmg SKradle-*.exe SKradle-*.AppImage 2>/dev/null)
+          [ -n "$files" ] || { echo "no installers were downloaded" >&2; exit 1; }
+          sha256sum $files > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" $files SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" $files SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --title "SKradle ${TAG#v}" --generate-notes --verify-tag
+          fi
