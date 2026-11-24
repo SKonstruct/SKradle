@@ -41,17 +41,22 @@ fn replace_running_appimage(downloaded: &Path) -> Option<PathBuf> {
     Some(current)
 }
 
-/// Starts the installer without waiting for it (a thread reaps the process, so it never lingers as a zombie).
-pub fn start_installer(path: &Path) -> std::io::Result<()> {
-    let mut path = path.to_path_buf();
+/// The file to run: on Linux made executable, and put in place of a running AppImage; elsewhere as it is.
+fn prepared(path: &Path) -> std::io::Result<PathBuf> {
     #[cfg(unix)]
     if Os::current() == Os::Linux {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))?;
-        if let Some(replaced) = replace_running_appimage(&path) {
-            path = replaced;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))?;
+        if let Some(replaced) = replace_running_appimage(path) {
+            return Ok(replaced);
         }
     }
+    Ok(path.to_path_buf())
+}
+
+/// Starts the installer without waiting for it (a thread reaps the process, so it never lingers as a zombie).
+pub fn start_installer(path: &Path) -> std::io::Result<()> {
+    let path = prepared(path)?;
     let (program, args) = installer_command(&path, Os::current());
     let mut child = std::process::Command::new(program)
         .args(args)
