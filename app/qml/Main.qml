@@ -1,6 +1,7 @@
 import QtQuick
 import com.skradle.app
 import QtQuick.Controls
+import Qt.labs.platform as Labs
 
 ApplicationWindow {
     id: win
@@ -11,6 +12,10 @@ ApplicationWindow {
     minimumHeight: 600
     title: "SKradle"
     color: Theme.bg
+    // Right-to-left languages (Arabic) mirror the layouts; the children follow.
+    // (Qt.uiLanguage is read so the binding is evaluated again when the language changes.)
+    LayoutMirroring.enabled: { Qt.uiLanguage; return Qt.locale().textDirection === Qt.RightToLeft }
+    LayoutMirroring.childrenInherit: true
 
     // Palette: native styles ignore these (verified); Fusion/Basic follow them. The highlight stays the system one.
     palette.window: Theme.bg
@@ -165,6 +170,27 @@ ApplicationWindow {
     }
     ReleaseNotesDialog { id: notes }
 
+    // ---- the tray icon (menu bar on macOS): open and quit -------------------------------------------------------
+    function bringBack() {
+        if (visibility === Window.Hidden || visibility === Window.Minimized) {
+            if (visibilityBeforeMinimize === Window.Maximized) showMaximized(); else showNormal()
+        }
+        raise()
+        requestActivate()
+    }
+    Labs.SystemTrayIcon {
+        id: tray
+        visible: Settings.trayIcon && !AppEnv.selftest && AppEnv.shotDir === "" && available
+        icon.source: "qrc:/qt/qml/com/skradle/app/icons/skradle-32.png"
+        tooltip: "SKradle"
+        onActivated: (reason) => { if (reason === Labs.SystemTrayIcon.Trigger || reason === Labs.SystemTrayIcon.DoubleClick) win.bringBack() }
+        menu: Labs.Menu {
+            Labs.MenuItem { text: qsTr("Open SKradle"); onTriggered: win.bringBack() }
+            Labs.MenuItem { separator: true }
+            Labs.MenuItem { text: qsTr("Quit"); onTriggered: win.close() }
+        }
+    }
+
     // ---- minimise while the game runs, restore when it ends ------------------------------------------------
     property bool minimizedByUs: false
     // How the window was before we minimised it, so it comes back the same (`show()` keeps a minimised window minimised).
@@ -176,7 +202,8 @@ ApplicationWindow {
             if (st === "running" && Settings.minimizeWhilePlaying && !AppEnv.selftest && AppEnv.shotDir === "") {
                 win.visibilityBeforeMinimize = win.visibility === Window.Maximized ? Window.Maximized : Window.Windowed
                 win.minimizedByUs = true
-                win.showMinimized()
+                // With a tray icon the launcher leaves the taskbar and the Dock entirely; the tray brings it back.
+                if (tray.visible) win.hide(); else win.showMinimized()
             } else if (win.minimizedByUs && st !== "running" && st !== "launching") {
                 win.minimizedByUs = false
                 if (win.visibilityBeforeMinimize === Window.Maximized) win.showMaximized()
@@ -194,7 +221,7 @@ ApplicationWindow {
     // ---- screenshot driver (skradle --shots <dir> [--prefix name]) -----------------------------------------------
     readonly property var shotNames: ["home-ready", "home-updating", "home-launching", "home-running", "home-error", "home-firstrun",
         "home-collapsed", "home-scrolled", "home-offline", "home-nonews", "home-noevents", "home-events-offline", "home-players-down",
-        "home-players", "home-notes", "home-notes-all", "home-notes-min", "servers", "servers-dialog", "mods", "mods-search", "mods-drop",
+        "home-notice", "home-players", "home-notes", "home-notes-all", "home-notes-min", "servers", "servers-dialog", "mods", "mods-search", "mods-drop",
         "settings-general", "settings-game", "settings-files", "settings-graphics", "settings-graphics-running", "settings-integrations",
         "tools", "tools-web", "settings-about", "settings-reset", "toast-error", "toast-info", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
         "mods-selected", "mods-focus", "mods-tag", "mods-empty", "mods-nogame", "mods-confirm", "mods-issues", "mods-pack-update",
@@ -262,6 +289,7 @@ ApplicationWindow {
         case "mods-drop": go(2); Qt.callLater(() => { const p = pageItem(2); if (p) p.dropForced = true }); break
         case "home-offline": go(0); HomeFeed.force("offline"); break
         case "home-nonews": go(0); HomeFeed.force("empty"); break
+        case "home-notice": go(0); HomeFeed.forceEvents("notice"); break
         case "home-noevents": go(0); HomeFeed.forceEvents("none"); break
         case "home-events-offline": go(0); HomeFeed.forceEvents("offline"); break
         case "home-players-down": go(0); HomeFeed.forcePlayers("unavailable"); break

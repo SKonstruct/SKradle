@@ -13,6 +13,8 @@ mod server_host;
 mod servers;
 mod settings;
 mod tools;
+#[cfg(test)]
+mod translations_test;
 
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, QUrl};
 

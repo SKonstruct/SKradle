@@ -362,6 +362,38 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Alt client</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start another client (alt mode)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start another client (alt mode). It uses little memory, so your main game keeps its speed. Holding Alt or Shift while pressing Launch does the same.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scheduled maintenance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Notice from the server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Maintenance is under way. It should end around %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Maintenance is planned from %1 to about %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Maintenance is planned for %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Built with love by SirDank. Opens dankware.alwaysdata.net.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -375,6 +407,10 @@
     </message>
     <message>
         <source>Release notes (v%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Another client is starting. It uses little memory, so it suits a second account.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -625,6 +661,14 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Open SKradle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Could not open the folder. Check that it still exists.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -654,6 +698,20 @@
         <source>(+%1 more)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message numerus="yes">
+        <source>Overridden by %1 on %n file(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Overrides %1 on %n file(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
     <message>
         <source>enabled</source>
         <translation type="unfinished"></translation>
@@ -672,6 +730,14 @@
     </message>
     <message>
         <source>%1 mods</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to change the order of %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to change the order. A mod lower in the list wins when two change the same file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -852,6 +918,14 @@
     </message>
     <message>
         <source>Removed %1 (dropped from SirDank’s Modpack)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear the search and filters to change the order.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag the handle (or press Alt with the arrow keys) to change the order. A mod lower in the list wins when two change the same file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2087,6 +2161,14 @@ Content URL: %4</source>
     </message>
     <message>
         <source>It comes back when the game exits.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show a tray icon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open or quit SKradle from the system tray (the menu bar on macOS). With it, the launcher disappears completely while the game runs.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

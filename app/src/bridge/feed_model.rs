@@ -32,6 +32,9 @@ pub mod qobject {
         /// when none; `image` a file URL of the cached banner and `link` an https address, "" when none); "[]" when
         /// there are none.
         #[qproperty(QString, events_json, cxx_name = "eventsJson", READ, WRITE, NOTIFY)]
+        /// The Official server's notice and maintenance window as JSON `{title, text, startsAt, endsAt}` (Unix
+        /// seconds, 0 for none), or "" when there is nothing to say.
+        #[qproperty(QString, notice_json, cxx_name = "noticeJson", READ, WRITE, NOTIFY)]
         /// "unknown" before the first answer, then "ok", "offline" (the events are from the last good answer) or "none"
         /// (no events: the card is hidden).
         #[qproperty(QString, events_state, cxx_name = "eventsState", READ, WRITE, NOTIFY)]
@@ -264,6 +267,19 @@ pub fn events_state(feed: &EventsFeed) -> &'static str {
 }
 
 /// The events as the JSON the page reads; `images` holds one file URL (or "") per event.
+fn notice_to_json(notice: Option<&live_events::Notice>) -> String {
+    let Some(n) = notice else {
+        return String::new();
+    };
+    serde_json::json!({
+        "title": n.title,
+        "text": n.text,
+        "startsAt": n.maintenance_starts_at.unwrap_or(0),
+        "endsAt": n.maintenance_ends_at.unwrap_or(0),
+    })
+    .to_string()
+}
+
 fn events_to_json(events: &[Event], images: &[String]) -> String {
     let list: Vec<serde_json::Value> = events
         .iter()
@@ -330,6 +346,7 @@ pub struct HomeFeedRust {
     players: i32,
     players_json: QString,
     events_json: QString,
+    notice_json: QString,
     events_state: QString,
     events_fetched_at: f64,
     events_busy: bool,
@@ -350,6 +367,7 @@ impl Default for HomeFeedRust {
             players: 0,
             players_json: QString::from("{}"),
             events_json: QString::from("[]"),
+            notice_json: QString::default(),
             events_state: QString::from("unknown"),
             events_fetched_at: 0.0,
             events_busy: false,
@@ -383,6 +401,11 @@ impl qobject::HomeFeed {
         // Unchanged lists are not set again: the page would rebuild its cards and the banners would blink.
         if self.events_json().to_string() != json {
             self.as_mut().set_events_json(QString::from(json.as_str()));
+        }
+        let notice = notice_to_json(feed.notice.as_ref());
+        if self.notice_json().to_string() != notice {
+            self.as_mut()
+                .set_notice_json(QString::from(notice.as_str()));
         }
         self.as_mut().set_events_fetched_at(feed.fetched_at as f64);
         self.set_events_state(QString::from(events_state(feed)));
@@ -446,16 +469,30 @@ impl qobject::HomeFeed {
                 events: vec![],
                 offline: false,
                 fetched_at: now,
+                notice: None,
+            },
+            "notice" => EventsFeed {
+                events: fixture_events(now),
+                offline: false,
+                fetched_at: now,
+                notice: Some(live_events::Notice {
+                    title: "Heads up".into(),
+                    text: "The servers restart for an update.\nYour game may disconnect for a few minutes.".into(),
+                    maintenance_starts_at: Some(now + 5 * 3600),
+                    maintenance_ends_at: Some(now + 6 * 3600),
+                }),
             },
             "offline" => EventsFeed {
                 events: fixture_events(now),
                 offline: true,
                 fetched_at: now - 5 * 3600,
+                notice: None,
             },
             _ => EventsFeed {
                 events: fixture_events(now),
                 offline: false,
                 fetched_at: now,
+                notice: None,
             },
         };
         let images = banner_urls(&feed, &events_image_dir(), true);
@@ -664,6 +701,7 @@ mod tests {
             events,
             offline,
             fetched_at: 0,
+            notice: None,
         };
         let some = fixture_events(0);
         assert_eq!(events_state(&feed(some.clone(), false)), "ok");

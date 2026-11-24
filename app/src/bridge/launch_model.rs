@@ -23,6 +23,10 @@ pub mod qobject {
         /// false for launches through it and the UI shows the indeterminate ring.
         #[qproperty(f64, progress, READ, WRITE, NOTIFY)]
         #[qproperty(bool, determinate, READ, WRITE, NOTIFY)]
+        /// The last answer of `startAlt`: "" when the other client started, else why not. `altSerial` grows with every
+        /// answer, so the same text twice still fires.
+        #[qproperty(QString, alt_notice, cxx_name = "altNotice", READ, WRITE, NOTIFY)]
+        #[qproperty(i32, alt_serial, cxx_name = "altSerial", READ, WRITE, NOTIFY)]
         type LaunchModel = super::LaunchModelRust;
 
         /// Starts the game from the install folder `path`.
@@ -36,6 +40,12 @@ pub mod qobject {
         /// Same as `stop`: the button reads "Cancel" while updating.
         #[qinvokable]
         fn cancel(self: Pin<&mut LaunchModel>);
+
+        /// Starts a second client next to the first (alt mode): little memory, no extras. Not tracked by the launch
+        /// card; the answer arrives in `altNotice` and `altSerial`.
+        #[qinvokable]
+        #[cxx_name = "startAlt"]
+        fn start_alt(self: Pin<&mut LaunchModel>, path: &QString);
 
         /// Leaves the "error" state.
         #[qinvokable]
@@ -72,6 +82,8 @@ pub struct LaunchModelRust {
     message: QString,
     progress: f64,
     determinate: bool,
+    alt_notice: QString,
+    alt_serial: i32,
     status: Status,
     /// Identifies the current launch; events from an older one are ignored.
     launch_id: u64,
@@ -89,6 +101,8 @@ impl Default for LaunchModelRust {
             message: QString::from(status.message.as_str()),
             progress: 0.0,
             determinate: false,
+            alt_notice: QString::default(),
+            alt_serial: 0,
             status,
             launch_id: 0,
             running: None,
@@ -197,6 +211,36 @@ impl qobject::LaunchModel {
             self.as_mut().rust_mut().status.apply(Event::Stopped);
             self.show();
         }
+    }
+
+    pub fn start_alt(self: Pin<&mut Self>, path: &QString) {
+        // Screenshot and self-test runs never start the real game.
+        if crate::options::get().is_test_run() {
+            return;
+        }
+        let path = path.to_string();
+        let thread: CxxQtThread<qobject::LaunchModel> = self.qt_thread();
+        let _ = std::thread::Builder::new()
+            .name("skradle-alt".into())
+            .spawn(move || {
+                let result = if path.is_empty() {
+                    Err(LaunchError::NoGame)
+                } else {
+                    crate::launch::planned::start_alt(Request {
+                        install: Install {
+                            path: path.into(),
+                            kind: Kind::Custom,
+                        },
+                        settings: settings::global().get(),
+                    })
+                };
+                let notice = result.err().map(|e| e.message()).unwrap_or_default();
+                let _ = thread.queue(move |mut m| {
+                    m.as_mut().set_alt_notice(QString::from(notice.as_str()));
+                    let serial = m.alt_serial().wrapping_add(1);
+                    m.set_alt_serial(serial);
+                });
+            });
     }
 
     pub fn cancel(self: Pin<&mut Self>) {

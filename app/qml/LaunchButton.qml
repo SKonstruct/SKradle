@@ -101,7 +101,9 @@ AbstractButton {
     FocusRing { grow: 4 }
 
     onClicked: {
-        if (phase === "ready") LaunchModel.start(GameModel.selectedPath)
+        // Holding Alt/Option or Shift starts another client instead (alt mode).
+        if (phase === "ready" && (Qt.application.keyboardModifiers & (Qt.AltModifier | Qt.ShiftModifier))) LaunchModel.startAlt(GameModel.selectedPath)
+        else if (phase === "ready") LaunchModel.start(GameModel.selectedPath)
         else if (phase === "updating") LaunchModel.cancel()
         else if (phase === "running") LaunchModel.stop()
     }

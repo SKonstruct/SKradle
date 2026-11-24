@@ -167,6 +167,21 @@ pub struct ItemView {
     pub warning: bool,
     /// Lower-case text the search box matches.
     pub search: String,
+    /// Mods that change some of the same files; the one lower in the list wins those files.
+    pub conflicts: Vec<ConflictView>,
+}
+
+/// One conflict as seen from one of the two mods.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct ConflictView {
+    /// The title of the other mod.
+    pub other: String,
+    /// How many files both change.
+    pub count: usize,
+    /// True when the other mod is applied after this one, so it wins those files.
+    pub other_wins: bool,
+    /// A few of the files, for a tooltip.
+    pub examples: Vec<String>,
 }
 
 // ---- plain words for engine errors ---------------------------------------------------------------------------------
@@ -363,6 +378,7 @@ pub fn item_view(
         incompatible: false,
         warning: false,
         search: String::new(),
+        conflicts: Vec::new(),
     };
     match &m.parsed {
         Err(e) => {
@@ -461,15 +477,73 @@ pub struct Listing {
     pub error: Option<String>,
 }
 
+/// Puts each conflict on both mods it concerns, with the other one's title.
+fn attach_conflicts(items: &mut [ItemView], conflicts: &[mods::Conflict]) {
+    let title = |file: &str| {
+        items
+            .iter()
+            .find(|i| i.file == file)
+            .map_or_else(|| file.to_owned(), |i| i.name.clone())
+    };
+    let views: Vec<(String, String, ConflictView, ConflictView)> = conflicts
+        .iter()
+        .map(|c| {
+            (
+                c.loser.clone(),
+                c.winner.clone(),
+                ConflictView {
+                    other: title(&c.winner),
+                    count: c.count,
+                    other_wins: true,
+                    examples: c.examples.clone(),
+                },
+                ConflictView {
+                    other: title(&c.loser),
+                    count: c.count,
+                    other_wins: false,
+                    examples: c.examples.clone(),
+                },
+            )
+        })
+        .collect();
+    for (loser, winner, for_loser, for_winner) in views {
+        if let Some(item) = items.iter_mut().find(|i| i.file == loser) {
+            item.conflicts.push(for_loser);
+        }
+        if let Some(item) = items.iter_mut().find(|i| i.file == winner) {
+            item.conflicts.push(for_winner);
+        }
+    }
+}
+
+/// Moves a mod in the apply order (0 is applied first; a later mod wins).
+pub fn move_one(dir: &Path, file: &str, to: usize) -> Outcome {
+    skradle_core::log::info("mods", format!("moving {file} to position {to}"));
+    let mut out = Outcome {
+        kind: "move",
+        ..Outcome::default()
+    };
+    match mods::move_mod(dir, file, to) {
+        Ok(()) => out.ok = 1,
+        Err(e) => {
+            log_raw(file, &e.to_string());
+            out.failed
+                .push((file.to_owned(), plain_reason(&e.to_string())));
+        }
+    }
+    out
+}
+
 /// Scans the folder. A missing folder is an empty list.
 pub fn build_listing(dir: &Path, game_version: Option<&str>) -> Listing {
     match mods::list_mods(dir) {
         Ok(found) => {
             let cache = icon_cache_dir();
-            let items: Vec<ItemView> = found
+            let mut items: Vec<ItemView> = found
                 .iter()
                 .map(|m| item_view(dir, m, game_version, cache.as_deref()))
                 .collect();
+            attach_conflicts(&mut items, &mods::conflicts(&found));
             if let Some(cache) = &cache {
                 let used = items
                     .iter()
@@ -705,6 +779,8 @@ pub fn write_fixtures(dir: &Path) -> std::io::Result<()> {
             ),
             ("art/logo.png", &rust),
             ("ui/menu.png", b"png"),
+            // The same file as Sharp HUD's, so the page has a conflict to show.
+            ("ui/hud.png", b"png-crisp"),
         ]),
     )?;
     // Long text everywhere: the title wraps to two lines, the rest is cut to one line.

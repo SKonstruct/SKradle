@@ -287,6 +287,56 @@ pub fn ensure_steam(waiter: &mut dyn Waiter, ctx: &Context<'_>) -> Result<(), La
     }
 }
 
+/// What an alt client gets: a small heap and a collector that costs the main client nothing (the same figures an
+/// established launcher uses for this), and none of the extras.
+pub const ALT_MEMORY_MB: u32 = 512;
+
+/// Starts a second client next to the one that may already be running ("alt mode"), for another account: little
+/// memory, the serial collector, no graphics agent. It is not tracked (the launch card follows the main client); the
+/// player closes it themselves. Steam installs must already have Steam running, which a first client implies.
+pub fn start_alt(mut request: Request) -> Result<(), LaunchError> {
+    if request.install.kind == Kind::Custom {
+        request.install.kind =
+            discovery::detect_kind(&request.install.path, &game::locate(&Env::current()));
+    }
+    let settings = &mut request.settings;
+    settings.memory_mb = Some(ALT_MEMORY_MB);
+    settings.collector = Collector::Serial;
+    settings.graphics_enabled = false;
+    settings.extra_jvm_args = format!("{} -XX:SoftRefLRUPolicyMSPerMB=10", settings.extra_jvm_args)
+        .trim()
+        .to_owned();
+    log::info("launch", "alt client requested");
+    let machine = Machine::current();
+    let mut around = Surroundings::detect();
+    around.steam_running = true;
+    let report = |_: Step| {};
+    let mut effects = Deferred {
+        inner: RealEffects,
+        report: &report,
+    };
+    let (spec, kind) = prepare(&request, &machine, &around, &mut effects)?;
+    if kind != LaunchKind::Direct {
+        return Err(LaunchError::Refused(
+            "The game needs an update first. Launch it the normal way once, then start the other client.".to_owned(),
+        ));
+    }
+    let mut command = spec.to_command();
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(super::winprobe::CREATE_NO_WINDOW);
+    }
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| LaunchError::Spawn(e.to_string()))
+}
+
 /// Starts the game the way the core's planner decides.
 pub struct PlannedLauncher {
     timing: Timing,

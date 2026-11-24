@@ -44,6 +44,12 @@ Item {
     // Chip counts say what the chip would show given the other two filters, so a count always matches the list.
     function statusCount(st) { return all.filter(m => passStatus(m, st) && passTag(m, activeTag) && passText(m)).length }
     function tagCount(t) { return all.filter(m => passStatus(m, activeStatus) && passTag(m, t) && passText(m)).length }
+    // The order can be changed while nothing is filtered (positions in the shown list are positions in the whole one).
+    readonly property bool canReorder: !filtering && all.length > 1 && gameOk && !busy
+    function moveMod(index, steps) {
+        const to = Math.max(0, Math.min(all.length - 1, index + steps))
+        if (to !== index && index >= 0 && index < shown.length) ModsModel.moveMod(shown[index].file, to)
+    }
     readonly property bool filtering: activeStatus !== "all" || activeTag !== "" || needle.length > 0
     // What the two filters offer: the status segments (Warnings only when there are some) and the types.
     readonly property var statusModel: {
@@ -348,6 +354,15 @@ Item {
                 onTagPicked: (id) => page.tag = id
             }
 
+            Txt {
+                Layout.fillWidth: true
+                visible: page.all.length > 1
+                kind: "caption"
+                color: Theme.textSecondary
+                text: page.filtering ? qsTr("Clear the search and filters to change the order.")
+                    : qsTr("Drag the handle (or press Alt with the arrow keys) to change the order. A mod lower in the list wins when two change the same file.")
+            }
+
             FocusScope {   // the rows: one tab stop, arrow keys inside
                 id: rowsScope
                 Layout.fillWidth: true
@@ -361,8 +376,14 @@ Item {
                 Keys.onPressed: (event) => {
                     if (event.matches(StandardKey.SelectAll)) { page.selectAll(); event.accepted = true; return }
                     switch (event.key) {
-                    case Qt.Key_Up: page.moveFocus(-1, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
-                    case Qt.Key_Down: page.moveFocus(1, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
+                    case Qt.Key_Up:
+                        if ((event.modifiers & Qt.AltModifier) && page.canReorder && page.cur >= 0) { page.moveMod(page.cur, -1); page.cur = Math.max(0, page.cur - 1) }
+                        else page.moveFocus(-1, event.modifiers & Qt.ShiftModifier)
+                        event.accepted = true; break
+                    case Qt.Key_Down:
+                        if ((event.modifiers & Qt.AltModifier) && page.canReorder && page.cur >= 0) { page.moveMod(page.cur, 1); page.cur = Math.min(page.shown.length - 1, page.cur + 1) }
+                        else page.moveFocus(1, event.modifiers & Qt.ShiftModifier)
+                        event.accepted = true; break
                     case Qt.Key_Home: page.moveFocus(-page.shown.length, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
                     case Qt.Key_End: page.moveFocus(page.shown.length, event.modifiers & Qt.ShiftModifier); event.accepted = true; break
                     case Qt.Key_Space: page.keyboardNav = true; page.toggleTargets(); event.accepted = true; break
@@ -389,6 +410,9 @@ Item {
                             tagsWidth: page.tagsCol
                             selected: page.sel[modelData.file] === true
                             canToggle: page.gameOk && !page.busy
+                            reorderable: page.canReorder
+                            rowStep: height + rowCol.spacing
+                            onMoveRequested: (steps) => page.moveMod(index, steps)
                             showFocus: rowsScope.activeFocus && page.keyboardNav && page.cur === index
                             onClicked: (mods) => page.clickRow(index, mods)
                             onToggled: (on) => page.setEnabled([modelData.file], on)

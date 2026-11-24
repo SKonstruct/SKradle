@@ -205,15 +205,18 @@ Every visible string goes through `qsTr` (context = the QML file's name); string
 with Qt's `lupdate`:
 
 ```sh
-cd app && lupdate qml qml-web -source-language en -ts i18n/skradle_en.ts -no-obsolete -locations none
+app/i18n/update.sh   # every catalogue: English plus ar, de, es, et, fr, it, ja, pl, pt_BR, ru, zh_CN, zh_TW
 ```
+
+How to translate and review them: [`docs/translating.md`](../docs/translating.md). `cargo test -p skradle-app
+translations` checks placeholders and that the catalogues match the English one.
 
 `build.rs` compiles every `i18n/skradle_*.ts` with `lrelease` into the binary (`:/i18n/skradle_<lang>.qm`);
 `glue::set_language` installs the one for the Language setting ("system" follows the OS) and retranslates the running
 UI. `--pseudo` installs a generated pseudo-localising translator instead. Gaps: sentences produced in Rust
 (`LaunchError`, folder errors, the settings warning) are English and bypass `qsTr`; they should become error kinds with
-the wording in QML before a second language is added. Only English exists, so the loader is exercised through the
-pseudo mode.
+the wording in QML before a second language is added. The catalogues for the other languages exist and are filled in as they are translated (missing
+text shows English); the loader is also exercised through the pseudo mode.
 
 ### What is real and what is placeholder
 

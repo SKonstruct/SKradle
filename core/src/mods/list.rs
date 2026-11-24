@@ -13,14 +13,14 @@
 //! enabled": switching a mod back on by accident is worse than asking the player. Links are never followed: a link
 //! with a mod name is listed, but fails to open (see [`Mod::open`]).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use super::model::{Container, Mod, ModError};
+use super::model::{Container, Kind, Mod, ModError};
 use crate::jar::write_atomic;
 
 /// The file that records which mods are switched off.
@@ -39,6 +39,10 @@ pub struct InstalledMod {
 struct State {
     #[serde(default)]
     disabled: BTreeSet<String>,
+    /// The order the player chose, by file name, first applied first; a mod later in it wins where two change the same
+    /// file. Mods not named here (new ones) come after the named ones, by name, so a mod just added takes effect.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    order: Vec<String>,
 }
 
 fn read_state(dir: &Path) -> io::Result<State> {
@@ -69,8 +73,112 @@ pub(crate) fn is_mod_file_name(name: &str) -> bool {
         && Container::from_file_name(name).is_some()
 }
 
-/// The names of the mod files in `dir`, in apply order. A missing folder has none.
+/// The names of the mod files in `dir`, in apply order: the order the player chose ([`move_mod`]), then any others by
+/// name. The last mod wins where two change the same file. A missing folder has none.
 pub fn mod_file_names(dir: &Path) -> io::Result<Vec<String>> {
+    let names = sorted_names(dir)?;
+    if names.is_empty() {
+        return Ok(names);
+    }
+    Ok(in_chosen_order(names, &read_state(dir)?.order))
+}
+
+/// `names` with the ones `order` names first, in that order; the rest follow in their own order.
+fn in_chosen_order(mut names: Vec<String>, order: &[String]) -> Vec<String> {
+    let mut out = Vec::with_capacity(names.len());
+    for wanted in order {
+        if let Some(i) = names.iter().position(|n| n == wanted) {
+            out.push(names.remove(i));
+        }
+    }
+    out.extend(names);
+    out
+}
+
+/// Moves a mod to position `to` (0 is applied first) in the apply order and remembers the whole order.
+pub fn move_mod(dir: &Path, file_name: &str, to: usize) -> io::Result<()> {
+    if !is_mod_file_name(file_name) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "not a mod file name",
+        ));
+    }
+    let mut names = mod_file_names(dir)?;
+    let Some(from) = names.iter().position(|n| n == file_name) else {
+        return Err(io::Error::new(io::ErrorKind::NotFound, "no such mod"));
+    };
+    let name = names.remove(from);
+    names.insert(to.min(names.len()), name);
+    let mut state = read_state(dir)?;
+    if state.order == names {
+        return Ok(());
+    }
+    state.order = names;
+    let mut json = serde_json::to_vec_pretty(&state).map_err(io::Error::other)?;
+    json.push(b'\n');
+    write_atomic(&dir.join(STATE_FILE), &json)
+}
+
+/// Two mods that change the same files: `winner` comes later in the apply order, so its version of those files is the
+/// one the game gets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Conflict {
+    pub loser: String,
+    pub winner: String,
+    /// How many files both change.
+    pub count: usize,
+    /// A few of them, for a tooltip.
+    pub examples: Vec<String>,
+}
+
+const MAX_EXAMPLES: usize = 3;
+
+/// The files two enabled mods both change, for every such pair, from the scans in apply order. A mod does not conflict
+/// with itself, and a file in `rsrc/` and one of the same name inside `config.jar` are different files.
+pub fn conflicts(mods: &[InstalledMod]) -> Vec<Conflict> {
+    let mut writers: HashMap<(bool, &str), Vec<usize>> = HashMap::new();
+    for (i, installed) in mods.iter().enumerate() {
+        let (true, Ok(scanned)) = (installed.enabled, &installed.parsed) else {
+            continue;
+        };
+        for part in &scanned.parts {
+            for file in part.applicable_files() {
+                let list = writers
+                    .entry((part.kind == Kind::Class, file.path.as_str()))
+                    .or_default();
+                if list.last() != Some(&i) {
+                    list.push(i);
+                }
+            }
+        }
+    }
+    let mut pairs: BTreeMap<(usize, usize), (usize, Vec<String>)> = BTreeMap::new();
+    let mut shared: Vec<(&(bool, &str), &Vec<usize>)> =
+        writers.iter().filter(|(_, w)| w.len() > 1).collect();
+    shared.sort_by(|a, b| a.0.cmp(b.0));
+    for ((_, path), who) in shared {
+        for (k, &a) in who.iter().enumerate() {
+            for &b in &who[k + 1..] {
+                let entry = pairs.entry((a, b)).or_default();
+                entry.0 += 1;
+                if entry.1.len() < MAX_EXAMPLES {
+                    entry.1.push((*path).to_owned());
+                }
+            }
+        }
+    }
+    pairs
+        .into_iter()
+        .map(|((a, b), (count, examples))| Conflict {
+            loser: mods[a].file_name.clone(),
+            winner: mods[b].file_name.clone(),
+            count,
+            examples,
+        })
+        .collect()
+}
+
+fn sorted_names(dir: &Path) -> io::Result<Vec<String>> {
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -175,6 +283,85 @@ mod tests {
         assert!(mod_file_names(&dir.path().join("missing"))
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn a_chosen_order_is_kept_and_new_mods_come_last() {
+        let dir = mods_dir();
+        move_mod(dir.path(), "d.modpack", 0).unwrap();
+        move_mod(dir.path(), "A.zip", 3).unwrap();
+        assert_eq!(
+            mod_file_names(dir.path()).unwrap(),
+            ["d.modpack", "b.zip", "c.JAR", "A.zip"]
+        );
+        // The order is written for people to read, and a mod added later takes effect (it comes last).
+        let json = fs::read_to_string(dir.path().join(STATE_FILE)).unwrap();
+        assert!(json.contains("\"order\": [\n    \"d.modpack\","), "{json}");
+        fs::write(dir.path().join("0new.zip"), simple_zip(&[("a.png", b"1")])).unwrap();
+        assert_eq!(
+            mod_file_names(dir.path()).unwrap(),
+            ["d.modpack", "b.zip", "c.JAR", "A.zip", "0new.zip"]
+        );
+        // Moving past the end puts it last; unknown or unsafe names are refused.
+        move_mod(dir.path(), "d.modpack", 99).unwrap();
+        assert_eq!(
+            mod_file_names(dir.path()).unwrap().last().unwrap(),
+            "d.modpack"
+        );
+        assert!(move_mod(dir.path(), "nope.zip", 0).is_err());
+        assert!(move_mod(dir.path(), "../x.zip", 0).is_err());
+        // The list follows the order too, so the engine applies in it.
+        let listed: Vec<_> = list(dir.path())
+            .unwrap()
+            .into_iter()
+            .map(|m| m.file_name)
+            .collect();
+        assert_eq!(listed, mod_file_names(dir.path()).unwrap());
+    }
+
+    #[test]
+    fn mods_that_change_the_same_files_are_reported_with_the_later_one_winning() {
+        let dir = tempfile::tempdir().unwrap();
+        let both = simple_zip(&[
+            ("texture/a.png", b"1"),
+            ("texture/b.png", b"1"),
+            ("only1.png", b"1"),
+        ]);
+        let other = simple_zip(&[
+            ("texture/a.png", b"2"),
+            ("texture/b.png", b"2"),
+            ("only2.png", b"2"),
+        ]);
+        let third = simple_zip(&[("texture/a.png", b"3")]);
+        fs::write(dir.path().join("1_first.zip"), &both).unwrap();
+        fs::write(dir.path().join("2_second.zip"), &other).unwrap();
+        fs::write(dir.path().join("3_third.zip"), &third).unwrap();
+        let listed = list(dir.path()).unwrap();
+        let found = conflicts(&listed);
+        let pair = |l: &str, w: &str| {
+            found
+                .iter()
+                .find(|c| c.loser == l && c.winner == w)
+                .map(|c| c.count)
+        };
+        assert_eq!(pair("1_first.zip", "2_second.zip"), Some(2));
+        assert_eq!(pair("1_first.zip", "3_third.zip"), Some(1));
+        assert_eq!(pair("2_second.zip", "3_third.zip"), Some(1));
+        assert!(found
+            .iter()
+            .all(|c| !c.examples.is_empty() && c.examples.len() <= 3));
+        // Moving the first to the end makes it the winner of those files.
+        move_mod(dir.path(), "1_first.zip", 2).unwrap();
+        let again = conflicts(&list(dir.path()).unwrap());
+        assert!(again
+            .iter()
+            .any(|c| c.loser == "2_second.zip" && c.winner == "1_first.zip"));
+        // A switched-off mod conflicts with nothing.
+        set_enabled(dir.path(), "3_third.zip", false).unwrap();
+        let off = conflicts(&list(dir.path()).unwrap());
+        assert!(off
+            .iter()
+            .all(|c| c.loser != "3_third.zip" && c.winner != "3_third.zip"));
     }
 
     #[test]

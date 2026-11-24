@@ -16,6 +16,12 @@ Control {
     property int tagsWidth: 132
     signal clicked(int modifiers)
     signal toggled(bool on)
+    // Reordering: the handle at the right drags the row; the page turns the distance into a new position. Mods lower in
+    // the list win the files two mods both change.
+    property bool reorderable: false
+    property real rowStep: height
+    readonly property bool dragging: dragHandler.active
+    signal moveRequested(int steps)
 
     readonly property bool broken: item.error !== null
     readonly property bool warned: item.warning
@@ -23,6 +29,15 @@ Control {
     readonly property string firstWarning: item.warnings.length > 0 ? item.warnings[0] : ""
     readonly property string fileInfo: (item.file_note.length > 0 ? item.file_note + " \u00B7 " : "") + ModsText.sizeText(item.size)
                                        + (item.container === "modpack" ? " \u00B7 " + (item.parts === 1 ? qsTr("1 mod") : qsTr("%1 mods").arg(item.parts)) : "")
+    // Mods that change the same files: who wins is the one lower in the list. Not a "warning" (nothing is wrong), but said.
+    readonly property var conflictLines: item.enabled ? item.conflicts.map(c => c.other_wins
+        ? qsTr("Overridden by %1 on %n file(s)", "", c.count).arg(c.other)
+        : qsTr("Overrides %1 on %n file(s)", "", c.count).arg(c.other)) : []
+    readonly property string conflictText: conflictLines.length === 0 ? ""
+        : conflictLines[0] + (conflictLines.length > 1 ? " " + qsTr("(+%1 more)").arg(conflictLines.length - 1) : "")
+    readonly property string conflictDetail: item.conflicts.map(c => (c.other_wins
+        ? qsTr("Overridden by %1 on %n file(s)", "", c.count).arg(c.other)
+        : qsTr("Overrides %1 on %n file(s)", "", c.count).arg(c.other)) + ": " + c.examples.join(", ") + (c.count > c.examples.length ? ", \u2026" : "")).join("\n")
     readonly property string problem: broken ? item.error
                                       : item.incompatible ? qsTr("Built for another game version, so it is skipped at launch")
                                       : firstWarning + (item.warnings.length > 1 ? " " + qsTr("(+%1 more)").arg(item.warnings.length - 1) : "")
@@ -41,7 +56,10 @@ Control {
     Accessible.focusable: true
     Accessible.name: item.name + ", " + item.tags.map(t => ModsText.tagLabel(t)).join(", ") + ", "
                      + (item.enabled ? qsTr("enabled") : qsTr("disabled")) + (problem.length > 0 ? ", " + problem : "")
-    Accessible.description: fileInfo
+    Accessible.description: fileInfo + (conflictText.length > 0 ? ". " + conflictText : "")
+    transform: Translate { y: root.dragging ? dragHandler.translation.y : 0 }
+    z: root.dragging ? 10 : 0
+    opacity: root.dragging ? 0.85 : 1
 
     background: Card {
         elevation: 0
@@ -96,20 +114,24 @@ Control {
                     Layout.fillWidth: true
                     spacing: Theme.s1
                     Icon {
-                        visible: root.problem.length > 0
-                        name: root.broken ? "error" : "warning"
+                        visible: root.problem.length > 0 || root.conflictText.length > 0
+                        name: root.broken ? "error" : root.problem.length > 0 ? "warning" : "info"
                         size: 14
-                        color: root.broken ? Theme.danger : Theme.amberText
+                        color: root.broken ? Theme.danger : root.problem.length > 0 ? Theme.amberText : Theme.accentFg
                     }
                     Txt {
+                        id: lineTxt
                         Layout.fillWidth: true
                         text: root.problem.length > 0 ? root.problem
+                              : root.conflictText.length > 0 ? root.conflictText
                               : root.item.description.length > 0 ? root.item.description.replace(/\s+/g, " ")
                               : root.fileInfo
                         kind: "caption"
-                        color: root.broken ? Theme.danger : root.problem.length > 0 ? Theme.amberText : Theme.textSecondary
+                        color: root.broken ? Theme.danger : root.problem.length > 0 ? Theme.amberText : root.conflictText.length > 0 ? Theme.text : Theme.textSecondary
                         wrapMode: Text.NoWrap
                         elide: Text.ElideRight
+                        HoverHandler { id: lineHover }
+                        Tip { text: root.conflictDetail; wanted: lineHover.hovered && root.conflictDetail.length > 0 && root.problem.length === 0 }
                     }
                 }
             }
@@ -126,6 +148,28 @@ Control {
                 model: root.item.tags.slice(0, 2).reverse()
                 delegate: Tag { required property string modelData; text: ModsText.tagLabel(modelData); Accessible.ignored: true }
             }
+        }
+        Item {   // the drag handle (only when the order can be changed)
+            Layout.alignment: Qt.AlignVCenter
+            Layout.preferredWidth: root.reorderable ? 28 : 0
+            Layout.preferredHeight: 36
+            visible: root.reorderable
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("Drag to change the order of %1").arg(root.item.name)
+            Icon { anchors.centerIn: parent; name: "grip"; size: 18; color: gripHover.hovered || root.dragging ? Theme.text : Theme.textTertiary }
+            HoverHandler { id: gripHover; cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor }
+            DragHandler {
+                id: dragHandler
+                target: null
+                xAxis.enabled: false
+                cursorShape: Qt.ClosedHandCursor
+                onActiveChanged: {
+                    if (active) return
+                    const steps = Math.round(translation.y / root.rowStep)
+                    if (steps !== 0) root.moveRequested(steps)
+                }
+            }
+            Tip { text: qsTr("Drag to change the order. A mod lower in the list wins when two change the same file."); wanted: gripHover.hovered && !root.dragging }
         }
         SSwitch {
             Layout.alignment: Qt.AlignVCenter

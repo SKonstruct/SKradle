@@ -52,7 +52,7 @@ The launcher logic is in [`core/`](core) (no Qt; `cargo test` builds it). The Qt
 README has the setup, flags and debugging).
 
 More: [launching](docs/launching.md) · [mods](docs/mods.md) · [hosting a server](docs/server-host.md) ·
-[editors](docs/editors.md) · [websites](docs/web-tools.md) · [live events](docs/live-events.md) · [logging](docs/logging.md) · [crash reports](docs/crash-reports.md) ·
+[translating](docs/translating.md) · [editors](docs/editors.md) · [websites](docs/web-tools.md) · [live events](docs/live-events.md) · [logging](docs/logging.md) · [crash reports](docs/crash-reports.md) ·
 [design system](docs/design-system.md)
 
 > Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights (c) Grey Havens, LLC.

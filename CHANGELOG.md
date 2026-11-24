@@ -43,6 +43,15 @@ history has the rest.
   of personal details, with an off switch.
 - **Logs**: SKradle writes a log (`skradle.log`, scrubbed of your user name and secrets) with buttons in Settings > About
   to open its folder or copy its path; GitHub issue forms ask for it.
+- **Languages**: catalogues for Arabic, German, Spanish, Estonian, French, Italian, Japanese, Polish, Brazilian
+  Portuguese, Russian and Simplified and Traditional Chinese, picked in Settings (text not yet translated shows English);
+  right-to-left layouts mirror. See `docs/translating.md`.
+- **Alt mode**: a second client next to the first, with little memory, from a button on Home or by holding Alt or Shift
+  while pressing Launch.
+- **Tray icon** (menu bar on macOS) with Open and Quit; with it the launcher disappears completely while the game runs.
+- **Mod order and conflicts**: drag a mod (or press Alt with the arrow keys) to change the order; a mod lower in the list
+  wins when two change the same file, and each mod says which others it overrides or is overridden by.
+- **Server notice**: the Official server's notice and planned maintenance show on Home when there is one.
 - A quiet credit, "Built with ♥ by SirDank", at the bottom of Home; the name opens the author's site.
 - **Tools** page: the game's Crucible editor and, from an editors pack that SKradle downloads once and keeps at the
   newest build by itself (a weekly build of the open-source Clyde and spiralview tools; Java 25 or newer), the scene

@@ -23,6 +23,7 @@ pub mod qobject {
         #[qproperty(QString, java_path, cxx_name = "javaPath")]
         #[qproperty(QString, extra_jvm_args, cxx_name = "extraJvmArgs")]
         #[qproperty(bool, minimize_while_playing, cxx_name = "minimizeWhilePlaying")]
+        #[qproperty(bool, tray_icon, cxx_name = "trayIcon")]
         /// "default", "g1", "zgc", "parallel" or "serial".
         #[qproperty(QString, collector)]
         #[qproperty(bool, disable_explicit_gc, cxx_name = "disableExplicitGc")]
@@ -63,6 +64,7 @@ pub struct SettingsRust {
     java_path: QString,
     extra_jvm_args: QString,
     minimize_while_playing: bool,
+    tray_icon: bool,
     collector: QString,
     disable_explicit_gc: bool,
     file_cleaning: bool,
@@ -96,6 +98,7 @@ impl Default for SettingsRust {
             java_path: QString::default(),
             extra_jvm_args: QString::default(),
             minimize_while_playing: d.minimize_while_playing,
+            tray_icon: d.tray_icon,
             collector: QString::from(d.collector.as_str()),
             disable_explicit_gc: d.disable_explicit_gc,
             file_cleaning: d.file_cleaning,
@@ -147,6 +150,7 @@ impl qobject::Settings {
             .set_extra_jvm_args(QString::from(s.extra_jvm_args.as_str()));
         self.as_mut()
             .set_minimize_while_playing(s.minimize_while_playing);
+        self.as_mut().set_tray_icon(s.tray_icon);
         self.as_mut()
             .set_collector(QString::from(s.collector.as_str()));
         self.as_mut().set_disable_explicit_gc(s.disable_explicit_gc);
@@ -178,6 +182,7 @@ impl qobject::Settings {
         let java_path = self.java_path().to_string();
         let extra_jvm_args = self.extra_jvm_args().to_string();
         let minimize_while_playing = *self.minimize_while_playing();
+        let tray_icon = *self.tray_icon();
         let collector = Collector::parse(&self.collector().to_string());
         let disable_explicit_gc = *self.disable_explicit_gc();
         let file_cleaning = *self.file_cleaning();
@@ -205,6 +210,7 @@ impl qobject::Settings {
             s.java_path = java_path;
             s.extra_jvm_args = extra_jvm_args;
             s.minimize_while_playing = minimize_while_playing;
+            s.tray_icon = tray_icon;
             if let Some(collector) = collector {
                 s.collector = collector;
             }
@@ -263,6 +269,7 @@ impl Initialize for qobject::Settings {
         self.as_mut()
             .on_minimize_while_playing_changed(|q| q.push())
             .release();
+        self.as_mut().on_tray_icon_changed(|q| q.push()).release();
         self.as_mut().on_collector_changed(|q| q.push()).release();
         self.as_mut()
             .on_disable_explicit_gc_changed(|q| q.push())

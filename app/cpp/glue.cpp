@@ -175,10 +175,18 @@ QString set_language(const QString &language) {
             tag.replace(QLatin1Char('-'), QLatin1Char('_'));
             candidates << tag;
         }
-        // "de_AT" falls back to "de".
+        // "de_AT" falls back to "de"; a few tags are spelled by script or region on the system but by region in the
+        // catalogues ("zh_Hans_CN" is zh_CN, "zh_Hant_TW" and zh_HK are zh_TW, plain "pt" is Brazilian Portuguese).
         QStringList names;
         for (const QString &c : std::as_const(candidates)) {
             names << c;
+            if (c.startsWith(QLatin1String("zh_Hans")) || c == QLatin1String("zh") || c == QLatin1String("zh_SG")) {
+                names << QStringLiteral("zh_CN");
+            } else if (c.startsWith(QLatin1String("zh_Hant")) || c == QLatin1String("zh_HK") || c == QLatin1String("zh_MO")) {
+                names << QStringLiteral("zh_TW");
+            } else if (c == QLatin1String("pt") || c == QLatin1String("pt_PT")) {
+                names << QStringLiteral("pt_BR");
+            }
             const qsizetype cut = c.indexOf(QLatin1Char('_'));
             if (cut > 0) names << c.left(cut);
         }
@@ -192,6 +200,13 @@ QString set_language(const QString &language) {
         }
     }
     if (g_translator) QCoreApplication::installTranslator(g_translator.get());
+    // The locale follows the language: dates, numbers, day names and the text direction (Arabic mirrors the layouts).
+    // With no catalogue (English, or the system language has none) the system locale stays.
+    if (!used.isEmpty() && used != QLatin1String("pseudo")) {
+        QLocale::setDefault(QLocale(used));
+    } else {
+        QLocale::setDefault(QLocale::system());
+    }
     if (g_engine) g_engine->retranslate();
     return used;
 }

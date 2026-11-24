@@ -102,6 +102,9 @@ pub struct Settings {
     /// The game's heap limit. `None` leaves the game's own `extra.txt` setting alone.
     pub memory_mb: Option<u32>,
     pub minimize_while_playing: bool,
+    /// An icon in the system tray (menu bar on macOS) with "Open" and "Quit"; with it the launcher can hide completely
+    /// while the game runs instead of sitting minimised.
+    pub tray_icon: bool,
     /// The garbage collector flag written for the game (`Default` writes none).
     pub collector: Collector,
     /// `-XX:+DisableExplicitGC`: ignore `System.gc()` calls, which avoid some stop-the-world pauses.
@@ -147,6 +150,7 @@ impl Default for Settings {
             // The recommended game settings: 4 GB, G1 and no explicit GC (avoids some stop-the-world pauses).
             memory_mb: Some(RECOMMENDED_MEMORY_MB),
             minimize_while_playing: true,
+            tray_icon: true,
             collector: Collector::G1,
             disable_explicit_gc: true,
             file_cleaning: true,
@@ -179,6 +183,7 @@ const KNOWN_KEYS: &[&str] = &[
     "extraJvmArgs",
     "memoryMb",
     "minimizeWhilePlaying",
+    "trayIcon",
     "collector",
     "disableExplicitGc",
     "fileCleaning",
@@ -225,6 +230,7 @@ impl Settings {
             memory_mb: get(map, "memoryMb").or(d.memory_mb),
             minimize_while_playing: get(map, "minimizeWhilePlaying")
                 .unwrap_or(d.minimize_while_playing),
+            tray_icon: get(map, "trayIcon").unwrap_or(d.tray_icon),
             collector: get::<String>(map, "collector")
                 .and_then(|c| Collector::parse(&c))
                 .unwrap_or(d.collector),
@@ -288,6 +294,7 @@ impl Settings {
             "minimizeWhilePlaying",
             Value::from(self.minimize_while_playing),
         );
+        put("trayIcon", Value::from(self.tray_icon));
         put("collector", Value::from(self.collector.as_str()));
         put("disableExplicitGc", Value::from(self.disable_explicit_gc));
         put("fileCleaning", Value::from(self.file_cleaning));

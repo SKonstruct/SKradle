@@ -31,5 +31,7 @@ pub mod txn;
 pub use apply::{
     apply, apply_with_options, restore_pristine, ApplyError, ApplyOptions, ApplyReport,
 };
-pub use list::{list as list_mods, remove, set_enabled, InstalledMod};
+pub use list::{
+    conflicts, list as list_mods, move_mod, remove, set_enabled, Conflict, InstalledMod,
+};
 pub use model::{Container, Kind, Mod, ModError};

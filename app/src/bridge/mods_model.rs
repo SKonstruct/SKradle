@@ -53,6 +53,12 @@ pub mod qobject {
         #[cxx_name = "setEnabled"]
         fn set_enabled(self: Pin<&mut ModsModel>, files: &QString, on: bool);
 
+        /// Moves one mod to position `to` in the apply order (0 first; a mod later in the list wins files two mods
+        /// both change).
+        #[qinvokable]
+        #[cxx_name = "moveMod"]
+        fn move_mod(self: Pin<&mut ModsModel>, file: &QString, to: i32);
+
         /// Deletes the mods named in the JSON array of file names.
         #[qinvokable]
         fn remove(self: Pin<&mut ModsModel>, files: &QString);
@@ -268,6 +274,16 @@ impl qobject::ModsModel {
         let files = files_from_json(files);
         self.as_mut()
             .scan_then(move |dir| Some(mods_host::set_enabled_all(dir, &files, on)));
+    }
+
+    pub fn move_mod(mut self: Pin<&mut Self>, file: &QString, to: i32) {
+        if self.busy || self.pack_state.to_string() == "syncing" {
+            return;
+        }
+        let file = file.to_string();
+        let to = usize::try_from(to).unwrap_or(0);
+        self.as_mut()
+            .scan_then(move |dir| Some(mods_host::move_one(dir, &file, to)));
     }
 
     pub fn remove(mut self: Pin<&mut Self>, files: &QString) {

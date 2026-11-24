@@ -242,6 +242,67 @@ pub fn parse_feed(text: &str, now: i64) -> Result<Vec<Event>, EventsError> {
     .collect())
 }
 
+/// What the Official server says about itself in the same answer: a notice (a title and a text) and a maintenance
+/// window. Shown on Home as a quiet banner; nothing here is sent anywhere.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+pub struct Notice {
+    /// One line; may be empty.
+    pub title: String,
+    /// A few lines; may be empty.
+    pub text: String,
+    /// Unix seconds; `None` when no maintenance is planned (or it is over).
+    pub maintenance_starts_at: Option<i64>,
+    pub maintenance_ends_at: Option<i64>,
+}
+
+const MAX_NOTICE_CHARS: usize = 600;
+
+/// The Official server's notice and upcoming maintenance, or `None` when it has neither. A window that has already
+/// ended is not shown. A document that is not the expected JSON is simply `None` (the events have their own error).
+pub fn parse_notice(text: &str, now: i64) -> Option<Notice> {
+    let json: serde_json::Value = serde_json::from_str(&strip_trailing_commas(text)).ok()?;
+    let servers = json.get("serverlist")?.as_array()?;
+    let objects = || servers.iter().filter(|s| s.is_object());
+    let server = objects()
+        .find(|s| field(s, "name") == "Official")
+        .or_else(|| objects().next())?;
+    let clean = |s: String, max: usize| {
+        let s = clean_block(&s.replace("\\n", "\n"), max);
+        if s.eq_ignore_ascii_case("null") {
+            String::new()
+        } else {
+            s
+        }
+    };
+    let title = clean_line(&field(server, "noticeTitle"), MAX_TITLE_CHARS);
+    let title = if title.eq_ignore_ascii_case("null") {
+        String::new()
+    } else {
+        title
+    };
+    let body = clean(field(server, "notice"), MAX_NOTICE_CHARS);
+    let starts = seconds(&field(server, "maintenanceStartsAt"));
+    let ends = seconds(&field(server, "maintenanceEndsAt"));
+    // A window counts while it is still ahead or running; one without an end counts only before it starts.
+    let planned = match (starts, ends) {
+        (_, Some(end)) => end > now,
+        (Some(start), None) => start > now,
+        (None, None) => false,
+    };
+    let (starts, ends) = if planned {
+        (starts, ends)
+    } else {
+        (None, None)
+    };
+    let notice = Notice {
+        title,
+        text: body,
+        maintenance_starts_at: starts,
+        maintenance_ends_at: ends,
+    };
+    (!notice.text.is_empty() || !notice.title.is_empty() || planned).then_some(notice)
+}
+
 /// What the countdown line says, as numbers. The words are the UI's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -303,6 +364,8 @@ pub struct EventsFeed {
     pub offline: bool,
     /// When `events` were fetched, Unix seconds (0 when unknown).
     pub fetched_at: i64,
+    /// The server's notice and maintenance window, when it has one.
+    pub notice: Option<Notice>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -313,11 +376,11 @@ struct CacheFile {
     body: String,
 }
 
-fn read_cache(path: &Path, now: i64) -> Option<(Vec<Event>, i64)> {
+fn read_cache(path: &Path, now: i64) -> Option<(Vec<Event>, i64, Option<Notice>)> {
     let bytes = crate::bounded::read_regular(path, MAX_CACHE_BYTES).ok()?;
     let cache: CacheFile = serde_json::from_slice(&bytes).ok()?;
     let events = parse_feed(&cache.body, now).ok()?;
-    Some((events, cache.fetched_at))
+    Some((events, cache.fetched_at, parse_notice(&cache.body, now)))
 }
 
 fn write_cache(path: &Path, body: &str, now: i64) {
@@ -338,11 +401,12 @@ fn write_cache(path: &Path, body: &str, now: i64) {
 /// The last good answer straight from disk, with no request: the Home page shows it at once while the request runs.
 /// `None` when nothing usable is saved. Not marked offline: nothing is known about the network yet.
 pub fn cached_feed(cache: &Path, now: i64) -> Option<EventsFeed> {
-    let (events, fetched_at) = read_cache(cache, now)?;
+    let (events, fetched_at, notice) = read_cache(cache, now)?;
     Some(EventsFeed {
         events,
         offline: false,
         fetched_at,
+        notice,
     })
 }
 
@@ -359,14 +423,16 @@ pub fn load_events(api: &dyn EventsApi, cache: &Path, now: i64) -> EventsFeed {
                 events,
                 offline: false,
                 fetched_at: now,
+                notice: parse_notice(&body, now),
             };
         }
     }
-    let (events, fetched_at) = read_cache(cache, now).unwrap_or_default();
+    let (events, fetched_at, notice) = read_cache(cache, now).unwrap_or_default();
     EventsFeed {
         events,
         offline: true,
         fetched_at,
+        notice,
     }
 }
 
@@ -529,6 +595,40 @@ mod tests {
         assert!(!saved.events.is_empty());
         assert!(!saved.offline);
         assert_eq!(saved.fetched_at, NOW);
+    }
+
+    #[test]
+    fn the_notice_and_the_maintenance_window_come_from_the_official_entry() {
+        let feed = r#"{"serverlist":[
+            {"name":"Other","notice":"not this one","noticeTitle":"No"},
+            {"name":"Official","noticeTitle":"Heads up","notice":"Servers restart soon.\\nSorry!",
+             "maintenanceStartsAt":"1793960000000","maintenanceEndsAt":"1793963600000"}
+        ]}"#;
+        let notice = parse_notice(feed, 1_793_950_000).unwrap();
+        assert_eq!(notice.title, "Heads up");
+        assert_eq!(notice.text, "Servers restart soon.\nSorry!");
+        assert_eq!(notice.maintenance_starts_at, Some(1_793_960_000));
+        assert_eq!(notice.maintenance_ends_at, Some(1_793_963_600));
+        // Once the window is over only the text stays.
+        let later = parse_notice(feed, 1_793_970_000).unwrap();
+        assert_eq!(
+            (later.maintenance_starts_at, later.maintenance_ends_at),
+            (None, None)
+        );
+        assert_eq!(later.text, "Servers restart soon.\nSorry!");
+    }
+
+    #[test]
+    fn nothing_to_say_is_no_notice() {
+        let quiet = r#"{"serverlist":[{"name":"Official","noticeTitle":"null","notice":"","maintenanceStartsAt":"0","maintenanceEndsAt":"0"}]}"#;
+        assert_eq!(parse_notice(quiet, 1_793_950_000), None);
+        assert_eq!(parse_notice("not json", 1), None);
+        assert_eq!(parse_notice(r#"{"serverlist":[]}"#, 1), None);
+        // A window with only a start counts until it begins.
+        let only_start =
+            r#"{"serverlist":[{"name":"Official","maintenanceStartsAt":"1793960000000"}]}"#;
+        assert!(parse_notice(only_start, 1_793_950_000).is_some());
+        assert!(parse_notice(only_start, 1_793_970_000).is_none());
     }
 
     #[test]

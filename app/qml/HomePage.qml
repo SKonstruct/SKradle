@@ -186,6 +186,19 @@ PageScaffold {
                     Layout.preferredWidth: 236
                     Layout.preferredHeight: Theme.hLaunch
                 }
+                // Alt mode: another client next to the first, with little memory, for a second account.
+                SButton {
+                    id: altButton
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: page.found && (page.st === "ready" || page.st === "running")
+                    variant: "ghost"
+                    size: "sm"
+                    glyph: "plus"
+                    text: qsTr("Alt client")
+                    Accessible.name: qsTr("Start another client (alt mode)")
+                    onClicked: LaunchModel.startAlt(GameModel.selectedPath)
+                    Tip { text: qsTr("Start another client (alt mode). It uses little memory, so your main game keeps its speed. Holding Alt or Shift while pressing Launch does the same."); wanted: altButton.hovered }
+                }
             }
         }
 
@@ -200,6 +213,35 @@ PageScaffold {
                     Data.toast(qsTr("Steam did not open. Use the download page instead."), "error")
             }
             onDownloadPage: Qt.openUrlExternally("https://www.spiralknights.com/download.xhtml")
+        }
+    }
+
+    // ---- the server's notice and maintenance window: only when it has something to say, and it can be closed ----------
+    Banner {
+        id: noticeBanner
+        readonly property var n: { try { return HomeFeed.noticeJson === "" ? null : JSON.parse(HomeFeed.noticeJson) } catch (e) { return null } }
+        property bool dismissed: false
+        Connections { target: HomeFeed; function onNoticeJsonChanged() { noticeBanner.dismissed = false } }
+        function when(sec) { return Qt.formatDateTime(new Date(sec * 1000), "ddd d MMM HH:mm") }
+        readonly property bool underway: n !== null && n.startsAt > 0 && n.startsAt * 1000 <= Date.now()
+        Layout.fillWidth: true
+        Layout.topMargin: page.tight - Theme.gapSection
+        visible: n !== null && !dismissed
+        kind: "warn"
+        dismissible: true
+        onDismissed: dismissed = true
+        title: n === null ? "" : n.title !== "" ? n.title : n.startsAt > 0 ? qsTr("Scheduled maintenance") : qsTr("Notice from the server")
+        text: {
+            if (n === null) return ""
+            const lines = []
+            if (n.startsAt > 0 && n.endsAt > 0) {
+                lines.push(underway ? qsTr("Maintenance is under way. It should end around %1.").arg(when(n.endsAt))
+                                    : qsTr("Maintenance is planned from %1 to about %2.").arg(when(n.startsAt)).arg(when(n.endsAt)))
+            } else if (n.startsAt > 0) {
+                lines.push(qsTr("Maintenance is planned for %1.").arg(when(n.startsAt)))
+            }
+            if (n.text !== "") lines.push(n.text)
+            return lines.join("\n")
         }
     }
 
@@ -565,4 +607,12 @@ PageScaffold {
     function openPlayers() { playersDlg.openFrom(playersCard) }
     function closePlayers() { playersDlg.close() }
     PlayersDialog { id: playersDlg }
+    Connections {
+        target: LaunchModel
+        function onAltSerialChanged() {
+            if (!page.shown) return
+            if (LaunchModel.altNotice === "") Data.toast(qsTr("Another client is starting. It uses little memory, so it suits a second account."), "info")
+            else Data.toast(LaunchModel.altNotice, "error")
+        }
+    }
 }

@@ -216,9 +216,11 @@ Item {
                     SettingRow {
                         label: qsTr("Language")
                         ValueCombo {
-                            // Each language is named in itself. Add a catalogue in i18n/ and a row here.
-                            values: ["system", "en"]
-                            model: [qsTr("Follow the system"), "English"]
+                            // Each language is named in itself. Add a catalogue in i18n/ (i18n/update.sh) and a row here.
+                            // A language whose catalogue is not finished shows English for what is missing.
+                            values: ["system", "en", "ar", "de", "es", "et", "fr", "it", "ja", "pl", "pt_BR", "ru", "zh_CN", "zh_TW"]
+                            model: [qsTr("Follow the system"), "English", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629", "Deutsch", "Espa\u00F1ol", "Eesti", "Fran\u00E7ais", "Italiano",
+                                    "\u65E5\u672C\u8A9E", "Polski", "Portugu\u00EAs (Brasil)", "\u0420\u0443\u0441\u0441\u043A\u0438\u0439", "\u7B80\u4F53\u4E2D\u6587", "\u7E41\u9AD4\u4E2D\u6587"]
                             current: Settings.language
                             onChosen: (v) => Settings.language = v
                             Accessible.name: qsTr("Language")
@@ -235,6 +237,12 @@ Item {
                         label: qsTr("Hide the launcher while the game runs"); hint: qsTr("It comes back when the game exits.")
                         Item { Layout.fillWidth: true }
                         SSwitch { checked: Settings.minimizeWhilePlaying; onToggled: Settings.minimizeWhilePlaying = checked; Accessible.name: qsTr("Hide the launcher while the game runs") }
+                    }
+                    Sep {}
+                    SettingRow {
+                        label: qsTr("Show a tray icon"); hint: qsTr("Open or quit SKradle from the system tray (the menu bar on macOS). With it, the launcher disappears completely while the game runs.")
+                        Item { Layout.fillWidth: true }
+                        SSwitch { checked: Settings.trayIcon; onToggled: Settings.trayIcon = checked; Accessible.name: qsTr("Show a tray icon") }
                     }
                     Sep {}
                     SettingRow {
