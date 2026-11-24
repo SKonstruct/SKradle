@@ -5,7 +5,7 @@
 <h1 align="center">SKradle</h1>
 
 <p align="center">
-  A fast, good-looking desktop launcher for <a href="https://www.spiralknights.com/">Spiral Knights</a>
+  A fast, desktop launcher for <a href="https://www.spiralknights.com/">Spiral Knights</a>
   on Windows, macOS and Linux.
 </p>
 
