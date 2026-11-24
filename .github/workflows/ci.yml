@@ -37,6 +37,11 @@ env:
   LINUXDEPLOY_SHA256: c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d
   LINUXDEPLOY_QT_URL: https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-qt-x86_64.AppImage
   LINUXDEPLOY_QT_SHA256: 15106be885c1c48a021198e7e1e9a48ce9d02a86dd0a1848f00bdbf3c1c92724
+  # NSIS (the Windows installer compiler), the official portable zip, checked against this SHA-256 before it is used.
+  # Chocolatey's feed has been down for hours at a time, so it is only the fallback.
+  NSIS_URL: https://sourceforge.net/projects/nsis/files/NSIS%203/3.11/nsis-3.11.zip/download
+  NSIS_SHA256: c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1
+  NSIS_DIR: nsis-3.11
 
 defaults:
   run:
@@ -222,12 +227,19 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # Chocolatey's feed fails now and then: try a few times before giving up.
-          for attempt in 1 2 3 4; do
-            command -v makensis >/dev/null && break
-            [ -x "/c/Program Files (x86)/NSIS/makensis.exe" ] && break
-            choco install nsis -y --no-progress || { echo "NSIS install failed (attempt $attempt)"; sleep $((attempt * 20)); }
-          done
+          mkdir -p tools
+          if curl -fsSL --retry 5 --retry-all-errors -o tools/nsis.zip "$NSIS_URL" \
+              && echo "$NSIS_SHA256  tools/nsis.zip" | sha256sum -c - && unzip -q tools/nsis.zip -d tools; then
+            export PATH="$PWD/tools/$NSIS_DIR:$PATH"
+          else
+            echo "the NSIS zip could not be used; trying Chocolatey"
+            for attempt in 1 2 3; do
+              command -v makensis >/dev/null && break
+              [ -x "/c/Program Files (x86)/NSIS/makensis.exe" ] && break
+              choco install nsis -y --no-progress || sleep $((attempt * 20))
+            done
+          fi
+          if command -v makensis >/dev/null; then makensis -VERSION; fi
           mkdir dist
           packaging/windows.sh target/release/skradle.exe "$VERSION" dist "${{ matrix.name }}"
 
