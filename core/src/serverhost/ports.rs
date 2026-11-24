@@ -156,10 +156,19 @@ mod tests {
 
     #[test]
     fn a_held_port_is_busy_and_a_released_one_is_free() {
-        let (listener, port) = held();
-        assert!(!is_free(port));
-        drop(listener);
-        assert!(is_free(port));
+        // Other tests run at the same time and bind ephemeral ports too, so a port released here can be handed to one of
+        // them before it is probed. A held port is busy every time; a released one must read free on some attempt.
+        let mut freed = false;
+        for _ in 0..20 {
+            let (listener, port) = held();
+            assert!(!is_free(port));
+            drop(listener);
+            if is_free(port) {
+                freed = true;
+                break;
+            }
+        }
+        assert!(freed, "no released port ever read as free");
         assert!(!is_free(0));
     }
 
