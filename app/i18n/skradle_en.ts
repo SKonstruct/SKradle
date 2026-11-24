@@ -362,6 +362,18 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Built with love by SirDank. Opens dankware.alwaysdata.net.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Built with</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>by</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Release notes (v%1)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -473,10 +485,6 @@
     </message>
     <message>
         <source>%1, opens the article</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>SKradle is free and open source.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

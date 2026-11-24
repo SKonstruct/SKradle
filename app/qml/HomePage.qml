@@ -506,7 +506,44 @@ PageScaffold {
         Layout.fillWidth: true
         Layout.topMargin: page.tight - Theme.gapSection
         spacing: Theme.s2
-        Txt { Layout.fillWidth: true; text: qsTr("SKradle is free and open source."); kind: "caption"; elide: Text.ElideRight; maximumLineCount: 1 }
+        // "Built with <heart> by SirDank": quiet, but on the page everyone sees. The name opens the author's site.
+        RowLayout {
+            id: credit
+            Layout.fillWidth: true
+            spacing: Theme.s1
+            Accessible.role: Accessible.Link
+            Accessible.name: qsTr("Built with love by SirDank. Opens dankware.alwaysdata.net.")
+            Accessible.onPressAction: Qt.openUrlExternally("https://dankware.alwaysdata.net/")
+            Txt { text: qsTr("Built with"); kind: "caption"; wrapMode: Text.NoWrap; Accessible.ignored: true }
+            Icon { name: "heart"; size: 14; color: Theme.accentFg; Accessible.ignored: true }
+            Txt { text: qsTr("by"); kind: "caption"; wrapMode: Text.NoWrap; Accessible.ignored: true }
+            Item {
+                implicitWidth: nameText.implicitWidth
+                implicitHeight: nameText.implicitHeight
+                activeFocusOnTab: true
+                Keys.onReturnPressed: Qt.openUrlExternally("https://dankware.alwaysdata.net/")
+                Keys.onSpacePressed: Qt.openUrlExternally("https://dankware.alwaysdata.net/")
+                Txt {
+                    id: nameText
+                    text: "SirDank"
+                    kind: "caption"
+                    wrapMode: Text.NoWrap
+                    font.weight: Font.DemiBold
+                    font.underline: nameArea.containsMouse || parent.activeFocus
+                    color: Theme.accentFg
+                    Accessible.ignored: true
+                }
+                MouseArea {
+                    id: nameArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Qt.openUrlExternally("https://dankware.alwaysdata.net/")
+                }
+                FocusRing { visible: parent.activeFocus }
+            }
+            Item { Layout.fillWidth: true }
+        }
         // The changelog is the launcher's only release information: a plain button, with the version it covers.
         SButton {
             size: "sm"

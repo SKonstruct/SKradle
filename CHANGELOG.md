@@ -43,6 +43,7 @@ history has the rest.
   of personal details, with an off switch.
 - **Logs**: SKradle writes a log (`skradle.log`, scrubbed of your user name and secrets) with buttons in Settings > About
   to open its folder or copy its path; GitHub issue forms ask for it.
+- A quiet credit, "Built with ♥ by SirDank", at the bottom of Home; the name opens the author's site.
 - **Tools** page: the game's Crucible editor and, from an editors pack that SKradle downloads once and keeps at the
   newest build by itself (a weekly build of the open-source Clyde and spiralview tools; Java 25 or newer), the scene
   editor, Silverweave, Model Viewer, Particle Editor and Interface Tester; and two Spiral Knights websites (Auction
