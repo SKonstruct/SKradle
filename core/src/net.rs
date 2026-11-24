@@ -330,6 +330,14 @@ pub const EVENTS_FEED_HOST: &str = "flamingo.knightlauncher.com";
 pub const EVENTS_FEED_PORT: u16 = 6060;
 /// Path prefix of the live-events feed.
 pub const EVENTS_FEED_PATH: &str = "/server-list/";
+/// The same service's players-online history, the only other address that may be read over plain HTTP.
+pub const PLAYER_HISTORY_URL: &str =
+    "http://flamingo.knightlauncher.com:6060/player-count/history/?tz=UTC";
+
+/// Whether `url` is exactly [`PLAYER_HISTORY_URL`].
+pub fn is_player_history_url(url: &str) -> bool {
+    url == PLAYER_HISTORY_URL
+}
 
 /// Whether `url` is exactly the events feed: `http://<host>:<port><path>` optionally followed by a plain query
 /// (letters, digits, `=`, `&`, `-`, `_`, `.`). No other host, port, scheme, path, user info or fragment passes.
@@ -355,6 +363,16 @@ impl Client {
         if !is_events_feed_url(url) {
             return Err(NetError::InsecureUrl(url.to_owned()));
         }
+        Self::get_text_insecure(url, max_bytes)
+    }
+
+    /// Fetches the players-online history of the same service, with the same limits as the events feed. Only
+    /// [`PLAYER_HISTORY_URL`] is accepted; the request carries nothing about the player.
+    pub fn get_text_insecure_for_history(max_bytes: u64) -> Result<String, NetError> {
+        Self::get_text_insecure(PLAYER_HISTORY_URL, max_bytes)
+    }
+
+    fn get_text_insecure(url: &str, max_bytes: u64) -> Result<String, NetError> {
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .https_only(false)
             .max_redirects(0)
@@ -554,6 +572,25 @@ mod tests {
         // The general client still refuses the feed's own address.
         assert!(matches!(
             Client::new().get_text(feed, 10),
+            Err(NetError::InsecureUrl(_))
+        ));
+    }
+
+    #[test]
+    fn plain_http_is_allowed_for_the_history_url_alone() {
+        assert!(is_player_history_url(PLAYER_HISTORY_URL));
+        for bad in [
+            "http://flamingo.knightlauncher.com:6060/player-count/history/",
+            "http://flamingo.knightlauncher.com:6060/player-count/history/?tz=Europe/London",
+            "http://flamingo.knightlauncher.com:6060/player-count/history/?tz=UTC&a=b",
+            "https://flamingo.knightlauncher.com:6060/player-count/history/?tz=UTC",
+            "http://example.org:6060/player-count/history/?tz=UTC",
+        ] {
+            assert!(!is_player_history_url(bad), "{bad}");
+        }
+        // The general client refuses it like every other cleartext address.
+        assert!(matches!(
+            Client::new().get_text(PLAYER_HISTORY_URL, 10),
             Err(NetError::InsecureUrl(_))
         ));
     }

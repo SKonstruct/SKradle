@@ -211,4 +211,8 @@ QString set_language(const QString &language) {
     return used;
 }
 
+QString translate_text(const QString &source) {
+    return QCoreApplication::translate("rust", source.toUtf8().constData());
+}
+
 }  // namespace skradle

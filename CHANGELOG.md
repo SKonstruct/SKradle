@@ -11,11 +11,11 @@ history has the rest.
 
 - **Launcher app** (Qt Quick, one look on every OS) with five pages: **Home**, **Servers**, **Mods**, **Tools** and **Settings**;
   light and dark theme; reduced-motion setting; English with a translation catalogue and a pseudo-language for layout
-  testing.
+  testing; the launch, mod and folder error sentences are translatable too.
 - **Home**: the launch card (update, launching and running states); the three latest Spiral Knights news items; an
   estimate of the players online (the Steam counts of the Live and Preview servers, each multiplied by 1.4 for
   standalone players, with the breakdown shown; click it for the history: now, 24-hour and recorded peaks, the usual busiest
-  hour and weekday, and charts of the last 24 hours, 7 days and 30 days, recorded on this computer while SKradle is open); the game's live events (the same event feed the mobile apps use) with a countdown and a large banner, the title
+  hour and weekday, and charts of the last 24 hours, 7 days and 30 days, from the Knight Launcher service's recorded history, asked once when the dialog opens with nothing about you in the request, or recorded on this computer while SKradle is open when the service cannot be reached); the game's live events (the same event feed the mobile apps use) with a countdown and a large banner, the title
   opens the article; hidden when there are none or the feed is unreachable (banners are kept on disk); a donation button; and **Release notes**,
   this changelog bundled into the app, readable offline with each version collapsible. News and player counts come
   from Steam's public API, are kept on disk and shown as offline when Steam is unreachable.

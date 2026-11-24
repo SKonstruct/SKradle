@@ -255,7 +255,7 @@ impl qobject::GameModel {
                     });
                 }
                 Err(e) => {
-                    let message = QString::from(e.message());
+                    let message = QString::from(e.message().as_str());
                     let _ = thread.queue(move |model| model.set_error(message));
                 }
             });

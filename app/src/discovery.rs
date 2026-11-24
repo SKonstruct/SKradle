@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use skradle_core::game::{self, GameInstall, InstallKind};
 use skradle_core::getdown_txt::GetdownConfig;
 
+use crate::i18n::tr;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Steam,
@@ -131,10 +133,10 @@ pub enum FolderError {
 }
 
 impl FolderError {
-    pub fn message(&self) -> &'static str {
+    pub fn message(&self) -> String {
         match self {
-            FolderError::NotAFolder => "That is not a folder.",
-            FolderError::NotAGame => "That folder does not hold Spiral Knights (getdown.txt and getdown-pro.jar are missing).",
+            FolderError::NotAFolder => tr("That is not a folder."),
+            FolderError::NotAGame => tr("That folder does not hold Spiral Knights (getdown.txt and getdown-pro.jar are missing)."),
         }
     }
 }

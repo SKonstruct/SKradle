@@ -57,8 +57,14 @@ off). The English text is also the best context: `app/qml/` shows where each str
 - For Arabic: the interface mirrors (sidebar on the right) and numbers and Latin names inside sentences still read well.
 - For Japanese and Chinese: no spaces added between words, full-width punctuation where the language uses it.
 
-## What is not translated yet
+## Text that comes from Rust
 
-Text produced by the Rust side (some launch and folder error sentences, the settings-file warning) is English only; it is
-meant to become error codes with the wording in QML. The live events and the news come from their sources in their own
-language. The mod, server and file names are the player's own.
+Launch and mod error sentences, the folder check and the settings-file warning are written in Rust with `tr("...")` /
+`tr_args("... %1 ...", &[value])` (`app/src/i18n.rs`) and live in the catalogues under the context `rust`.
+`update.sh` collects them (`i18n/rust_strings.py` writes `i18n/rust_strings.cpp`; CI fails when it is stale), so they
+are translated like every other message. Keep `%1`, `%2` in place; a translation may reorder them.
+
+## What is not translated
+
+Text from the game's own updater, the engines' raw error details shown after a colon, and the log. The live events and
+the news come from their sources in their own language. The mod, server and file names are the player's own.

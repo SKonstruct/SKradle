@@ -32,6 +32,7 @@ use super::supervisor::{self, Context, Prepare, Timing};
 use super::{memory, LaunchError, Launcher, Request, Running, Sink};
 use super::{pending, Event, Phase, Step};
 use crate::discovery::{self, Kind};
+use crate::i18n::{tr, tr_args};
 use crate::settings::{self, Collector, Settings};
 
 /// What a launch depends on besides the game folder and the settings.
@@ -217,7 +218,7 @@ pub fn prepare(
     })
     .map_err(|refusal| {
         log::warn("launch", format!("the launch was refused: {refusal}"));
-        LaunchError::Refused(refusal.to_string())
+        LaunchError::Refused(refusal_text(&refusal))
     })?;
     // Steam installs on Windows and Linux also get `steam_appid.txt` in the game folder (best effort).
     if steam::wants_appid_file(machine.os, core_install.kind, around.server.is_some()) {
@@ -282,8 +283,32 @@ pub fn ensure_steam(waiter: &mut dyn Waiter, ctx: &Context<'_>) -> Result<(), La
         other => log::warn("steam", format!("Steam did not become ready: {other:?}")),
     }
     match outcome {
-        Waited::Cancelled => Err(LaunchError::Refused("Cancelled.".to_owned())),
-        other => steam::failure_message(other).map_or(Ok(()), |m| Err(LaunchError::Refused(m))),
+        Waited::Cancelled => Err(LaunchError::Refused(tr("Cancelled."))),
+        other => steam::wait_failure(other)
+            .map_or(Ok(()), |f| Err(LaunchError::Refused(steam_failure_text(f)))),
+    }
+}
+
+fn steam_failure_text(failure: steam::WaitFailure) -> String {
+    match failure {
+        steam::WaitFailure::CouldNotStart => tr("Steam is not running and SKradle could not start it. Start Steam yourself, sign in, then launch again."),
+        steam::WaitFailure::NotSignedIn => tr("Steam started but is not signed in. Sign in to Steam (its window may be behind others), then launch again."),
+        steam::WaitFailure::TimedOut => tr("Steam did not start within a minute. Start Steam yourself, sign in, then launch again."),
+    }
+}
+
+/// The player's wording of a refusal of the launch plan (the core's own text is English, for the log).
+fn refusal_text(refusal: &core_plan::Refusal) -> String {
+    use core_plan::Refusal;
+    match refusal {
+        Refusal::NoJava { minimum } => tr_args("No Java %1 or newer was found.", &[&(minimum / 1_000_000).to_string()]),
+        Refusal::UpdateRequiredForPrivateServer => tr("The game has an update. Update it before joining a private server."),
+        Refusal::GameFilesIncompleteForPrivateServer(files) => tr_args(
+            "Game files are missing (%1). Repair the game before joining a private server.",
+            &[&files.len().to_string()],
+        ),
+        Refusal::SteamNotRunning => tr("Steam is not running. This copy of the game signs in through Steam: start Steam and sign in, then launch again."),
+        Refusal::Config(why) => tr_args("The game's configuration could not be read: %1", &[why]),
     }
 }
 
@@ -318,7 +343,7 @@ pub fn start_alt(mut request: Request) -> Result<(), LaunchError> {
     let (spec, kind) = prepare(&request, &machine, &around, &mut effects)?;
     if kind != LaunchKind::Direct {
         return Err(LaunchError::Refused(
-            "The game needs an update first. Launch it the normal way once, then start the other client.".to_owned(),
+            tr("The game needs an update first. Launch it the normal way once, then start the other client."),
         ));
     }
     let mut command = spec.to_command();

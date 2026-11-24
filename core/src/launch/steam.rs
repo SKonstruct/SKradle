@@ -352,23 +352,43 @@ impl Waiter for System {
     }
 }
 
-/// The message for a wait that ended without Steam being ready.
-pub fn failure_message(outcome: Waited) -> Option<String> {
+/// Why a wait ended without Steam being ready. The launcher words each one for the player in their language.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WaitFailure {
+    /// Steam was not running and could not be started.
+    CouldNotStart,
+    /// Steam started but nobody is signed in.
+    NotSignedIn,
+    /// Steam did not get ready in time.
+    TimedOut,
+}
+
+impl WaitFailure {
+    /// The English sentence (what the log and the tests read).
+    pub fn english(self) -> &'static str {
+        match self {
+            WaitFailure::CouldNotStart => "Steam is not running and SKradle could not start it. Start Steam yourself, sign in, then launch again.",
+            WaitFailure::NotSignedIn => "Steam started but is not signed in. Sign in to Steam (its window may be behind others), then launch again.",
+            WaitFailure::TimedOut => "Steam did not start within a minute. Start Steam yourself, sign in, then launch again.",
+        }
+    }
+}
+
+/// What went wrong when a wait ended without Steam being ready; `None` when it is ready or the player cancelled.
+pub fn wait_failure(outcome: Waited) -> Option<WaitFailure> {
     match outcome {
         Waited::AlreadyReady | Waited::BecameReady { .. } | Waited::Cancelled => None,
-        Waited::CouldNotStart => Some(
-            "Steam is not running and SKradle could not start it. Start Steam yourself, sign in, then launch again."
-                .to_owned(),
-        ),
-        Waited::TimedOut { last: ClientState::NotSignedIn } => Some(
-            "Steam started but is not signed in. Sign in to Steam (its window may be behind others), then launch again."
-                .to_owned(),
-        ),
-        Waited::TimedOut { .. } => Some(
-            "Steam did not start within a minute. Start Steam yourself, sign in, then launch again."
-                .to_owned(),
-        ),
+        Waited::CouldNotStart => Some(WaitFailure::CouldNotStart),
+        Waited::TimedOut {
+            last: ClientState::NotSignedIn,
+        } => Some(WaitFailure::NotSignedIn),
+        Waited::TimedOut { .. } => Some(WaitFailure::TimedOut),
     }
+}
+
+/// The English message for a wait that ended without Steam being ready.
+pub fn failure_message(outcome: Waited) -> Option<String> {
+    wait_failure(outcome).map(|f| f.english().to_owned())
 }
 
 /// True when the sign-in file `steam_appid.txt` should be written into the game folder: Steam installs on Official,

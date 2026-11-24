@@ -14,6 +14,7 @@ use skradle_core::mods::tags::{tags_of, Tag};
 use skradle_core::mods::{self, Container, InstalledMod, Mod};
 
 use crate::discovery::local_path_from_url_text;
+use crate::i18n::{tr, tr_args};
 
 /// The folder the player's mods live in, the one applied at launch: `SKRADLE_MODS_DIR` when set (tests), else
 /// `<data dir>/SKradle/mods`.
@@ -203,42 +204,42 @@ fn capitalised(text: &str) -> String {
 
 /// The reason for a failure on an archive, a file or the disk, short and without a final period. `None` when the text
 /// matches nothing known.
-fn archive_reason(raw: &str) -> Option<&'static str> {
+fn archive_reason(raw: &str) -> Option<String> {
     let t = raw.to_lowercase();
     let has = |needles: &[&str]| needles.iter().any(|n| t.contains(n));
     Some(
         if has(&["eocd", "not a readable zip", "invalid zip", "zip archive"]) {
-            "The file is not a valid zip"
+            tr("The file is not a valid zip")
         } else if has(&["is encrypted"]) {
-            "The archive is password protected"
+            tr("The archive is password protected")
         } else if has(&["unsafe entry name"]) {
-            "It has a file with an unsafe path"
+            tr("It has a file with an unsafe path")
         } else if has(&["symbolic link"]) {
-            "It contains a link, which is not allowed"
+            tr("It contains a link, which is not allowed")
         } else if has(&[
             "appears more than once",
             "both a file and a folder",
             "not the size its header",
         ]) {
-            "The archive is damaged"
+            tr("The archive is damaged")
         } else if has(&["more than", "too large"]) && !t.contains("mod.json") {
-            "The file is too large"
+            tr("The file is too large")
         } else if has(&[
             "permission denied",
             "access is denied",
             "operation not permitted",
         ]) {
-            "SKradle is not allowed to open it"
+            tr("SKradle is not allowed to open it")
         } else if has(&["no such file", "not found", "cannot find", "os error 2"]) {
-            "The file is missing"
+            tr("The file is missing")
         } else if has(&["mod.json is not valid", "mod.json is not a json"]) {
-            "Its mod.json is not valid"
+            tr("Its mod.json is not valid")
         } else if has(&["not a regular file"]) {
-            "It is not a regular file"
+            tr("It is not a regular file")
         } else if has(&["not a .zip, .jar or .modpack"]) {
-            "It is not a .zip, .jar or .modpack file"
+            tr("It is not a .zip, .jar or .modpack file")
         } else if has(&["changed while"]) {
-            "The file changed while it was being read"
+            tr("The file changed while it was being read")
         } else {
             return None;
         },
@@ -247,14 +248,12 @@ fn archive_reason(raw: &str) -> Option<&'static str> {
 
 /// Why a file could not be used, for any engine text: the known reason, else a generic one.
 pub fn plain_reason(raw: &str) -> String {
-    archive_reason(raw)
-        .unwrap_or("The file could not be read")
-        .to_owned()
+    archive_reason(raw).unwrap_or_else(|| tr("The file could not be read"))
 }
 
 /// The row's message for a mod that cannot be read.
 pub fn unusable(raw: &str) -> String {
-    format!("Can't be used. {}.", plain_reason(raw))
+    tr_args("Can't be used. %1.", &[&plain_reason(raw)])
 }
 
 /// A note from the scan (a warning): plain sentences stay, archive errors inside them become words.
@@ -268,7 +267,7 @@ pub fn plain_note(raw: &str) -> String {
             )
         }
         _ => match archive_reason(raw) {
-            Some(why) if raw.to_lowercase().contains("zip") => why.to_owned(),
+            Some(why) if raw.to_lowercase().contains("zip") => why,
             _ => capitalised(raw),
         },
     }
@@ -290,18 +289,17 @@ pub fn plain_refusal(raw: &str) -> String {
 pub fn plain_pack_error(raw: &str) -> String {
     let t = raw.to_lowercase();
     if t.contains("lists no mods") {
-        "SirDank's Modpack is empty right now. Try again later.".to_owned()
+        tr("SirDank's Modpack is empty right now. Try again later.")
     } else if t.contains("cannot read the modpack listing")
         || ["connect", "network", "timed out", "dns", "https", "status"]
             .iter()
             .any(|n| t.contains(n))
     {
-        "Could not reach SirDank's Modpack. Check your internet connection and try again."
-            .to_owned()
+        tr("Could not reach SirDank's Modpack. Check your internet connection and try again.")
     } else if t.contains("permission denied") || t.contains("access is denied") {
-        "SKradle is not allowed to write to the mods folder.".to_owned()
+        tr("SKradle is not allowed to write to the mods folder.")
     } else {
-        "SirDank's Modpack could not be updated. Try again.".to_owned()
+        tr("SirDank's Modpack could not be updated. Try again.")
     }
 }
 
@@ -309,16 +307,16 @@ pub fn plain_pack_error(raw: &str) -> String {
 pub fn plain_pack_file(raw: &str) -> String {
     let t = raw.to_lowercase();
     if t.contains("hash") || t.contains("sha") {
-        "The download was damaged, so it was discarded".to_owned()
+        tr("The download was damaged, so it was discarded")
     } else if let Some(why) = archive_reason(raw) {
-        why.to_owned()
+        why
     } else if ["connect", "network", "timed out", "dns", "https", "status"]
         .iter()
         .any(|n| t.contains(n))
     {
-        "The download did not finish".to_owned()
+        tr("The download did not finish")
     } else {
-        "The file could not be downloaded".to_owned()
+        tr("The file could not be downloaded")
     }
 }
 
@@ -326,12 +324,11 @@ pub fn plain_pack_file(raw: &str) -> String {
 pub fn plain_folder_error(raw: &str) -> String {
     let t = raw.to_lowercase();
     if t.contains("state file") {
-        "The list of switched-off mods is damaged. Delete .skradle-mods.json in the mods folder and try again."
-            .to_owned()
+        tr("The list of switched-off mods is damaged. Delete .skradle-mods.json in the mods folder and try again.")
     } else if t.contains("permission denied") || t.contains("access is denied") {
-        "SKradle is not allowed to open the mods folder. Check its permissions.".to_owned()
+        tr("SKradle is not allowed to open the mods folder. Check its permissions.")
     } else {
-        "Check that the folder exists and can be read.".to_owned()
+        tr("Check that the folder exists and can be read.")
     }
 }
 

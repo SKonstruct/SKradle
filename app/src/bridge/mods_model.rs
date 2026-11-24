@@ -111,6 +111,7 @@ use cxx_qt_lib::QString;
 use serde_json::json;
 use skradle_core::mods::sync::{self, GithubHttp, PackStatus, SyncReport};
 
+use crate::i18n::tr;
 use crate::mods_host::{self, Listing, Outcome};
 
 pub struct ModsModelRust {
@@ -217,7 +218,7 @@ impl qobject::ModsModel {
     {
         let Some(dir) = self.dir.clone() else {
             self.as_mut().set_error(QString::from(
-                "There is no data folder on this computer to keep mods in.",
+                tr("There is no data folder on this computer to keep mods in.").as_str(),
             ));
             self.as_mut().set_loaded(true);
             return;

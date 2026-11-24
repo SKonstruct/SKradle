@@ -31,6 +31,8 @@ pub mod ffi {
         fn copy_text(text: &QString);
         #[namespace = "skradle"]
         fn set_language(language: &QString) -> QString;
+        #[namespace = "skradle"]
+        fn translate_text(source: &QString) -> QString;
     }
 }
 
@@ -41,6 +43,11 @@ pub use ffi::{
 /// Installs the translator for `language`; returns the catalogue in use (empty for the English source text).
 pub fn set_language(language: &str) -> String {
     ffi::set_language(&cxx_qt_lib::QString::from(language)).to_string()
+}
+
+/// The translation of `source` in the language in use (the text itself when there is none).
+pub fn translate_text(source: &str) -> String {
+    ffi::translate_text(&cxx_qt_lib::QString::from(source)).to_string()
 }
 
 /// Puts `text` on the clipboard.

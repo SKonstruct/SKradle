@@ -42,4 +42,7 @@ void copy_text(const QString &text);
 // source text is shown.
 QString set_language(const QString &language);
 
+// The translation of a sentence the Rust side produces (context "rust"), or the text itself when there is none.
+QString translate_text(const QString &source);
+
 }  // namespace skradle

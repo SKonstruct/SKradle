@@ -1537,10 +1537,16 @@ done
         let java = dir.path().join("java");
         std::fs::write(&java, format!("#!/bin/sh\n{script}")).unwrap();
         std::fs::set_permissions(&java, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // The web listener keeps its port; the game port must be a different one (a released port can be handed out again).
+        let web_port = web_listener(web_status);
+        let mut game_port = free_port();
+        while game_port == web_port {
+            game_port = free_port();
+        }
         let config = HostConfig {
             lan: false,
-            game_port: free_port(),
-            web_port: web_listener(web_status),
+            game_port,
+            web_port,
         };
         config.write(&layout).unwrap();
         let mut options = HostOptions::new(java);

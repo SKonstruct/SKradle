@@ -2,6 +2,7 @@
 
 mod bridge;
 mod discovery;
+mod i18n;
 mod launch;
 mod logging;
 mod mods_host;

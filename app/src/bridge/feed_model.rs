@@ -28,6 +28,16 @@ pub mod qobject {
         /// The breakdown as JSON `{liveSteam, liveTotal, previewSteam, previewTotal, total, factor}`; "{}" before the
         /// first answer.
         #[qproperty(QString, players_json, cxx_name = "playersJson", READ, WRITE, NOTIFY)]
+        /// The players-online history the Knight Launcher service answered, as JSON (see
+        /// `skradle_core::player_history::Snapshot`); "" until it answered (or when it cannot be reached).
+        #[qproperty(
+            QString,
+            remote_history,
+            cxx_name = "remoteHistory",
+            READ,
+            WRITE,
+            NOTIFY
+        )]
         /// The live events as a JSON array of `{title, description, image, link, startsAt, endsAt}` (Unix seconds, 0
         /// when none; `image` a file URL of the cached banner and `link` an https address, "" when none); "[]" when
         /// there are none.
@@ -65,6 +75,12 @@ pub mod qobject {
         #[cxx_name = "historyJson"]
         fn history_json(self: &HomeFeed, tz_offset_min: i32) -> QString;
 
+        /// Asks the Knight Launcher service for its players-online history, once per call (at most every two minutes),
+        /// and sets `remoteHistory`. The request carries nothing about the player. Same `tz_offset_min` as above.
+        #[qinvokable]
+        #[cxx_name = "refreshHistory"]
+        fn refresh_history(self: Pin<&mut HomeFeed>, tz_offset_min: i32);
+
         /// Fetches the events (not more often than every five minutes).
         #[qinvokable]
         #[cxx_name = "refreshEvents"]
@@ -84,6 +100,11 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "forcePlayers"]
         fn force_players(self: Pin<&mut HomeFeed>, state: &QString);
+
+        /// Screenshots only: "service" shows the history as the Knight Launcher service gives it (a fixture), "" none.
+        #[qinvokable]
+        #[cxx_name = "forceHistory"]
+        fn force_history(self: Pin<&mut HomeFeed>, state: &QString);
 
         /// Screenshots only: "offline" shows the cached-news note, "empty" the nothing-cached state.
         #[qinvokable]
@@ -345,6 +366,9 @@ pub struct HomeFeedRust {
     players_state: QString,
     players: i32,
     players_json: QString,
+    remote_history: QString,
+    history_busy: bool,
+    history_gate: MinInterval,
     events_json: QString,
     notice_json: QString,
     events_state: QString,
@@ -366,6 +390,9 @@ impl Default for HomeFeedRust {
             players_state: QString::from("unknown"),
             players: 0,
             players_json: QString::from("{}"),
+            remote_history: QString::default(),
+            history_busy: false,
+            history_gate: MinInterval::new(Duration::from_secs(120)),
             events_json: QString::from("[]"),
             notice_json: QString::default(),
             events_state: QString::from("unknown"),
@@ -567,6 +594,37 @@ impl qobject::HomeFeed {
         }
     }
 
+    pub fn refresh_history(mut self: Pin<&mut Self>, tz_offset_min: i32) {
+        // Test and screenshot runs never use the network (the local fixture history is shown).
+        if crate::options::get().is_test_run()
+            || self.history_busy
+            || !self.as_mut().rust_mut().history_gate.ready(Instant::now())
+        {
+            return;
+        }
+        self.as_mut().rust_mut().history_busy = true;
+        let thread: CxxQtThread<qobject::HomeFeed> = self.qt_thread();
+        let spawned = std::thread::Builder::new()
+            .name("skradle-history".into())
+            .spawn(move || {
+                let json = skradle_core::net::Client::get_text_insecure_for_history(512 * 1024)
+                    .ok()
+                    .and_then(|text| player_history::parse_remote(&text, tz_offset_min))
+                    .and_then(|snapshot| serde_json::to_string(&snapshot).ok())
+                    .unwrap_or_default();
+                let _ = thread.queue(move |mut model| {
+                    model.as_mut().rust_mut().history_busy = false;
+                    // A failed ask keeps what the last good answer put there.
+                    if !json.is_empty() {
+                        model.set_remote_history(QString::from(json.as_str()));
+                    }
+                });
+            });
+        if spawned.is_err() {
+            self.as_mut().rust_mut().history_busy = false;
+        }
+    }
+
     pub fn history_json(&self, tz_offset_min: i32) -> QString {
         let now = now_secs();
         let history = if crate::options::get().is_test_run() {
@@ -580,6 +638,21 @@ impl qobject::HomeFeed {
                 .unwrap_or_else(|_| "{}".into())
                 .as_str(),
         )
+    }
+
+    pub fn force_history(mut self: Pin<&mut Self>, state: &QString) {
+        let json = if state.to_string() == "service" {
+            let snapshot = player_history::snapshot(
+                &player_history::History::fixture(now_secs()),
+                now_secs(),
+                0,
+            );
+            serde_json::to_string(&snapshot).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        self.as_mut()
+            .set_remote_history(QString::from(json.as_str()));
     }
 
     pub fn force(mut self: Pin<&mut Self>, state: &QString) {

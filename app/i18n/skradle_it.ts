@@ -1254,11 +1254,19 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Player counts recorded by the Knight Launcher service.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Trending up over the last hour.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Trending down over the last hour.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Knight Launcher service records the player count of the official server around the clock, so these charts are full from the start. Times are in your time zone.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2820,6 +2828,229 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Not released yet</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>rust</name>
+    <message>
+        <source>Can&apos;t be used. %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check that the folder exists and can be read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not apply the memory limit to the game folder: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not reach SirDank&apos;s Modpack. Check your internet connection and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not start the updater: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Game files are missing (%1). Repair the game before joining a private server.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It contains a link, which is not allowed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It has a file with an unsafe path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It is not a .zip, .jar or .modpack file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It is not a regular file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Its mod.json is not valid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Java %1 or newer was found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Java was found. Install Java and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Java was found. Spiral Knights needs Java %1 or newer; install one and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Spiral Knights install is selected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SKradle is not allowed to open it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SKradle is not allowed to open the mods folder. Check its permissions.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SKradle is not allowed to write to the mods folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SirDank&apos;s Modpack could not be updated. Try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SirDank&apos;s Modpack is empty right now. Try again later.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Steam did not start within a minute. Start Steam yourself, sign in, then launch again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Steam is not running and SKradle could not start it. Start Steam yourself, sign in, then launch again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Steam is not running. This copy of the game signs in through Steam: start Steam and sign in, then launch again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Steam started but is not signed in. Sign in to Steam (its window may be behind others), then launch again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>That folder does not hold Spiral Knights (getdown.txt and getdown-pro.jar are missing).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>That is not a folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Java on this computer (version %1) is too old. Spiral Knights needs Java %2 or newer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Java you chose (%1) is version %2, but Spiral Knights needs Java %3 or newer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Java you chose (%1) was not found or is not a Java runtime. Choose another or clear it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The archive is damaged</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The archive is password protected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The download did not finish</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The download was damaged, so it was discarded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file changed while it was being read</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file could not be downloaded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file could not be read</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file is missing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file is not a valid zip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file is too large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game has an update. Update it before joining a private server.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game needs an update first. Launch it the normal way once, then start the other client.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game stopped right after it started (%1).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game stopped right after it started (%1): %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game was not started because a step before it failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game&apos;s configuration could not be read: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game&apos;s updater stopped (%1).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The game&apos;s updater stopped (%1): %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The list of switched-off mods is damaged. Delete .skradle-mods.json in the mods folder and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The settings file could not be opened just now, so defaults are in use. The file was left as it is.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The settings file could not be read, so defaults are in use. The old file was kept next to it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The updater finished but the game did not start. Try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>There is no data folder on this computer to keep mods in.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>exit code %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>no exit code</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

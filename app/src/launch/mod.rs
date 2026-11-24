@@ -21,6 +21,7 @@ pub mod winprobe;
 use std::sync::Arc;
 
 use crate::discovery::Install;
+use crate::i18n::{tr, tr_args};
 use crate::settings::Settings;
 
 /// Where the launch is, as the UI shows it.
@@ -133,49 +134,59 @@ fn java_name(encoded: u64) -> String {
 impl LaunchError {
     /// A sentence for the player.
     pub fn message(&self) -> String {
+        // "exit code 2" or "no exit code", as it reads inside the sentences below.
+        let exit = |code: &Option<i32>| match code {
+            Some(c) => tr_args("exit code %1", &[&c.to_string()]),
+            None => tr("no exit code"),
+        };
         match self {
-            LaunchError::NoGame => "No Spiral Knights install is selected.".to_owned(),
-            LaunchError::NoJava { needed: Some(n) } => format!(
-                "No Java was found. Spiral Knights needs Java {} or newer; install one and try again.",
-                java_name(*n)
+            LaunchError::NoGame => tr("No Spiral Knights install is selected."),
+            LaunchError::NoJava { needed: Some(n) } => tr_args(
+                "No Java was found. Spiral Knights needs Java %1 or newer; install one and try again.",
+                &[&java_name(*n)],
             ),
             LaunchError::NoJava { needed: None } => {
-                "No Java was found. Install Java and try again.".to_owned()
+                tr("No Java was found. Install Java and try again.")
             }
-            LaunchError::JavaTooOld { found, needed } => format!(
-                "The Java on this computer (version {found}) is too old. Spiral Knights needs Java {} or newer.",
-                java_name(*needed)
+            LaunchError::JavaTooOld { found, needed } => tr_args(
+                "The Java on this computer (version %1) is too old. Spiral Knights needs Java %2 or newer.",
+                &[found, &java_name(*needed)],
             ),
-            LaunchError::CustomJavaInvalid { path } => {
-                format!("The Java you chose ({path}) was not found or is not a Java runtime. Choose another or clear it.")
+            LaunchError::CustomJavaInvalid { path } => tr_args(
+                "The Java you chose (%1) was not found or is not a Java runtime. Choose another or clear it.",
+                &[path],
+            ),
+            LaunchError::CustomJavaTooOld { path, found, needed } => tr_args(
+                "The Java you chose (%1) is version %2, but Spiral Knights needs Java %3 or newer.",
+                &[path, found, &java_name(*needed)],
+            ),
+            LaunchError::ExtraTxt(e) => {
+                tr_args("Could not apply the memory limit to the game folder: %1", &[e])
             }
-            LaunchError::CustomJavaTooOld { path, found, needed } => format!(
-                "The Java you chose ({path}) is version {found}, but Spiral Knights needs Java {} or newer.",
-                java_name(*needed)
-            ),
-            LaunchError::ExtraTxt(e) => format!("Could not apply the memory limit to the game folder: {e}"),
-            LaunchError::Spawn(e) => format!("Could not start the updater: {e}"),
+            LaunchError::Spawn(e) => tr_args("Could not start the updater: %1", &[e]),
             LaunchError::UpdaterFailed { code, detail } => {
-                let code = code.map_or("no exit code".to_owned(), |c| format!("exit code {c}"));
                 if detail.is_empty() {
-                    format!("The game's updater stopped ({code}).")
+                    tr_args("The game's updater stopped (%1).", &[&exit(code)])
                 } else {
-                    format!("The game's updater stopped ({code}): {detail}")
+                    tr_args("The game's updater stopped (%1): %2", &[&exit(code), detail])
                 }
             }
             LaunchError::NothingStarted => {
-                "The updater finished but the game did not start. Try again.".to_owned()
+                tr("The updater finished but the game did not start. Try again.")
             }
             LaunchError::Refused(why) => why.clone(),
-            LaunchError::Prepare(why) => {
-                format!("The game was not started because a step before it failed: {why}")
-            }
+            LaunchError::Prepare(why) => tr_args(
+                "The game was not started because a step before it failed: %1",
+                &[why],
+            ),
             LaunchError::GameFailed { code, detail } => {
-                let code = code.map_or("no exit code".to_owned(), |c| format!("exit code {c}"));
                 if detail.is_empty() {
-                    format!("The game stopped right after it started ({code}).")
+                    tr_args("The game stopped right after it started (%1).", &[&exit(code)])
                 } else {
-                    format!("The game stopped right after it started ({code}): {detail}")
+                    tr_args(
+                        "The game stopped right after it started (%1): %2",
+                        &[&exit(code), detail],
+                    )
                 }
             }
         }

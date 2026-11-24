@@ -54,6 +54,7 @@ use core::pin::Pin;
 use cxx_qt::{CxxQtType, Initialize};
 use cxx_qt_lib::QString;
 
+use crate::i18n::tr;
 use crate::settings::{self, Collector, LoadOutcome, Settings as Stored, Theme};
 
 pub struct SettingsRust {
@@ -249,10 +250,10 @@ impl Initialize for qobject::Settings {
         self.as_mut().pull(&loaded);
         match store.load_outcome() {
             LoadOutcome::Corrupt(_) => self.as_mut().set_load_warning(QString::from(
-                "The settings file could not be read, so defaults are in use. The old file was kept next to it.",
+                tr("The settings file could not be read, so defaults are in use. The old file was kept next to it.").as_str(),
             )),
             LoadOutcome::Unreadable => self.as_mut().set_load_warning(QString::from(
-                "The settings file could not be opened just now, so defaults are in use. The file was left as it is.",
+                tr("The settings file could not be opened just now, so defaults are in use. The file was left as it is.").as_str(),
             )),
             _ => {}
         }

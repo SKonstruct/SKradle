@@ -290,6 +290,87 @@ pub fn snapshot(history: &History, now: i64, tz_offset_min: i32) -> Snapshot {
     }
 }
 
+/// The history as the Knight Launcher service answers it (`player_count_history`, asked with `tz=UTC`), turned into the
+/// same [`Snapshot`] the local history gives. Times arrive in milliseconds. The busiest hours arrive in UTC and are
+/// moved to the player's own clock with `tz_offset_min`. `None` when the answer has no usable current count, so a
+/// damaged answer falls back to the local history instead of drawing nothing.
+pub fn parse_remote(text: &str, tz_offset_min: i32) -> Option<Snapshot> {
+    const MAX_POINTS: usize = 5_000;
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    let count = |v: &serde_json::Value| -> Option<u32> {
+        u32::try_from(v.as_i64().or_else(|| v.as_f64().map(|f| f as i64))?).ok()
+    };
+    let series = |key: &str| -> Vec<[i64; 2]> {
+        value
+            .get(key)
+            .and_then(|v| v.as_array())
+            .map(|points| {
+                points
+                    .iter()
+                    .filter_map(|p| {
+                        let p = p.as_array()?;
+                        Some([p.first()?.as_i64()? / 1000, i64::from(count(p.get(1)?)?)])
+                    })
+                    .take(MAX_POINTS)
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let day = series("day");
+    let week = series("week");
+    let month = series("month");
+    let current = value.get("playerCount").and_then(count);
+    if current.is_none() && day.is_empty() {
+        return None;
+    }
+    let day_peak = day.iter().map(|p| p[1] as u32).max();
+    let span_days = match (month.first(), month.last()) {
+        (Some(a), Some(b)) => (b[0] - a[0]) as f64 / DAY as f64 + 1.0,
+        _ => 0.0,
+    };
+    // The service's hours are UTC; shift them into the player's day (and weekday).
+    let shift = |weekday: i64, hour: i64| -> (i64, i64) {
+        let week_min = 7 * 24 * 60;
+        let at =
+            ((weekday - 1) * 24 * 60 + hour * 60 - i64::from(tz_offset_min)).rem_euclid(week_min);
+        (at / (24 * 60) + 1, at % (24 * 60) / 60)
+    };
+    let usual_day_peak_hour = value
+        .get("usualDayPeak")
+        .and_then(|v| v.get("hour"))
+        .and_then(|v| v.as_i64())
+        .filter(|h| (0..24).contains(h))
+        .map(|h| shift(1, h).1 as u32);
+    let usual_week_peak = value.get("usualWeekPeak").and_then(|v| {
+        let d = v.get("day")?.as_i64().filter(|d| (1..=7).contains(d))?;
+        let h = v.get("hour")?.as_i64().filter(|h| (0..24).contains(h))?;
+        let (weekday, hour) = shift(d, h);
+        Some(WeekPeak {
+            weekday: weekday as u32,
+            hour: hour as u32,
+        })
+    });
+    Some(Snapshot {
+        current,
+        trend: value
+            .get("trend")
+            .and_then(|v| v.as_i64())
+            .map_or(0, |t| t.signum() as i32),
+        day_peak,
+        // The service gives the number only, not when it happened (`t` 0).
+        all_time_peak: value
+            .get("allTimePeak")
+            .and_then(count)
+            .map(|n| Peak { t: 0, n }),
+        usual_day_peak_hour,
+        usual_week_peak,
+        day,
+        week,
+        month,
+        span_days,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,5 +472,41 @@ mod tests {
         }
         down.record(now, 60);
         assert_eq!(snapshot(&down, now, 0).trend, -1);
+    }
+
+    const REMOTE: &str = r#"{"week":[[1794884400000,253],[1794888000000,244]],"months":[{"average":256.0,"month":"2026-11","peak":458}],
+        "month":[[1794528000000,324],[1794614400000,409]],"trend":-5,"allTimePeak":458,"playerCount":281,
+        "day":[[1795404357177,277],[1795404657177,266]],"usualDayPeak":{"hour":21},"usualWeekPeak":{"day":7,"hour":23}}"#;
+
+    #[test]
+    fn the_services_answer_becomes_a_snapshot_in_seconds_and_local_hours() {
+        // UTC+2 is a JavaScript offset of -120 minutes.
+        let s = parse_remote(REMOTE, -120).unwrap();
+        assert_eq!(s.current, Some(281));
+        assert_eq!(s.trend, -1);
+        assert_eq!(s.day_peak, Some(277));
+        assert_eq!(s.all_time_peak, Some(Peak { t: 0, n: 458 }));
+        assert_eq!(s.day[0], [1_795_404_357, 277]);
+        assert_eq!(s.week.len(), 2);
+        assert_eq!(s.month.len(), 2);
+        // 21:00 UTC is 23:00 at UTC+2; Sunday 23:00 UTC is Monday 01:00.
+        assert_eq!(s.usual_day_peak_hour, Some(23));
+        assert_eq!(
+            s.usual_week_peak,
+            Some(WeekPeak {
+                weekday: 1,
+                hour: 1
+            })
+        );
+    }
+
+    #[test]
+    fn a_damaged_or_empty_answer_is_none() {
+        assert!(parse_remote("nope", 0).is_none());
+        assert!(parse_remote("{}", 0).is_none());
+        assert!(parse_remote(r#"{"playerCount":-1,"day":[]}"#, 0).is_none());
+        // Odd points are skipped, not fatal.
+        let s = parse_remote(r#"{"playerCount":5,"day":[[1,"x"],[2000,3],[3]]}"#, 0).unwrap();
+        assert_eq!(s.day, vec![[2, 3]]);
     }
 }
