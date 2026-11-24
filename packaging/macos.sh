@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds SKradle.app and a .dmg from the release binary. Needs Qt's bin folder on PATH (macdeployqt).
 #   packaging/macos.sh <binary> <version> <output-dir> [arch-name]
+# Needs Qt's bin folder on PATH (macdeployqt) and, for the drag-to-Applications window, dmgbuild.
 # The result is not signed with a developer certificate (macdeployqt signs ad hoc). A downloaded copy carries the
 # quarantine flag: run `xattr -cr SKradle.app` once, or right-click > Open.
 set -euo pipefail
@@ -55,5 +56,14 @@ pkg="$out/SKradle-${version}-${arch}"
 mkdir -p "$pkg"
 dmg="$pkg/SKradle-${version}-${arch}.dmg"
 rm -f "$dmg"
-hdiutil create -volname SKradle -srcfolder "$app" -ov -format UDZO "$dmg" >/dev/null
+# dmgbuild (pip install dmgbuild==2.0.0, or $DMGBUILD) makes the usual drag-to-Applications window; without it the image
+# is plain (the app alone), which installs just as well.
+dmgbuild=${DMGBUILD:-$(command -v dmgbuild || true)}
+if [ -n "$dmgbuild" ]; then
+  "$dmgbuild" -s "$root/packaging/macos/dmg-settings.py" -D "app=$app" -D "icon=$root/assets/icons/skradle.icns" SKradle "$dmg" >/dev/null
+else
+  echo "packaging/macos.sh: dmgbuild not found, making a plain disk image" >&2
+  hdiutil create -volname SKradle -srcfolder "$app" -ov -format UDZO "$dmg" >/dev/null
+fi
+[ -s "$dmg" ] || { echo "packaging/macos.sh: no disk image was produced" >&2; exit 1; }
 echo "$dmg"

@@ -1,12 +1,13 @@
 # Websites on the Tools page
 
-The Tools page lists two Spiral Knights websites that open inside SKradle: the Auction House (sk-ah.com) and Kozmas
-(kozmas.gg). They are other people's sites and not part of SKradle or the game. Each has an **Open** button (inside the
+The Tools page lists three Spiral Knights websites that open inside SKradle: the Auction House (sk-ah.com), Kozmas
+(kozmas.gg) and the Gate map viewer (a fork of a community viewer that SirDank runs on his own server,
+dankware.alwaysdata.net). They are not part of SKradle or the game. Each has an **Open** button (inside the
 launcher) and a globe button (your browser).
 
 ## Sign-in and data are kept
 
-Both sites have accounts, so the embedded view must remember cookies and local storage between runs. It does, because
+The sites with accounts (the Auction House and Kozmas), so the embedded view must remember cookies and local storage between runs. It does, because
 SKradle uses the system's own web view and each one stores its data on disk by default:
 
 | System | Web view | Where the data lives |

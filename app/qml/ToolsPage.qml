@@ -14,7 +14,9 @@ Item {
         { id: "sk-ah", name: qsTr("Auction House"), site: "sk-ah.com", url: "https://sk-ah.com/",
           hint: qsTr("Live Spiral Knights Auction House prices: search by item, UVs and price, and set alerts.") },
         { id: "kozmas", name: qsTr("Kozmas"), site: "kozmas.gg", url: "https://www.kozmas.gg/",
-          hint: qsTr("Find items, discover merchants with stock, and build your next costume.") }
+          hint: qsTr("Find items, discover merchants with stock, and build your next costume.") },
+        { id: "gatemap", name: qsTr("Gate map viewer"), site: "dankware.alwaysdata.net", url: "https://dankware.alwaysdata.net/spiral-knights/gatemap-viewer",
+          hint: qsTr("Look through the Spiral Knights gate maps. A fork of a community viewer, run by SirDank.") }
     ]
     readonly property var current: { for (const t of webTools) if (t.id === webTool) return t; return null }
 

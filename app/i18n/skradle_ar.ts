@@ -2775,6 +2775,14 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Gate map viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Look through the Spiral Knights gate maps. A fork of a community viewer, run by SirDank.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Open-source tools by Three Rings (Clyde), spiralview and datdec, downloaded once (about 25 MB) and kept up to date.</source>
         <translation type="unfinished"></translation>
     </message>

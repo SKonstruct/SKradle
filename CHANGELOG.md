@@ -75,6 +75,9 @@ history has the rest.
   and from this computer's own record otherwise.
 - **Tools**: *datdec* (export and import the game's `.dat` and `.xml` files) joins the editors, rebuilt by the weekly
   workflow from its newest release; a *Community tools* list links Kozmadeus, ThreeRingsSharp and an item tracker.
+- **Packages**: the macOS disk image has the drag-to-Applications window (dmgbuild); Linux also gets a `.deb` and an `.rpm`
+  (nfpm) next to the AppImage, and the `.deb` is installed and started in CI before it is uploaded.
+- **Tools**: the *Gate map viewer* (a fork SirDank runs on his own server) opens inside the launcher like the other sites.
 - **Windows installer** (Inno Setup, per user): licence page, light and dark mode like Windows, a desktop shortcut option,
   a GitHub button, asks before installing an older or the same version, and on uninstall offers to remove SKradle's
   settings (never the mods). The file is named `SKradle-<version>-windows-<arch>-installer.exe`.

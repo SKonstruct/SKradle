@@ -4,7 +4,7 @@ name: CI
 # is uploaded for it:
 #   test    (Linux, macOS, Windows in parallel)  format, lints and every unit test of the core and the app
 #   build   (the five release targets in parallel)  release build, headless self-test and screenshots, then the package
-#                                                    (.dmg for macOS, a per-user -installer.exe for Windows, an AppImage
+#                                                    (.dmg for macOS, a per-user -installer.exe for Windows, an AppImage, .deb and .rpm
 #                                                    for Linux) and its SHA256SUMS.txt as one artifact per platform
 #   release (version tags only)                      publishes the installers and SHA256SUMS.txt as a GitHub Release,
 #                                                    which is what the launcher's own update reads
@@ -37,6 +37,9 @@ env:
   LINUXDEPLOY_SHA256: c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d
   LINUXDEPLOY_QT_URL: https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-qt-x86_64.AppImage
   LINUXDEPLOY_QT_SHA256: 15106be885c1c48a021198e7e1e9a48ce9d02a86dd0a1848f00bdbf3c1c92724
+  # nfpm (the .deb and .rpm builder), checked against GitHub's digest of the release asset.
+  NFPM_URL: https://github.com/goreleaser/nfpm/releases/download/v2.49.0/nfpm_2.49.0_Linux_x86_64.tar.gz
+  NFPM_SHA256: 2afaa5ffb5e3493402e31e7c67a5a1fb42133e3f66fc315ca0051934125561c7
   # Inno Setup (the Windows installer compiler), the official installer, checked against this SHA-256 (GitHub's digest of
   # the release asset) before it runs. 6.6 or newer is needed for the installer's light and dark mode.
   INNO_URL: https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe
@@ -217,7 +220,12 @@ jobs:
         if: github.event_name != 'pull_request' && runner.os == 'macOS'
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          DMGBUILD_VERSION: "2.0.0"
         run: |
+          # dmgbuild makes the drag-to-Applications disk image (pure Python; it needs no Finder session).
+          python3 -m venv tools/venv
+          tools/venv/bin/pip install --quiet "dmgbuild==$DMGBUILD_VERSION"
+          export DMGBUILD="$PWD/tools/venv/bin/dmgbuild"
           mkdir dist
           packaging/macos.sh target/release/skradle "$VERSION" dist "${{ matrix.name }}"
 
@@ -247,7 +255,22 @@ jobs:
           echo "$LINUXDEPLOY_SHA256  tools/linuxdeploy-x86_64.AppImage" | sha256sum -c -
           echo "$LINUXDEPLOY_QT_SHA256  tools/linuxdeploy-plugin-qt-x86_64.AppImage" | sha256sum -c -
           chmod +x tools/*.AppImage
-          LINUXDEPLOY_DIR="$PWD/tools" packaging/linux.sh target/release/skradle "$VERSION" dist "${{ matrix.name }}"
+          curl -fsSL --retry 5 --retry-all-errors -o tools/nfpm.tar.gz "$NFPM_URL"
+          echo "$NFPM_SHA256  tools/nfpm.tar.gz" | sha256sum -c -
+          tar -xzf tools/nfpm.tar.gz -C tools nfpm
+          NFPM="$PWD/tools/nfpm" LINUXDEPLOY_DIR="$PWD/tools" packaging/linux.sh target/release/skradle "$VERSION" dist "${{ matrix.name }}"
+
+      # The .deb must install and start (the self-test above ran the plain binary): a package that does not is never
+      # uploaded.
+      - name: Smoke-test the .deb
+        if: github.event_name != 'pull_request' && runner.os == 'Linux'
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+        run: |
+          sudo apt-get install -y ./dist/*/SKradle-*.deb
+          test -x /usr/bin/skradle
+          skradle --selftest
 
       - name: Checksums
         if: github.event_name != 'pull_request'
@@ -257,7 +280,7 @@ jobs:
           folder=$(find dist -mindepth 1 -maxdepth 1 -type d | head -1)
           [ -n "$folder" ] || { echo "no package folder was produced" >&2; exit 1; }
           # A package must exist (the checksum file alone would make a 200-byte "build").
-          ls "$folder" | grep -E '^SKradle-.*\.(dmg|AppImage|exe)$' || { echo "no package was produced" >&2; exit 1; }
+          ls "$folder" | grep -E '^SKradle-.*\.(dmg|AppImage|exe|deb|rpm)$' || { echo "no package was produced" >&2; exit 1; }
           (cd "$folder" && find . -type f ! -name SHA256SUMS.txt | sed 's|^\./||' | sort | while IFS= read -r f; do
             sha256sum "$f" 2>/dev/null || shasum -a 256 "$f"
           done > SHA256SUMS.txt)
@@ -295,10 +318,10 @@ jobs:
         run: |
           # Each artifact is one folder holding its installer; the release wants them side by side.
           mkdir release
-          find packages -type f \( -name 'SKradle-*.dmg' -o -name 'SKradle-*.exe' -o -name 'SKradle-*.AppImage' \) -exec cp {} release/ \;
+          find packages -type f \( -name 'SKradle-*.dmg' -o -name 'SKradle-*.exe' -o -name 'SKradle-*.AppImage' -o -name 'SKradle-*.deb' -o -name 'SKradle-*.rpm' \) -exec cp {} release/ \;
           cd release
           ls -l
-          files=$(ls SKradle-*.dmg SKradle-*.exe SKradle-*.AppImage 2>/dev/null)
+          files=$(ls SKradle-*.dmg SKradle-*.exe SKradle-*.AppImage SKradle-*.deb SKradle-*.rpm 2>/dev/null)
           [ -n "$files" ] || { echo "no installers were downloaded" >&2; exit 1; }
           sha256sum $files > SHA256SUMS.txt
           cat SHA256SUMS.txt

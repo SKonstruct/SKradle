@@ -43,3 +43,20 @@ mkdir -p "$pkg"
 result="$pkg/SKradle-${version}-${arch}.AppImage"
 mv "$work"/SKradle*.AppImage "$result"
 echo "$result"
+
+# The same AppDir as a .deb and an .rpm (nfpm: $NFPM or on PATH; skipped without it): installed under /opt/SKradle with
+# `skradle` in /usr/bin and the menu entry and icon in place. <output-dir>/SKradle-<version>-<arch>/...<arch>.deb|rpm
+nfpm=${NFPM:-$(command -v nfpm || true)}
+if [ -n "$nfpm" ]; then
+  mkdir -p "$work/pkgfiles"
+  cp "$root/packaging/linux/skradle.desktop" "$work/pkgfiles/skradle.desktop"
+  cp "$root/assets/icons/skradle-256.png" "$work/pkgfiles/skradle.png"
+  cp "$root/LICENSE" "$work/pkgfiles/LICENSE"
+  for format in deb rpm; do
+    (cd "$work" && SK_VERSION="$version" "$nfpm" package --config "$root/packaging/linux/nfpm.yaml" \
+      --packager "$format" --target "$pkg/SKradle-${version}-${arch}.$format")
+    echo "$pkg/SKradle-${version}-${arch}.$format"
+  done
+else
+  echo "packaging/linux.sh: nfpm not found, no .deb or .rpm" >&2
+fi

@@ -58,8 +58,9 @@ SKradle's own update reads.
 | System | Installer | Notes |
 | --- | --- | --- |
 | Windows 10 and 11 (x64, ARM64) | `SKradle-<version>-windows-<arch>-installer.exe` | Per user, no administrator rights. Shows the licence, follows Windows' light or dark mode, can add a desktop shortcut. |
-| macOS 13 or newer (Apple silicon, Intel) | `SKradle-<version>-macos-<arch>.dmg` | Drag SKradle to Applications. |
-| Linux (x64) | `SKradle-<version>-linux-x64.AppImage` | `chmod +x` and run. Needs `libfuse2` on newer Ubuntu releases. |
+| macOS 13 or newer (Apple silicon, Intel) | `SKradle-<version>-macos-<arch>.dmg` | Open it and drag SKradle onto the Applications shortcut. |
+| Linux (x64) | `SKradle-<version>-linux-x64.AppImage` | `chmod +x` and run; the launcher's own update replaces it. Needs `libfuse2` on newer Ubuntu releases. |
+| Linux (x64) | `SKradle-<version>-linux-x64.deb`, `.rpm` | For Debian, Ubuntu, Fedora and openSUSE: `sudo apt install ./SKradle-*.deb` or `sudo dnf install ./SKradle-*.rpm`. Installed under `/opt/SKradle`; a new version is installed the same way. |
 
 The builds are **not code-signed yet**, so the first start needs one extra step: on Windows, SmartScreen shows
 *More info* > *Run anyway*; on macOS run `xattr -cr /Applications/SKradle.app` once (or right-click > *Open*). Check a

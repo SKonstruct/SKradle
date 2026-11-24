@@ -2607,6 +2607,14 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Gate map viewer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Look through the Spiral Knights gate maps. A fork of a community viewer, run by SirDank.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Could not start the editor. Check the Java setting in Settings &gt; Game.</source>
         <translation type="unfinished"></translation>
     </message>
