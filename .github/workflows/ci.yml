@@ -8,7 +8,7 @@ name: CI
 #                                                    for Linux) and its SHA256SUMS.txt as one artifact per platform
 #   release (version tags only)                      publishes the installers and SHA256SUMS.txt as a GitHub Release,
 #                                                    which is what the launcher's own update reads
-# Packages are made for pushes to main, version tags (v*) and manual runs, not for pull requests. Builds are unsigned
+# Screenshots are uploaded as SKradle-<version>-<platform>-screenshots. Packages are made for pushes to main, version tags (v*) and manual runs, not for pull requests. Builds are unsigned
 # (macOS needs `xattr -cr`, Windows SmartScreen asks once). Nothing is committed. Linux arm64 is not part of v1: the game
 # ships no Linux arm64 runtime or natives.
 on:
@@ -187,17 +187,7 @@ jobs:
           "$exe" --shots shots --prefix "${{ matrix.name }}"
           ls -l shots
 
-      # Only for a leg that passed everything before it.
-      - name: Upload screenshots
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: app-${{ matrix.name }}
-          path: shots
-          if-no-files-found: ignore
-
-      # ---- packages (not for pull requests) ----------------------------------------------------------------------
       - name: Work out the version
-        if: github.event_name != 'pull_request'
         id: version
         env:
           REF_TYPE: ${{ github.ref_type }}
@@ -210,6 +200,15 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Packaging $version"
 
+      # Only for a leg that passed everything before it.
+      - name: Upload screenshots
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: SKradle-${{ steps.version.outputs.version }}-${{ matrix.name }}-screenshots
+          path: shots
+          if-no-files-found: ignore
+
+      # ---- packages (not for pull requests) ----------------------------------------------------------------------
       - name: Package (macOS .dmg)
         if: github.event_name != 'pull_request' && runner.os == 'macOS'
         env:
