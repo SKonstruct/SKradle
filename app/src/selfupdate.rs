@@ -8,12 +8,17 @@ use skradle_core::game::Os;
 
 /// The program and arguments that run an installer: the disk image on macOS (Finder mounts it; the player drags the
 /// app over the old one), the per-user installer on Windows (no administrator rights, so it is started directly;
-/// `/S /UPDATE` runs it silently and starts SKradle again when done), and the AppImage itself on Linux (made executable
-/// first).
+/// `/SILENT /SUPPRESSMSGBOXES /NORESTART /UPDATE` shows only a progress window, closes the old launcher if it is still
+/// open, installs over it and starts SKradle again), and the AppImage itself on Linux (made executable first).
 pub fn installer_command(path: &Path, os: Os) -> (PathBuf, Vec<OsString>) {
     match os {
         Os::MacOs => (PathBuf::from("open"), vec![path.into()]),
-        Os::Windows => (path.to_path_buf(), vec!["/S".into(), "/UPDATE".into()]),
+        Os::Windows => (
+            path.to_path_buf(),
+            ["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/UPDATE"]
+                .map(OsString::from)
+                .into(),
+        ),
         Os::Linux => (path.to_path_buf(), Vec::new()),
     }
 }
@@ -89,10 +94,15 @@ mod tests {
             (PathBuf::from("open"), vec![OsString::from(path)])
         );
         assert_eq!(
-            installer_command(Path::new("C:/u/SKradle-1.0.0-windows-x64.exe"), Os::Windows),
+            installer_command(
+                Path::new("C:/u/SKradle-1.0.0-windows-x64-installer.exe"),
+                Os::Windows
+            ),
             (
-                PathBuf::from("C:/u/SKradle-1.0.0-windows-x64.exe"),
-                vec![OsString::from("/S"), OsString::from("/UPDATE")]
+                PathBuf::from("C:/u/SKradle-1.0.0-windows-x64-installer.exe"),
+                ["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/UPDATE"]
+                    .map(OsString::from)
+                    .to_vec()
             )
         );
         assert_eq!(

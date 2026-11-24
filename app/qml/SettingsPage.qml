@@ -54,7 +54,7 @@ Item {
             // Errors say what failed and what to do; the engine's own text goes to the log, not the screen.
             const d = GameTools.noticeDetail
             switch (GameTools.notice) {
-            case "reset-done": Data.toast(qsTr("Game files removed (%1). Launch the game to download them again.").arg(d), "success"); break
+            case "reset-done": Data.toast(qsTr("The game files are back to the original (%1 changed).").arg(d), "success"); break
             case "reset-error": console.warn("reset game files:", d); Data.toast(qsTr("Could not reset the game files. Close the game and anything using its folder, then try again."), "error"); break
             case "folder-error": console.warn("open folder:", d); Data.toast(qsTr("Could not open the folder. Check that it still exists."), "error"); break
             }
@@ -399,19 +399,25 @@ Item {
                     id: secFiles
                     title: qsTr("Files")
                     SettingRow {
-                        label: qsTr("File cleaning"); hint: qsTr("Applies mods on top of the game's original files, so removing a mod puts the original back. Turn it off only to keep changes from other tools.")
+                        label: qsTr("Sort mods automatically"); hint: qsTr("Puts the mods in the best order by itself: the ones that change the most files go first, so a small, targeted mod wins over a broad one when both change the same file. Turn it off to order the mods yourself on the Mods page; your order then stays as it is.")
+                        Item { Layout.fillWidth: true }
+                        SSwitch { checked: ModsModel.autoSort; onToggled: ModsModel.useAutoSort(checked); Accessible.name: qsTr("Sort mods automatically") }
+                    }
+                    Sep {}
+                    SettingRow {
+                        label: qsTr("File cleaning"); hint: qsTr("Cleans the game files whenever a mod is added, changed, removed or switched on or off: the files mods changed are put back to the game's originals first, so nothing of a removed mod is left. Turn it off only to keep changes made by other tools.")
                         Item { Layout.fillWidth: true }
                         SSwitch { checked: Settings.fileCleaning; onToggled: Settings.fileCleaning = checked; Accessible.name: qsTr("File cleaning") }
                     }
                     Sep {}
                     SettingRow {
-                        label: qsTr("File purging"); hint: qsTr("Before applying mods, removes files that earlier mods added to the game folder. Only files SKradle recorded itself are removed, never anything else.")
+                        label: qsTr("File purging"); hint: qsTr("Also removes the extra files that earlier mods added to the game folder (files the game itself does not have), before the mods are applied again. Only files SKradle recorded itself are removed, never anything else.")
                         Item { Layout.fillWidth: true }
                         SSwitch { checked: Settings.filePurging; onToggled: Settings.filePurging = checked; Accessible.name: qsTr("File purging") }
                     }
                     Sep {}
                     SettingRow {
-                        label: qsTr("Reset game files"); hint: qsTr("Removes every applied mod and the game's files, so the game's own updater downloads them all again. Your mods folder and settings stay.")
+                        label: qsTr("Reset game files"); hint: qsTr("Puts the game back to its original, unmodified state: every mod's changes and the files mods added are removed, and the game's loose files are rebuilt from its own data. Works offline and downloads nothing. Your mods folder and settings stay, and your mods are applied again the next time you launch.")
                                                 Item { Layout.fillWidth: true }
                         SButton {
                             variant: "danger"
@@ -601,7 +607,7 @@ Item {
     ConfirmDialog {
         id: resetDialog
         title: qsTr("Reset game files?")
-        message: qsTr("This removes every applied mod and deletes the game's files in %1, so the game's own updater downloads them all again on the next launch. The download can be large. Your mods folder and your settings are not touched.").arg(GameModel.selectedPath)
+        message: qsTr("This puts the game in %1 back to its original state: the changes of every mod are removed and the game's loose files are rebuilt from its own data. Nothing is downloaded. Your mods folder and your settings are not touched, and your mods are applied again the next time you launch.").arg(GameModel.selectedPath)
         confirmText: qsTr("Reset game files")
         danger: true
         onConfirmed: GameTools.resetGameFiles(GameModel.selectedPath)

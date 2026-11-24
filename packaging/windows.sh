@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
 # Builds the Windows installer from the release binary (run in Git Bash on a Windows runner). Needs Qt's bin folder on
-# PATH (windeployqt) and NSIS (makensis; on the runner: `choco install nsis`).
-#   packaging/windows.sh <binary> <version> <output-dir> [arch-name]
-# The result is <output-dir>/SKradle-<version>-<arch>/SKradle-<version>-<arch>.exe (the CI artifact is the zip around
-# the folder). A per-user installer (packaging/windows/skradle.nsi): no administrator rights, the launcher's own update
-# runs it as `/S /UPDATE`. Not signed, so SmartScreen may ask once ("More info" > "Run anyway").
+# PATH (windeployqt) and Inno Setup 6.6 or newer (ISCC.exe: on PATH, in $ISCC, or in a default install folder).
+#   packaging/windows.sh <binary> <version> <output-dir> [platform-name]
+# The result is <output-dir>/SKradle-<version>-<platform>/SKradle-<version>-<platform>-installer.exe (the CI artifact
+# is the zip around the folder). The installer (packaging/windows/skradle.iss) is per user, needs no administrator
+# rights, has a licence page, follows Windows' light or dark mode, and is what the launcher's own update runs.
+# Not signed, so SmartScreen may ask once ("More info" > "Run anyway").
 set -euo pipefail
 
 binary=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")   # absolute: the steps below change directory
 version=$2
 out=$3
 mkdir -p "$out"; out=$(cd "$out" && pwd)   # absolute: the steps below change directory
-arch=${4:-windows}
+platform=${4:-windows}
 root=$(cd "$(dirname "$0")/.." && pwd)
 
-makensis=$(command -v makensis || true)
-for guess in "/c/Program Files (x86)/NSIS/makensis.exe" "/c/Program Files/NSIS/makensis.exe"; do
-  [ -n "$makensis" ] || { [ -x "$guess" ] && makensis=$guess; }
+iscc=${ISCC:-$(command -v ISCC.exe || command -v ISCC || true)}
+for guess in "$LOCALAPPDATA/Programs/Inno Setup 6/ISCC.exe" "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" "/c/Program Files/Inno Setup 6/ISCC.exe"; do
+  [ -n "$iscc" ] || { [ -x "$guess" ] && iscc=$guess; }
 done
-[ -n "$makensis" ] || { echo "packaging/windows.sh: makensis (NSIS) was not found" >&2; exit 1; }
+[ -n "$iscc" ] || { echo "packaging/windows.sh: ISCC.exe (Inno Setup) was not found" >&2; exit 1; }
 
 work=$(mktemp -d)
 dir="$work/SKradle"
@@ -32,19 +33,24 @@ windeployqt --release --no-translations --compiler-runtime \
   --qmldir "$root/app/qml" --qmldir "$root/app/qml-web" "$dir/skradle.exe"
 [ -e "$dir/Qt6Quick.dll" ] || { echo "packaging/windows.sh: Qt was not deployed next to skradle.exe" >&2; exit 1; }
 
-# VIProductVersion wants four numbers: 1.2.3 and 1.2.3-abc1234 both become 1.2.3.0.
+# The licence page shows the project's licence (as a .txt, which the wizard reads without fuss).
+cp "$root/LICENSE" "$work/LICENSE.txt"
+
+# VersionInfoVersion wants four numbers: 1.2.3 and 1.2.3-abc1234 both become 1.2.3.0.
 core=${version%%[-+]*}
 IFS=. read -r a b c _ <<<"$core"
 version_num="${a:-0}.${b:-0}.${c:-0}.0"
 
-pkg="$out/SKradle-${version}-${arch}"
+case "$platform" in *arm64*) arch=arm64;; *) arch=x64;; esac
+pkg="$out/SKradle-${version}-${platform}"
 mkdir -p "$pkg"
-installer="$pkg/SKradle-${version}-${arch}.exe"
+installer="$pkg/SKradle-${version}-${platform}-installer.exe"
 rm -f "$installer"
-# Native Windows paths for makensis (cygpath exists in Git Bash; elsewhere the paths are already fine).
+
+# Native Windows paths for the compiler (cygpath exists in Git Bash; elsewhere the paths are already fine).
 native() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else echo "$1"; fi; }
-"$makensis" -V2 -INPUTCHARSET UTF8 \
-  "-DVERSION=$version" "-DVERSION_NUM=$version_num" "-DSRC=$(native "$dir")" "-DOUT=$(native "$installer")" \
-  "$(native "$root/packaging/windows/skradle.nsi")"
+export SK_VERSION="$version" SK_VERSION_NUM="$version_num" SK_PLATFORM="$platform" SK_ARCH="$arch"
+export SK_SOURCE="$(native "$dir")" SK_OUT="$(native "$pkg")" SK_LICENSE="$(native "$work/LICENSE.txt")"
+MSYS2_ARG_CONV_EXCL='*' "$iscc" "$(native "$root/packaging/windows/skradle.iss")"
 [ -s "$installer" ] || { echo "packaging/windows.sh: no installer was produced" >&2; exit 1; }
 echo "$installer"

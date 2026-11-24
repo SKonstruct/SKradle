@@ -8,8 +8,9 @@
 //! {"disabled": ["Some Mod.zip"]}
 //! ```
 //!
-//! so a mod the player drops into the folder is on by default. The mods apply in file-name order (case-insensitive,
-//! then exact), and a later mod wins when two change the same file. An unreadable state file is an error, not "all
+//! so a mod the player drops into the folder is on by default. The mods apply in an order the launcher works out (the
+//! ones that change the most files first, see [`optimal`]) unless the player chose their own with [`move_mod`] or
+//! switched the automatic order off ([`set_auto_sort`]); a later mod wins when two change the same file. An unreadable state file is an error, not "all
 //! enabled": switching a mod back on by accident is worse than asking the player. Links are never followed: a link
 //! with a mod name is listed, but fails to open (see [`Mod::open`]).
 
@@ -43,6 +44,16 @@ struct State {
     /// file. Mods not named here (new ones) come after the named ones, by name, so a mod just added takes effect.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     order: Vec<String>,
+    /// Whether the order is worked out by the launcher ([`optimal`]) instead of chosen by the player. Absent means
+    /// automatic, unless the player already chose an order (then that order stays theirs).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    auto_sort: Option<bool>,
+}
+
+impl State {
+    fn is_auto(&self) -> bool {
+        self.auto_sort.unwrap_or(self.order.is_empty())
+    }
 }
 
 fn read_state(dir: &Path) -> io::Result<State> {
@@ -110,10 +121,12 @@ pub fn move_mod(dir: &Path, file_name: &str, to: usize) -> io::Result<()> {
     let name = names.remove(from);
     names.insert(to.min(names.len()), name);
     let mut state = read_state(dir)?;
-    if state.order == names {
+    if state.order == names && state.auto_sort == Some(false) {
         return Ok(());
     }
     state.order = names;
+    // Moving a mod by hand is choosing the order.
+    state.auto_sort = Some(false);
     let mut json = serde_json::to_vec_pretty(&state).map_err(io::Error::other)?;
     json.push(b'\n');
     write_atomic(&dir.join(STATE_FILE), &json)
@@ -197,17 +210,66 @@ fn sorted_names(dir: &Path) -> io::Result<Vec<String>> {
     Ok(names)
 }
 
-/// Scans every mod in `dir`.
+/// How many files a scanned mod changes (0 for one that cannot be read).
+fn files_changed(m: &InstalledMod) -> usize {
+    m.parsed.as_ref().map_or(0, |scanned| {
+        scanned
+            .parts
+            .iter()
+            .map(|part| part.applicable_files().count())
+            .sum()
+    })
+}
+
+/// The automatic order: the mods that change the most files first, so a small, targeted mod comes later and wins a
+/// conflict against a broad one (a total order, so it agrees for every pair); equal ones by name.
+fn optimal(mods: &mut [InstalledMod]) {
+    mods.sort_by_cached_key(|m| {
+        (
+            std::cmp::Reverse(files_changed(m)),
+            m.file_name.to_lowercase(),
+            m.file_name.clone(),
+        )
+    });
+}
+
+/// Scans every mod in `dir`, in the order they are applied: the player's own when they chose it, else [`optimal`].
 pub fn list(dir: &Path) -> io::Result<Vec<InstalledMod>> {
     let state = read_state(dir)?;
-    Ok(mod_file_names(dir)?
+    let mut mods: Vec<InstalledMod> = mod_file_names(dir)?
         .into_iter()
         .map(|file_name| InstalledMod {
             enabled: !state.disabled.contains(&file_name),
             parsed: Mod::open(&dir.join(&file_name)),
             file_name,
         })
-        .collect())
+        .collect();
+    if state.is_auto() {
+        optimal(&mut mods);
+    }
+    Ok(mods)
+}
+
+/// Whether the order is worked out automatically (the default).
+pub fn auto_sort(dir: &Path) -> io::Result<bool> {
+    Ok(read_state(dir)?.is_auto())
+}
+
+/// Switches the automatic order on or off. Off keeps the order that was in use, as the player's own from then on (it
+/// does not fall back to alphabetical); on works the order out again.
+pub fn set_auto_sort(dir: &Path, on: bool) -> io::Result<()> {
+    let mut state = read_state(dir)?;
+    if state.is_auto() == on && state.auto_sort == Some(on) {
+        return Ok(());
+    }
+    if !on && state.is_auto() {
+        state.order = list(dir)?.into_iter().map(|m| m.file_name).collect();
+    }
+    state.auto_sort = Some(on);
+    fs::create_dir_all(dir)?;
+    let mut json = serde_json::to_vec_pretty(&state).map_err(io::Error::other)?;
+    json.push(b'\n');
+    write_atomic(&dir.join(STATE_FILE), &json)
 }
 
 /// Switches a mod on or off. The file does not have to exist (a disabled entry for a missing mod is harmless).
@@ -447,5 +509,82 @@ mod tests {
         }
         assert!(dir.path().join("notes.txt").exists());
         assert!(dir.path().join("sub").exists());
+    }
+    fn sized_dir() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        let put = |name: &str, files: &[&str]| {
+            let entries: Vec<(&str, &[u8])> = files.iter().map(|f| (*f, &b"1"[..])).collect();
+            fs::write(dir.path().join(name), simple_zip(&entries)).unwrap();
+        };
+        put("small.zip", &["a.png"]);
+        put("big.zip", &["a.png", "b.png", "c.png"]);
+        put("Alpha.zip", &["a.png"]);
+        put("mid.zip", &["a.png", "b.png"]);
+        dir
+    }
+
+    fn names(dir: &Path) -> Vec<String> {
+        list(dir)
+            .unwrap()
+            .into_iter()
+            .map(|m| m.file_name)
+            .collect()
+    }
+
+    #[test]
+    fn the_order_is_automatic_by_default_with_the_broadest_mods_first() {
+        let dir = sized_dir();
+        assert!(auto_sort(dir.path()).unwrap());
+        // Most files first so the small, targeted mods come later and win; equal ones by name.
+        assert_eq!(
+            names(dir.path()),
+            ["big.zip", "mid.zip", "Alpha.zip", "small.zip"]
+        );
+    }
+
+    #[test]
+    fn switching_it_off_keeps_the_order_in_use_and_on_works_it_out_again() {
+        let dir = sized_dir();
+        set_auto_sort(dir.path(), false).unwrap();
+        assert!(!auto_sort(dir.path()).unwrap());
+        // Not back to alphabetical: the order that was shown stays.
+        assert_eq!(
+            names(dir.path()),
+            ["big.zip", "mid.zip", "Alpha.zip", "small.zip"]
+        );
+        move_mod(dir.path(), "small.zip", 0).unwrap();
+        assert_eq!(
+            names(dir.path()),
+            ["small.zip", "big.zip", "mid.zip", "Alpha.zip"]
+        );
+        // A mod added meanwhile comes last, as before.
+        fs::write(dir.path().join("new.zip"), simple_zip(&[("a.png", b"1")])).unwrap();
+        assert_eq!(names(dir.path()).last().unwrap(), "new.zip");
+        set_auto_sort(dir.path(), true).unwrap();
+        assert!(auto_sort(dir.path()).unwrap());
+        assert_eq!(
+            names(dir.path()),
+            ["big.zip", "mid.zip", "Alpha.zip", "new.zip", "small.zip"]
+        );
+    }
+
+    #[test]
+    fn an_order_the_player_already_chose_stays_theirs_until_they_switch_it_on() {
+        let dir = sized_dir();
+        fs::write(
+            dir.path().join(STATE_FILE),
+            br#"{"order": ["small.zip", "mid.zip", "big.zip", "Alpha.zip"]}"#,
+        )
+        .unwrap();
+        assert!(!auto_sort(dir.path()).unwrap());
+        assert_eq!(
+            names(dir.path()),
+            ["small.zip", "mid.zip", "big.zip", "Alpha.zip"]
+        );
+        set_auto_sort(dir.path(), true).unwrap();
+        assert_eq!(
+            names(dir.path()),
+            ["big.zip", "mid.zip", "Alpha.zip", "small.zip"]
+        );
     }
 }

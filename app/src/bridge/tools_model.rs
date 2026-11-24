@@ -316,7 +316,7 @@ impl qobject::GameTools {
                     let _ = thread.queue(move |mut model| {
                         model.as_mut().set_busy(false);
                         match result {
-                            Ok(report) => model.say("reset-done", &report.removed.to_string()),
+                            Ok(report) => model.say("reset-done", &report.changed.to_string()),
                             Err(e) => model.say("reset-error", &e.to_string()),
                         }
                     });

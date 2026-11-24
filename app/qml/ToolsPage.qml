@@ -94,7 +94,7 @@ Item {
         SettingsSection {
             title: qsTr("Game editors")
             SettingRow {
-                label: qsTr("Scene editor, Silverweave, Model Viewer, Particle Editor and Interface Tester")
+                label: qsTr("Scene editor, Silverweave, Model Viewer, Particle Editor, Interface Tester and datdec")
                 hint: EditorPack.state === "downloading" ? qsTr("Downloading… %1%").arg(Math.round(EditorPack.progress * 100))
                     : EditorPack.state === "checking" ? qsTr("Looking for the editors…")
                     : EditorPack.state === "ready" ? qsTr("Downloaded (build %1). SKradle keeps them up to date by itself.").arg(EditorPack.build)
@@ -104,7 +104,7 @@ Item {
                         : EditorPack.reason === "server" ? qsTr("GitHub had a problem. Try again later.")
                         : EditorPack.reason === "checksum" ? qsTr("The download was damaged, so it was discarded. Try again.")
                         : qsTr("Could not download the editors."))
-                    : qsTr("Open-source tools by Three Rings (Clyde) and spiralview, downloaded once (about 25 MB) and kept up to date.")
+                    : qsTr("Open-source tools by Three Rings (Clyde), spiralview and datdec, downloaded once (about 25 MB) and kept up to date.")
                 Item { Layout.fillWidth: true }
                 SButton {
                     visible: EditorPack.state === "none" || EditorPack.state === "error"
@@ -122,7 +122,8 @@ Item {
                     { label: qsTr("Silverweave"), hint: qsTr("Try knight loadouts and items.") },
                     { label: qsTr("Model Viewer"), hint: qsTr("Look at the game's models and animations.") },
                     { label: qsTr("Particle Editor"), hint: qsTr("Edit the game's particle effects.") },
-                    { label: qsTr("Interface Tester"), hint: qsTr("Try the game's interface layouts.") }
+                    { label: qsTr("Interface Tester"), hint: qsTr("Try the game's interface layouts.") },
+                    { label: qsTr("datdec"), hint: qsTr("Export and import the game's .dat and .xml files.") }
                 ]
                 ColumnLayout {
                     id: tool
@@ -150,6 +151,47 @@ Item {
                         }
                     }
                 }
+            }
+        }
+
+        SettingsSection {
+            title: qsTr("Community tools")
+            Repeater {
+                model: [
+                    { label: "Kozmadeus", url: "https://github.com/Crowfunder/Kozmadeus",
+                      hint: qsTr("Imports 3D models (.dae, .obj) into the game's model format. A Windows program (GPL-3.0); other systems run it from source.") },
+                    { label: "ThreeRingsSharp", url: "https://github.com/EtiTheSpirit/ThreeRingsSharp",
+                      hint: qsTr("Exports the game's models and animations as glTF for Blender and other tools. A Windows program that is no longer updated.") },
+                    { label: qsTr("Item tracker"), url: "https://github.com/Tranzorro/spiral_knights_tracking",
+                      hint: qsTr("A community list of the game's items (JSON, free to use) and a companion app to track your collection.") }
+                ]
+                ColumnLayout {
+                    id: community
+                    required property int index
+                    required property var modelData
+                    Layout.fillWidth: true
+                    spacing: 0
+                    Sep { visible: community.index > 0 }
+                    SettingRow {
+                        label: community.modelData.label
+                        hint: community.modelData.hint
+                        Item { Layout.fillWidth: true }
+                        SButton {
+                            text: qsTr("Open on GitHub")
+                            glyph: "github"
+                            variant: "ghost"
+                            Accessible.name: qsTr("Open %1 on GitHub").arg(community.modelData.label)
+                            onClicked: Qt.openUrlExternally(community.modelData.url)
+                        }
+                    }
+                }
+            }
+            Txt {
+                Layout.fillWidth: true
+                kind: "caption"
+                color: Theme.textSecondary
+                paragraph: true
+                text: qsTr("These are made by other people and open in your browser. They are not part of SKradle or the game.")
             }
         }
     }

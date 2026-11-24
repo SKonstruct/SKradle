@@ -50,16 +50,19 @@ pub enum Editor {
     ParticleEditor,
     /// Three Rings' interface tester; from the editors pack.
     InterfaceTester,
+    /// lucasluqui's datdec: export and import the game's `.dat` and `.xml` files; from the editors pack.
+    Datdec,
 }
 
 impl Editor {
-    pub const ALL: [Editor; 6] = [
+    pub const ALL: [Editor; 7] = [
         Editor::Crucible,
         Editor::SceneEditor,
         Editor::Silverweave,
         Editor::ModelViewer,
         Editor::ParticleEditor,
         Editor::InterfaceTester,
+        Editor::Datdec,
     ];
 
     /// True for the editors that live in the downloadable editors pack rather than in the game's own jars.
@@ -71,6 +74,7 @@ impl Editor {
                 | Editor::ModelViewer
                 | Editor::ParticleEditor
                 | Editor::InterfaceTester
+                | Editor::Datdec
         )
     }
 
@@ -82,6 +86,7 @@ impl Editor {
             Editor::ModelViewer => "Model Viewer",
             Editor::ParticleEditor => "Particle Editor",
             Editor::InterfaceTester => "Interface Tester",
+            Editor::Datdec => "datdec",
         }
     }
 
@@ -101,6 +106,7 @@ impl Editor {
             Editor::ModelViewer => "com.lucasluqui.spiralview.ModelViewerHook",
             Editor::ParticleEditor => "com.lucasluqui.spiralview.ParticleEditorHook",
             Editor::InterfaceTester => "com.lucasluqui.spiralview.InterfaceTesterHook",
+            Editor::Datdec => "com.lucasluqui.datdec.DatdecApp",
         }
     }
 

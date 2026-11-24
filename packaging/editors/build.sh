@@ -3,6 +3,7 @@
 # always from the newest upstream sources:
 #   * lucasluqui/spiralview, default branch HEAD (BSD-2-Clause; wraps Clyde and holds Silverweave)
 #   * the newest RELEASED com.threerings:clyde from Maven Central (BSD-2-Clause)
+#   * lucasluqui/datdec, its newest release (Three Rings' BSD licence; its classes are merged into the one jar)
 # spiralview compiles against the game's own projectx-pcode.jar, which is proprietary: it is downloaded from the
 # game's official host for the compile only, is never put in the output, and the script fails if a game class
 # ended up in it.
@@ -14,6 +15,8 @@ set -euo pipefail
 SPIRALVIEW_URL=https://github.com/lucasluqui/spiralview.git
 CLYDE_META=https://repo1.maven.org/maven2/com/threerings/clyde/maven-metadata.xml
 CLYDE_LICENSE_URL=https://raw.githubusercontent.com/threerings/clyde/master/LICENSE
+DATDEC_API=https://api.github.com/repos/lucasluqui/datdec/releases/latest
+DATDEC_LICENSE_URL=https://raw.githubusercontent.com/lucasluqui/datdec/main/LICENSE
 GAME_GETDOWN=https://gamemedia2.spiralknights.com/spiral/latest/getdown.txt
 JAR_NAME=skradle-editors.jar
 
@@ -28,20 +31,27 @@ fetch() { curl --fail --silent --show-error --location --retry 3 --max-time 300 
 resolve() {
   spiralview_commit=$(git ls-remote "$SPIRALVIEW_URL" HEAD | cut -f1)
   clyde_version=$(fetch "$CLYDE_META" | sed -n 's|.*<release>\(.*\)</release>.*|\1|p' | head -1)
+  datdec_json=$(fetch -H "Accept: application/vnd.github+json" ${GITHUB_TOKEN:+-H "Authorization: Bearer $GITHUB_TOKEN"} "$DATDEC_API")
+  datdec_version=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])' <<<"$datdec_json")
+  datdec_url=$(python3 -c 'import json,sys; print(next(a["browser_download_url"] for a in json.load(sys.stdin)["assets"] if a["name"].endswith(".zip")))' <<<"$datdec_json")
   game_version=$(fetch "$GAME_GETDOWN" | awk -F' *= *' '$1=="version"{gsub(/\r/,"",$2); print $2}')
   game_appbase=$(fetch "$GAME_GETDOWN" | awk -F' *= *' '$1=="appbase"{gsub(/\r/,"",$2); print $2}')
   case "$spiralview_commit" in [0-9a-f]*) ;; *) echo "no spiralview commit" >&2; exit 1;; esac
   case "$clyde_version" in [0-9]*) ;; *) echo "no clyde release version" >&2; exit 1;; esac
   case "$game_version" in [0-9]*) ;; *) echo "no game version" >&2; exit 1;; esac
+  case "$datdec_version" in [0-9A-Za-z]*) ;; *) echo "no datdec release" >&2; exit 1;; esac
+  case "$datdec_url" in https://github.com/lucasluqui/datdec/releases/download/*.zip) ;; *) echo "unexpected datdec download: $datdec_url" >&2; exit 1;; esac
   case "$game_appbase" in https://gamemedia*.spiralknights.com/*) ;; *) echo "unexpected game host: $game_appbase" >&2; exit 1;; esac
   pcode_url="${game_appbase//%VERSION%/$game_version}/code/projectx-pcode.jar"
   fetch -o "$work/projectx-pcode.jar" "$pcode_url"
   unzip -tq "$work/projectx-pcode.jar" >/dev/null
   pcode_sha=$(shasum -a 256 "$work/projectx-pcode.jar" | cut -d' ' -f1)
-  build="${spiralview_commit:0:7}-${clyde_version}-${pcode_sha:0:7}"
+  build="${spiralview_commit:0:7}-${clyde_version}-datdec${datdec_version}-${pcode_sha:0:7}"
   echo "build=$build"
   echo "spiralview_commit=$spiralview_commit"
   echo "clyde_version=$clyde_version"
+  echo "datdec_version=$datdec_version"
+  echo "datdec_url=$datdec_url"
   echo "game_version=$game_version"
   echo "game_code_sha256=$pcode_sha"
 }
@@ -53,7 +63,7 @@ mkdir -p "$out"
 out=$(cd "$out" && pwd)
 
 eval "$(resolve | sed 's/^\([a-z_0-9]*\)=\(.*\)$/\1="\2"/')"
-echo "Building $build (spiralview $spiralview_commit, clyde $clyde_version, game $game_version)"
+echo "Building $build (spiralview $spiralview_commit, clyde $clyde_version, datdec $datdec_version, game $game_version)"
 
 rm -rf "$work/spiralview"
 git clone --quiet "$SPIRALVIEW_URL" "$work/spiralview"
@@ -77,6 +87,34 @@ cp "$here/assembly.xml" "$work/spiralview/src/assembly/jar-with-dependencies-las
   && mvn --batch-mode --quiet dependency:list -DincludeScope=runtime -DoutputAbsoluteArtifactFilename=true -DoutputFile="$work/dependencies.txt")
 built="$work/spiralview/target/spiralview.jar"
 [ -f "$built" ] || { echo "spiralview.jar was not built" >&2; exit 1; }
+
+# datdec's release is one small jar (its own classes and Apache commons-cli, which it needs); its classes join the editors
+# jar, except what is already in it. Done before the check below, so the check covers them too.
+fetch -o "$work/datdec.zip" "$datdec_url"
+rm -rf "$work/datdec"; mkdir -p "$work/datdec"
+unzip -q -o "$work/datdec.zip" datdec.jar -d "$work/datdec"
+python3 - "$built" "$work/datdec/datdec.jar" <<'PY'
+import os, sys, zipfile
+built, extra = sys.argv[1:3]
+merged = built + ".merged"
+with zipfile.ZipFile(built) as src, zipfile.ZipFile(extra) as add, zipfile.ZipFile(merged, "w", zipfile.ZIP_DEFLATED) as out:
+    seen = set()
+    for item in src.infolist():
+        out.writestr(item, src.read(item.filename))
+        seen.add(item.filename)
+    added = 0
+    for item in add.infolist():
+        name = item.filename
+        if item.is_dir() or name in seen or name.startswith("META-INF/"):
+            continue
+        out.writestr(item, add.read(name))
+        seen.add(name)
+        added += 1
+if added < 10:
+    sys.exit("datdec.jar added only %d entries: is it the right file?" % added)
+os.replace(merged, built)
+print("merged %d datdec entries" % added)
+PY
 
 # Nothing of the game may be in the output: a class that is byte-identical to one in the game's jar is only allowed
 # when the same bytes also come out of an open-source dependency jar (Clyde, Guava and the like contain classes the
@@ -102,7 +140,8 @@ print("checked: no class of the game's own jar is in the editors jar")
 PY
 entries=$(unzip -Z1 "$built")
 for must in com/lucasluqui/spiralview/ModelViewerHook.class com/lucasluqui/silverweave/SilverweaveTool.class \
-            com/lucasluqui/spiralview/ParticleEditorHook.class com/lucasluqui/spiralview/InterfaceTesterHook.class; do
+            com/lucasluqui/spiralview/ParticleEditorHook.class com/lucasluqui/spiralview/InterfaceTesterHook.class \
+            com/lucasluqui/datdec/DatdecApp.class; do
   grep -qx "$must" <<<"$entries" || { echo "missing $must in the built jar" >&2; exit 1; }
 done
 
@@ -116,14 +155,18 @@ size=$(wc -c < "$out/$JAR_NAME" | tr -d ' ')
   echo "SKradle editors: third-party notices"
   echo "====================================="
   echo
-  echo "skradle-editors.jar contains lucasluqui/spiralview (commit $spiralview_commit) and com.threerings:clyde $clyde_version"
-  echo "with their dependencies. Both are distributed under the licence below. The game's own code is not included."
+  echo "skradle-editors.jar contains lucasluqui/spiralview (commit $spiralview_commit), com.threerings:clyde $clyde_version"
+  echo "and lucasluqui/datdec $datdec_version with their dependencies, under the licences below. The game's own code is not"
+  echo "included."
   echo
   echo "--- spiralview ---"
   cat "$work/spiralview/LICENSE"
   echo
   echo "--- clyde ---"
   fetch "$CLYDE_LICENSE_URL"
+  echo
+  echo "--- datdec ---"
+  fetch "$DATDEC_LICENSE_URL"
   echo
   echo "--- bundled libraries (each under its own licence; see the projects named) ---"
   sed -e 's/^ *//' -e '/^$/d' -e '/The following files have been resolved/d' "$work/dependencies.txt" | sort -u
@@ -139,6 +182,7 @@ json.dump({
     "java_min": $java_min,
     "spiralview": {"commit": "$spiralview_commit"},
     "clyde": {"version": "$clyde_version"},
+    "datdec": {"version": "$datdec_version"},
     "game": {"version": "$game_version", "code_sha256": "$game_code_sha256"},
 }, open(sys.argv[1], "w"), indent=2)
 open(sys.argv[1], "a").write("\n")

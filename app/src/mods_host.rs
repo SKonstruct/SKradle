@@ -472,6 +472,8 @@ pub struct Listing {
     pub tags: Vec<TagCount>,
     /// Why the folder could not be read (a damaged state file, no permission); empty items then.
     pub error: Option<String>,
+    /// Whether the apply order is worked out automatically (the page then does not let the player reorder).
+    pub auto_sort: bool,
 }
 
 /// Puts each conflict on both mods it concerns, with the other one's title.
@@ -520,6 +522,14 @@ pub fn move_one(dir: &Path, file: &str, to: usize) -> Outcome {
         kind: "move",
         ..Outcome::default()
     };
+    // The page does not offer it while the order is automatic; a stray call must not quietly end that.
+    if mods::auto_sort(dir).unwrap_or(true) {
+        out.failed.push((
+            file.to_owned(),
+            tr("The order is set automatically. Turn that off in Settings > Files to order the mods yourself."),
+        ));
+        return out;
+    }
     match mods::move_mod(dir, file, to) {
         Ok(()) => out.ok = 1,
         Err(e) => {
@@ -529,6 +539,14 @@ pub fn move_one(dir: &Path, file: &str, to: usize) -> Outcome {
         }
     }
     out
+}
+
+/// Switches the automatic order on or off (see `skradle_core::mods::set_auto_sort`).
+pub fn set_auto_sort(dir: &Path, on: bool) {
+    skradle_core::log::info("mods", format!("automatic order: {on}"));
+    if let Err(e) = mods::set_auto_sort(dir, on) {
+        log_raw("automatic order", &e.to_string());
+    }
 }
 
 /// Scans the folder. A missing folder is an empty list.
@@ -552,6 +570,7 @@ pub fn build_listing(dir: &Path, game_version: Option<&str>) -> Listing {
                 tags: tag_counts(&items),
                 items,
                 error: None,
+                auto_sort: mods::auto_sort(dir).unwrap_or(true),
             }
         }
         Err(e) => Listing {

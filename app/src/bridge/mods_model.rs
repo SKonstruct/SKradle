@@ -18,6 +18,8 @@ pub mod qobject {
         #[qproperty(QString, items, READ, WRITE, NOTIFY)]
         /// JSON array of `{id, count}`: only the tags the installed mods have.
         #[qproperty(QString, tags, READ, WRITE, NOTIFY)]
+        /// The apply order is worked out automatically (Settings > Files); the page then does not let mods be moved.
+        #[qproperty(bool, auto_sort, cxx_name = "autoSort", READ, WRITE, NOTIFY)]
         /// The mods folder as a path and as a `file://` URL.
         #[qproperty(QString, folder, READ, WRITE, NOTIFY)]
         #[qproperty(QString, folder_url, cxx_name = "folderUrl", READ, WRITE, NOTIFY)]
@@ -52,6 +54,11 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "setEnabled"]
         fn set_enabled(self: Pin<&mut ModsModel>, files: &QString, on: bool);
+
+        /// Switches the automatic order on or off; the list is scanned again.
+        #[qinvokable]
+        #[cxx_name = "useAutoSort"]
+        fn use_auto_sort(self: Pin<&mut ModsModel>, on: bool);
 
         /// Moves one mod to position `to` in the apply order (0 first; a mod later in the list wins files two mods
         /// both change).
@@ -115,6 +122,7 @@ use crate::i18n::tr;
 use crate::mods_host::{self, Listing, Outcome};
 
 pub struct ModsModelRust {
+    auto_sort: bool,
     items: QString,
     tags: QString,
     folder: QString,
@@ -143,6 +151,7 @@ impl Default for ModsModelRust {
     fn default() -> Self {
         let dir = mods_host::mods_dir();
         Self {
+            auto_sort: true,
             items: QString::from("[]"),
             tags: QString::from("[]"),
             folder: QString::from(
@@ -204,6 +213,7 @@ impl qobject::ModsModel {
     fn show_listing(mut self: Pin<&mut Self>, listing: &Listing) {
         let items = serde_json::to_string(&listing.items).unwrap_or_else(|_| "[]".into());
         let tags = serde_json::to_string(&listing.tags).unwrap_or_else(|_| "[]".into());
+        self.as_mut().set_auto_sort(listing.auto_sort);
         self.as_mut().set_items(QString::from(items.as_str()));
         self.as_mut().set_tags(QString::from(tags.as_str()));
         self.as_mut()
@@ -275,6 +285,16 @@ impl qobject::ModsModel {
         let files = files_from_json(files);
         self.as_mut()
             .scan_then(move |dir| Some(mods_host::set_enabled_all(dir, &files, on)));
+    }
+
+    pub fn use_auto_sort(mut self: Pin<&mut Self>, on: bool) {
+        if self.busy || self.pack_state.to_string() == "syncing" {
+            return;
+        }
+        self.as_mut().scan_then(move |dir| {
+            mods_host::set_auto_sort(dir, on);
+            None
+        });
     }
 
     pub fn move_mod(mut self: Pin<&mut Self>, file: &QString, to: i32) {

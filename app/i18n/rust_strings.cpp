@@ -52,6 +52,7 @@
     QT_TRANSLATE_NOOP("rust", "The game's updater stopped (%1)."),
     QT_TRANSLATE_NOOP("rust", "The game's updater stopped (%1): %2"),
     QT_TRANSLATE_NOOP("rust", "The list of switched-off mods is damaged. Delete .skradle-mods.json in the mods folder and try again."),
+    QT_TRANSLATE_NOOP("rust", "The order is set automatically. Turn that off in Settings > Files to order the mods yourself."),
     QT_TRANSLATE_NOOP("rust", "The settings file could not be opened just now, so defaults are in use. The file was left as it is."),
     QT_TRANSLATE_NOOP("rust", "The settings file could not be read, so defaults are in use. The old file was kept next to it."),
     QT_TRANSLATE_NOOP("rust", "The updater finished but the game did not start. Try again."),

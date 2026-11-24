@@ -1,8 +1,8 @@
 name: Editors
 
-# Builds the game's editors (Silverweave, Model Viewer, Particle Editor, Interface Tester) from the newest upstream
+# Builds the game's editors (Silverweave, Model Viewer, Particle Editor, Interface Tester, datdec) from the newest upstream
 # sources and publishes them as the rolling "editors" release, which SKradle downloads and keeps up to date. Runs every
-# Monday and only rebuilds when something changed: spiralview's newest commit, the newest released Clyde, or the game's own
+# Monday and only rebuilds when something changed: spiralview's newest commit, the newest released Clyde, datdec's newest release, or the game's own
 # code jar (the editors are compiled against it, and it is never published). See packaging/editors/build.sh.
 # The release is a pre-release on purpose: the launcher's own update check ignores it. The release is the only thing
 # this workflow writes: nothing is committed or pushed.
@@ -70,9 +70,10 @@ jobs:
           BUILD: ${{ steps.resolve.outputs.build }}
           SPIRALVIEW: ${{ steps.resolve.outputs.spiralview_commit }}
           CLYDE: ${{ steps.resolve.outputs.clyde_version }}
+          DATDEC: ${{ steps.resolve.outputs.datdec_version }}
           GAME: ${{ steps.resolve.outputs.game_version }}
         run: |
-          notes="Rolling build of the game's editors for SKradle (build $BUILD): spiralview ${SPIRALVIEW:0:7}, Clyde $CLYDE, compiled against game version $GAME. SKradle downloads this by itself; licences are in NOTICES.txt."
+          notes="Rolling build of the game's editors for SKradle (build $BUILD): spiralview ${SPIRALVIEW:0:7}, Clyde $CLYDE, datdec $DATDEC, compiled against game version $GAME. SKradle downloads this by itself; licences are in NOTICES.txt."
           if gh release view editors >/dev/null 2>&1; then
             gh release edit editors --notes "$notes" --prerelease --latest=false
           else

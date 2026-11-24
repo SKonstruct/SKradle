@@ -606,6 +606,7 @@ PageScaffold {
     // Screenshots: the history dialog.
     function openPlayers() { playersDlg.openFrom(playersCard) }
     function closePlayers() { playersDlg.close() }
+    function hoverPlayers() { playersDlg.hoverDemo() }
     PlayersDialog { id: playersDlg }
     Connections {
         target: LaunchModel

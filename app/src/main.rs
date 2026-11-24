@@ -1,6 +1,8 @@
 //! SKradle: the desktop launcher. A Qt Quick UI (embedded QML) on top of `skradle-core`, bridged with cxx-qt.
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod bridge;
+mod console;
 mod discovery;
 mod i18n;
 mod launch;
@@ -24,6 +26,7 @@ use options::Options;
 const MAIN_QML: &str = "qrc:/qt/qml/com/skradle/app/qml/Main.qml";
 
 fn main() {
+    console::attach_parent_for_flags();
     let reduce = std::env::var("SKRADLE_REDUCE_MOTION").is_ok_and(|v| !v.is_empty() && v != "0");
     let options = match Options::parse(std::env::args().skip(1), reduce) {
         Ok(options) => options,

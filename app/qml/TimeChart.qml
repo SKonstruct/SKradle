@@ -20,6 +20,13 @@ Card {
         for (const p of points) if (best === null || p[1] > best[1]) best = p
         return best
     }
+    // The plot area inside the canvas, in pixels (the canvas and the hover marker share it).
+    readonly property real padLeft: 40
+    readonly property real padRight: 6
+    readonly property real padTop: 6
+    readonly property real padBottom: 20
+    // Index into `points` of the point under the pointer, -1 when none.
+    property int hoverIndex: -1
     elevation: 0
     implicitHeight: col.implicitHeight + 2 * Theme.s3
     Accessible.role: Accessible.Graphic
@@ -35,7 +42,31 @@ Card {
         for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * mag >= v) return m * mag
         return 10 * mag
     }
-    onPointsChanged: canvas.requestPaint()
+    readonly property real topN: {
+        let max = 0
+        for (const p of points) max = Math.max(max, p[1])
+        return niceMax(max * 1.08)
+    }
+    function xAt(t, w) {
+        const t0 = now - span
+        return padLeft + Math.max(0, Math.min(1, (t - t0) / span)) * (w - padLeft - padRight)
+    }
+    function yAt(n, h) {
+        const ph = h - padTop - padBottom
+        return padTop + ph - (n / topN) * ph
+    }
+    // The point nearest in time to the pointer at x, or -1 outside the plot.
+    function indexAt(x, w) {
+        if (!enough || x < padLeft || x > w - padRight) return -1
+        const t = (now - span) + (x - padLeft) / (w - padLeft - padRight) * span
+        let best = -1, dist = Infinity
+        for (let i = 0; i < points.length; i++) {
+            const d = Math.abs(points[i][0] - t)
+            if (d < dist) { dist = d; best = i }
+        }
+        return best
+    }
+    onPointsChanged: { hoverIndex = -1; canvas.requestPaint() }
     Connections { target: Theme; function onDarkChanged() { canvas.requestPaint() } }
 
     ColumnLayout {
@@ -118,6 +149,53 @@ Card {
                         ctx.arc(x(root.peak[0]), y(root.peak[1]), 3.5, 0, Math.PI * 2)
                         ctx.fillStyle = Theme.accentFg
                         ctx.fill()
+                    }
+                }
+            }
+            HoverHandler {
+                id: hover
+                enabled: root.enough
+                cursorShape: Qt.CrossCursor
+                onPointChanged: root.hoverIndex = root.indexAt(point.position.x, parent.width)
+                onHoveredChanged: if (!hovered) root.hoverIndex = -1
+            }
+            // The guide line, the marked point and a tip with the count and the time under the pointer.
+            Item {
+                id: hoverLayer
+                anchors.fill: parent
+                visible: root.hoverIndex >= 0 && root.hoverIndex < root.points.length
+                readonly property var pt: visible ? root.points[root.hoverIndex] : null
+                readonly property real px: pt ? root.xAt(pt[0], width) : 0
+                readonly property real py: pt ? root.yAt(pt[1], height) : 0
+                Rectangle {
+                    x: hoverLayer.px - 0.5; y: root.padTop
+                    width: 1; height: hoverLayer.height - root.padTop - root.padBottom
+                    color: Theme.textTertiary; opacity: 0.7
+                }
+                Rectangle {
+                    x: hoverLayer.px - 5; y: hoverLayer.py - 5
+                    width: 10; height: 10; radius: 5
+                    color: Theme.accentFg; border.width: 2; border.color: Theme.card
+                }
+                Rectangle {
+                    id: tip
+                    readonly property bool flip: hoverLayer.px > hoverLayer.width / 2
+                    x: flip ? hoverLayer.px - width - 12 : hoverLayer.px + 12
+                    y: Math.max(0, Math.min(hoverLayer.height - root.padBottom - height, hoverLayer.py - height / 2))
+                    width: tipLabel.implicitWidth + 2 * Theme.s2
+                    height: tipLabel.implicitHeight + 2 * Theme.s1
+                    radius: 6
+                    color: Theme.tipBg; border.width: 1; border.color: Theme.tipBorder
+                    Txt {
+                        id: tipLabel
+                        anchors.centerIn: parent
+                        kind: "caption"
+                        numeric: true
+                        wrapMode: Text.NoWrap
+                        color: Theme.tipText
+                        text: hoverLayer.pt
+                            ? qsTr("%n players", "", hoverLayer.pt[1]) + "\n" + Qt.formatDateTime(new Date(hoverLayer.pt[0] * 1000), "ddd d MMM HH:mm")
+                            : ""
                     }
                 }
             }

@@ -27,6 +27,9 @@ ServerDialog {
     function weekText(w) { return w ? Qt.locale().dayName(w.weekday % 7, Locale.LongFormat) + " " + hourText(w.hour) : "–" }
     readonly property string trendText: snap.trend > 0 ? qsTr("Trending up over the last hour.") : snap.trend < 0 ? qsTr("Trending down over the last hour.") : ""
 
+    // Screenshots only: shows the hover marker on the 24-hour chart, as if the pointer were over it.
+    function hoverDemo() { c24.hoverIndex = Math.floor(c24.points.length * 0.62) }
+
     onAboutToShow: { load(); HomeFeed.refreshHistory(new Date().getTimezoneOffset()) }
     onFocusFirst: closeButton.forceActiveFocus()
     Timer { interval: 60000; repeat: true; running: dlg.visible; onTriggered: dlg.load() }
@@ -76,7 +79,7 @@ ServerDialog {
         }
     }
 
-    TimeChart { Layout.fillWidth: true; title: qsTr("Last 24 hours"); points: dlg.snap.day || []; labels: "hour"; span: 86400; now: dlg.now }
+    TimeChart { id: c24; Layout.fillWidth: true; title: qsTr("Last 24 hours"); points: dlg.snap.day || []; labels: "hour"; span: 86400; now: dlg.now }
     TimeChart { Layout.fillWidth: true; title: qsTr("Last 7 days"); points: dlg.snap.week || []; labels: "weekday"; span: 7 * 86400; now: dlg.now }
     TimeChart { Layout.fillWidth: true; title: qsTr("Last 30 days"); points: dlg.snap.month || []; labels: "date"; span: 30 * 86400; now: dlg.now }
 }

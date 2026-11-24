@@ -1,5 +1,5 @@
 //! Updating the launcher itself from its GitHub Releases. Releases carry one installer per platform named
-//! `SKradle-<version>-<os>-<arch>.<ext>`; GitHub publishes a SHA-256 for every asset (`digest`), which is required
+//! `SKradle-<version>-<os>-<arch>.<ext>` (`...-windows-<arch>-installer.exe` on Windows); GitHub publishes a SHA-256 for every asset (`digest`), which is required
 //! here: an asset without one is never offered. Only download URLs under this project's own releases are accepted.
 //! Starting the downloaded installer is up to the application.
 
@@ -177,10 +177,12 @@ struct RawAsset {
     digest: Option<String>,
 }
 
-/// The installer file name for a platform, for example `SKradle-1.2.3-macos-arm64.dmg`.
+/// The installer file name for a platform, for example `SKradle-1.2.3-macos-arm64.dmg` or, on Windows,
+/// `SKradle-1.2.3-windows-x64-installer.exe`.
 pub fn asset_name(version: Version, os: Os, arch: Arch) -> String {
-    let (os_name, ext) = match os {
-        Os::Windows => ("windows", "exe"),
+    let (os_name, suffix) = match os {
+        // The Windows download is an installer program: it says so in its name.
+        Os::Windows => ("windows", "installer.exe"),
         Os::MacOs => ("macos", "dmg"),
         Os::Linux => ("linux", "AppImage"),
     };
@@ -188,7 +190,12 @@ pub fn asset_name(version: Version, os: Os, arch: Arch) -> String {
         Arch::X64 => "x64",
         Arch::Arm64 => "arm64",
     };
-    format!("SKradle-{version}-{os_name}-{arch_name}.{ext}")
+    // `SKradle-1.2.3-macos-arm64.dmg`, `SKradle-1.2.3-windows-x64-installer.exe`.
+    if suffix.starts_with("installer") {
+        format!("SKradle-{version}-{os_name}-{arch_name}-{suffix}")
+    } else {
+        format!("SKradle-{version}-{os_name}-{arch_name}.{suffix}")
+    }
 }
 
 fn convert(raw: RawRelease) -> Option<Release> {
@@ -365,8 +372,8 @@ mod tests {
         [
             "macos-arm64.dmg",
             "macos-x64.dmg",
-            "windows-x64.exe",
-            "windows-arm64.exe",
+            "windows-x64-installer.exe",
+            "windows-arm64-installer.exe",
             "linux-x64.AppImage",
         ]
         .iter()
@@ -421,7 +428,7 @@ mod tests {
         );
         assert_eq!(
             asset_name(v("1.3.0"), Os::Windows, Arch::X64),
-            "SKradle-1.3.0-windows-x64.exe"
+            "SKradle-1.3.0-windows-x64-installer.exe"
         );
         assert_eq!(
             asset_name(v("1.3.0"), Os::Linux, Arch::X64),
@@ -520,12 +527,12 @@ mod tests {
                 DOWNLOAD_PREFIX,
             ),
             asset_json(
-                "SKradle-1.3.0-windows-x64.exe",
+                "SKradle-1.3.0-windows-x64-installer.exe",
                 Some(&digest),
                 "https://evil.example/releases/download/",
             ),
             asset_json(
-                "SKradle-1.3.0-windows-arm64.exe",
+                "SKradle-1.3.0-windows-arm64-installer.exe",
                 Some(&digest),
                 "http://github.com/SKonstruct/SKradle/releases/download/",
             ),
@@ -619,7 +626,7 @@ mod tests {
         // Only Windows installers exist; this is macOS.
         let digest = format!("sha256:{SHA}");
         let assets = vec![asset_json(
-            "SKradle-1.3.0-windows-x64.exe",
+            "SKradle-1.3.0-windows-x64-installer.exe",
             Some(&digest),
             DOWNLOAD_PREFIX,
         )];

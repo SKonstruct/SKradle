@@ -32,6 +32,7 @@ pub use apply::{
     apply, apply_with_options, restore_pristine, ApplyError, ApplyOptions, ApplyReport,
 };
 pub use list::{
-    conflicts, list as list_mods, move_mod, remove, set_enabled, Conflict, InstalledMod,
+    auto_sort, conflicts, list as list_mods, move_mod, remove, set_auto_sort, set_enabled,
+    Conflict, InstalledMod,
 };
 pub use model::{Container, Kind, Mod, ModError};

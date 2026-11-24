@@ -10,12 +10,15 @@ The Tools page (fourth in the sidebar) starts these:
 | Model Viewer | the editors pack |
 | Particle Editor | the editors pack |
 | Interface Tester | the editors pack |
+| datdec | the editors pack |
 
 ## The editors pack
 
-The last five are not in the game's jars (only the texts of four of them are). They are open source: [Clyde](https://github.com/threerings/clyde)
-(the Three Rings library the game is built on) and [spiralview](https://github.com/lucasluqui/spiralview) (a wrapper
-around Clyde's editors that also holds Silverweave), both BSD-2-Clause.
+The last six are not in the game's jars (only the texts of four of them are). They are open source: [Clyde](https://github.com/threerings/clyde)
+(the Three Rings library the game is built on), [spiralview](https://github.com/lucasluqui/spiralview) (a wrapper
+around Clyde's editors that also holds Silverweave), both BSD-2-Clause, and [datdec](https://github.com/lucasluqui/datdec)
+(exports and imports the game's `.dat` and `.xml` files; Three Rings' BSD licence). datdec's newest release is merged into
+the same jar (`com.lucasluqui.datdec.DatdecApp`); a new datdec release triggers a rebuild like a new Clyde does.
 
 - The **Editors** workflow (`.github/workflows/editors.yml`, `packaging/editors/build.sh`) runs every Monday. It resolves the
   newest spiralview commit, the newest released Clyde (Maven Central) and the game's current code jar, and rebuilds only

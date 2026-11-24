@@ -45,7 +45,7 @@ Item {
     function statusCount(st) { return all.filter(m => passStatus(m, st) && passTag(m, activeTag) && passText(m)).length }
     function tagCount(t) { return all.filter(m => passStatus(m, activeStatus) && passTag(m, t) && passText(m)).length }
     // The order can be changed while nothing is filtered (positions in the shown list are positions in the whole one).
-    readonly property bool canReorder: !filtering && all.length > 1 && gameOk && !busy
+    readonly property bool canReorder: !filtering && all.length > 1 && gameOk && !busy && !ModsModel.autoSort
     function moveMod(index, steps) {
         const to = Math.max(0, Math.min(all.length - 1, index + steps))
         if (to !== index && index >= 0 && index < shown.length) ModsModel.moveMod(shown[index].file, to)
@@ -359,7 +359,8 @@ Item {
                 visible: page.all.length > 1
                 kind: "caption"
                 color: Theme.textSecondary
-                text: page.filtering ? qsTr("Clear the search and filters to change the order.")
+                text: ModsModel.autoSort ? qsTr("The order is set automatically: a mod lower in the list wins when two change the same file. Turn that off in Settings > Files to order the mods yourself.")
+                    : page.filtering ? qsTr("Clear the search and filters to change the order.")
                     : qsTr("Drag the handle (or press Alt with the arrow keys) to change the order. A mod lower in the list wins when two change the same file.")
             }
 

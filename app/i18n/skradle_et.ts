@@ -941,6 +941,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>The order is set automatically: a mod lower in the list wins when two change the same file. Turn that off in Settings &gt; Files to order the mods yourself.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Clear the search and filters to change the order.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1996,7 +2000,7 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Game files removed (%1). Launch the game to download them again.</source>
+        <source>The game files are back to the original (%1 changed).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2360,11 +2364,31 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Sort mods automatically</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Puts the mods in the best order by itself: the ones that change the most files go first, so a small, targeted mod wins over a broad one when both change the same file. Turn it off to order the mods yourself on the Mods page; your order then stays as it is.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>File cleaning</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Applies mods on top of the game&apos;s original files, so removing a mod puts the original back. Turn it off only to keep changes from other tools.</source>
+        <source>Cleans the game files whenever a mod is added, changed, removed or switched on or off: the files mods changed are put back to the game&apos;s originals first, so nothing of a removed mod is left. Turn it off only to keep changes made by other tools.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Also removes the extra files that earlier mods added to the game folder (files the game itself does not have), before the mods are applied again. Only files SKradle recorded itself are removed, never anything else.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Puts the game back to its original, unmodified state: every mod&apos;s changes and the files mods added are removed, and the game&apos;s loose files are rebuilt from its own data. Works offline and downloads nothing. Your mods folder and settings stay, and your mods are applied again the next time you launch.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This puts the game in %1 back to its original state: the changes of every mod are removed and the game&apos;s loose files are rebuilt from its own data. Nothing is downloaded. Your mods folder and your settings are not touched, and your mods are applied again the next time you launch.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2372,15 +2396,7 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Before applying mods, removes files that earlier mods added to the game folder. Only files SKradle recorded itself are removed, never anything else.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Reset game files</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Removes every applied mod and the game&apos;s files, so the game&apos;s own updater downloads them all again. Your mods folder and settings stay.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2527,10 +2543,6 @@ Content URL: %4</source>
         <source>Reset game files?</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>This removes every applied mod and deletes the game&apos;s files in %1, so the game&apos;s own updater downloads them all again on the next launch. The download can be large. Your mods folder and your settings are not touched.</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>Sidebar</name>
@@ -2556,6 +2568,13 @@ Content URL: %4</source>
     <message>
         <source>Busiest: %1 (%2)</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n players</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
     <message>
         <source>Not enough data yet.</source>
@@ -2632,10 +2651,6 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Scene editor, Silverweave, Model Viewer, Particle Editor and Interface Tester</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Downloading… %1%</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2672,7 +2687,11 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Open-source tools by Three Rings (Clyde) and spiralview, downloaded once (about 25 MB) and kept up to date.</source>
+        <source>Scene editor, Silverweave, Model Viewer, Particle Editor, Interface Tester and datdec</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open-source tools by Three Rings (Clyde), spiralview and datdec, downloaded once (about 25 MB) and kept up to date.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2736,6 +2755,14 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>datdec</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export and import the game&apos;s .dat and .xml files.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Needs a game install.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2757,6 +2784,38 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Open %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Community tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Imports 3D models (.dae, .obj) into the game&apos;s model format. A Windows program (GPL-3.0); other systems run it from source.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exports the game&apos;s models and animations as glTF for Blender and other tools. A Windows program that is no longer updated.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Item tracker</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A community list of the game&apos;s items (JSON, free to use) and a companion app to track your collection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open on GitHub</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open %1 on GitHub</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These are made by other people and open in your browser. They are not part of SKradle or the game.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3027,6 +3086,10 @@ Content URL: %4</source>
     </message>
     <message>
         <source>The list of switched-off mods is damaged. Delete .skradle-mods.json in the mods folder and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The order is set automatically. Turn that off in Settings &gt; Files to order the mods yourself.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

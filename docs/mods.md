@@ -151,10 +151,20 @@ they stay in `.skradle/applied.json`, so purging can remove them later. Only rec
 
 ## Resetting the game files
 
-`core::reset::reset` removes all mods (best effort), then deletes every regular file `digest2.txt` lists plus its `<name>v`
-marker, except `getdown.txt`, the digest files and anything named `getdown*`. Folders, links that leave the game folder and
-the player's mods folder are never touched. The missing code jars send the next launch through the updater. Not run
-against the real updater.
+`core::reset::reset` runs the apply engine with no mods and with every loose file of `rsrc/` rebuilt from the game's own
+bundles (file cleaning and purging on): the code jars go back to the verified originals, the files mods wrote or replaced
+are restored, the files mods added are removed, and anything else other tools left in `rsrc/` is rebuilt. It is offline
+(only a game folder that something else modified before SKradle first saw it needs the game's server for an original
+jar) and deletes no game file for the updater to fetch. The player's mods folder is never touched; the next launch
+applies the mods again.
+
+## Automatic order
+
+The mods apply in an order, and a later mod wins when two change the same file. By default SKradle works the order out
+(`core::mods::list`, "optimal"): the mods that change the most files go first, equal ones by name, so a small, targeted
+mod wins over a broad one. Settings > Files > *Sort mods automatically* switches it off; the order then in use stays as
+the player's own (it does not fall back to alphabetical) and can be changed by dragging. A state file that already has
+a chosen order and no switch counts as manual. Stored in `.skradle-mods.json` as `auto_sort` and `order`.
 
 ## Archive safety
 

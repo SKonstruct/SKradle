@@ -65,8 +65,21 @@ history has the rest.
   `.exe` for Windows (x64 and ARM64; per user, no administrator rights; there is no portable version) and an
   AppImage for Linux x64. A version tag also publishes them as a GitHub Release. They are unsigned: on macOS run
   `xattr -cr SKradle.app` once, on Windows choose "More info" then "Run anyway".
-- **Updating the launcher**: new releases are offered in the app; the Windows installer runs silently and starts SKradle
-  again, an AppImage replaces itself, and the macOS disk image opens for you to drag the app over the old one.
+- **Mods order**: the apply order is worked out automatically by default (the mods that change the most files first, so a
+  small, targeted mod wins over a broad one); Settings > Files > *Sort mods automatically* turns it off, and the order
+  then in use stays as the player's own to change by dragging.
+- **Reset game files** puts the game back to its original state offline (mod changes removed, loose files rebuilt from the
+  game's own data); nothing is downloaded and no game file is deleted.
+- **Players online**: hovering a chart shows a guide line, the point and a tip with the count and time; the history comes
+  from the Knight Launcher service when it answers (asked once when the dialog opens, nothing about you in the request)
+  and from this computer's own record otherwise.
+- **Tools**: *datdec* (export and import the game's `.dat` and `.xml` files) joins the editors, rebuilt by the weekly
+  workflow from its newest release; a *Community tools* list links Kozmadeus, ThreeRingsSharp and an item tracker.
+- **Windows installer** (Inno Setup, per user): licence page, light and dark mode like Windows, a desktop shortcut option,
+  a GitHub button, asks before installing an older or the same version, and on uninstall offers to remove SKradle's
+  settings (never the mods). The file is named `SKradle-<version>-windows-<arch>-installer.exe`.
+- **Updating the launcher**: new releases are offered in the app; the Windows installer shows a small progress window and
+  starts SKradle again, an AppImage replaces itself, and the macOS disk image opens for you to drag the app over the old one.
 
 ### Known gaps
 
