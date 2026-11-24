@@ -1,5 +1,5 @@
 # The .deb and .rpm of SKradle (nfpm, see packaging/linux.sh): the AppImage's AppDir (SKradle and the Qt it needs)
-# installed under /opt/SKradle, with `skradle` in /usr/bin and the menu entry and icon where desktops look for them.
+# installed under /opt/SKradle, with `skradle` (a one-line launcher) in /usr/bin and the menu entry and icon where desktops look for them.
 # Run it from the folder that holds AppDir/ and pkgfiles/ (packaging/linux.sh sets both up); the version comes from
 # the environment (SK_VERSION).
 name: skradle
@@ -20,9 +20,12 @@ contents:
   - src: ./AppDir
     dst: /opt/SKradle
     type: tree
-  - src: /opt/SKradle/AppRun
+  # Not a symlink: the AppDir's launcher finds its files from the path it is started by, so it must be started as
+  # /opt/SKradle/AppRun.
+  - src: ./pkgfiles/skradle-launcher
     dst: /usr/bin/skradle
-    type: symlink
+    file_info:
+      mode: 0755
   - src: ./pkgfiles/skradle.desktop
     dst: /usr/share/applications/skradle.desktop
   - src: ./pkgfiles/skradle.png

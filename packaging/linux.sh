@@ -52,6 +52,8 @@ if [ -n "$nfpm" ]; then
   cp "$root/packaging/linux/skradle.desktop" "$work/pkgfiles/skradle.desktop"
   cp "$root/assets/icons/skradle-256.png" "$work/pkgfiles/skradle.png"
   cp "$root/LICENSE" "$work/pkgfiles/LICENSE"
+  printf '#!/bin/sh\nexec /opt/SKradle/AppRun "$@"\n' > "$work/pkgfiles/skradle-launcher"
+  chmod 755 "$work/pkgfiles/skradle-launcher"
   for format in deb rpm; do
     (cd "$work" && SK_VERSION="$version" "$nfpm" package --config "$root/packaging/linux/nfpm.yaml" \
       --packager "$format" --target "$pkg/SKradle-${version}-${arch}.$format")
