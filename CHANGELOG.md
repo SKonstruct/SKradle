@@ -14,7 +14,8 @@ history has the rest.
   testing.
 - **Home**: the launch card (update, launching and running states); the three latest Spiral Knights news items; an
   estimate of the players online (the Steam counts of the Live and Preview servers, each multiplied by 1.4 for
-  standalone players, with the breakdown shown); the game's live events (the same event feed the mobile apps use) with a countdown and a large banner, the title
+  standalone players, with the breakdown shown; click it for the history: now, 24-hour and recorded peaks, the usual busiest
+  hour and weekday, and charts of the last 24 hours, 7 days and 30 days, recorded on this computer while SKradle is open); the game's live events (the same event feed the mobile apps use) with a countdown and a large banner, the title
   opens the article; hidden when there are none or the feed is unreachable (banners are kept on disk); a donation button; and **Release notes**,
   this changelog bundled into the app, readable offline with each version collapsible. News and player counts come
   from Steam's public API, are kept on disk and shown as offline when Steam is unreachable.
@@ -49,7 +50,8 @@ history has the rest.
 - Files SKradle writes for you to read (`settings.json`, `servers.json`, the saved feeds) are indented, one entry per
   line, so they can be edited by hand.
 - Windows: Steam is found where the registry says it is, so installs on another drive work.
-- **Test builds** from the Actions tab (`Build` workflow). Each download is one zip holding one folder with a
+- **Test builds** from every CI run on the Actions tab (pushes to main, version tags and manual runs). Each download is
+  one zip holding one folder with a
   `SHA256SUMS.txt` inside it: a `.dmg` for macOS (Apple silicon and Intel), the app folder for Windows (x64 and
   ARM64; run `skradle.exe`) and an AppImage for Linux x64. They are unsigned: on macOS run `xattr -cr SKradle.app`
   once, on Windows choose "More info" then "Run anyway".

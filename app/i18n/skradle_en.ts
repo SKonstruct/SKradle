@@ -420,6 +420,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Show the history</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Live events</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1154,6 +1158,69 @@
     </message>
     <message>
         <source>Cancel the download of SirDank’s Modpack</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>PlayersDialog</name>
+    <message>
+        <source>Players online</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Steam&apos;s player counts, with an estimate for the standalone client added.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trending up over the last hour.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trending down over the last hour.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Each Steam count is multiplied by %1 to include players of the standalone client, so the figures are close to, not exactly, the real numbers. SKradle records a point every few minutes while it is open, so the charts fill in over time. Times are in your time zone.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Online now</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>24-hour peak</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Highest recorded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Usual daily peak</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Needs two days of data.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Usual weekly peak</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Needs a week of data.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Last 24 hours</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Last 7 days</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Last 30 days</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -2375,6 +2442,25 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Collapse sidebar</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>TimeChart</name>
+    <message>
+        <source>%1: busiest %2 players</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: not enough data yet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Busiest: %1 (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not enough data yet.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

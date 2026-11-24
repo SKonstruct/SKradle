@@ -36,7 +36,8 @@ server of your own.
 
 ## Download
 
-Test builds come from the **Build** workflow (Actions tab > Build > Run workflow). Each download is one zip holding one
+Test builds come from the **CI** workflow: open a run on the Actions tab (any push to main, or Run workflow) and download the
+package for your system under Artifacts. Each download is one zip holding one
 folder with the package and a `SHA256SUMS.txt`: a `.dmg` for macOS (Apple silicon and Intel), the app folder for
 Windows (x64 and ARM64; run `skradle.exe`) and an AppImage for Linux x64. They are unsigned: on macOS run
 `xattr -cr SKradle.app` once, on Windows choose "More info" > "Run anyway".

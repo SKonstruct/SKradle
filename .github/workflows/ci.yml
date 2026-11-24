@@ -1,11 +1,15 @@
 name: CI
 
-# Builds, tests and lints the core and the app on every platform SKradle v1 targets, and starts the app headless for its
-# self-test and screenshots. (Packages for download come from build.yml.) Linux arm64 is not part of v1: the game ships
-# no Linux arm64 runtime or natives.
+# Builds, tests and lints the core and the app on every platform SKradle v1 targets, starts the app headless for its
+# self-test and screenshots, and packages it for download: one artifact per platform named SKradle-<version>-<platform>,
+# a zip holding one folder with the package and a SHA256SUMS.txt (a .dmg for macOS, the app folder for Windows, an
+# AppImage for Linux). Packages are made for pushes to main, version tags (v*) and manual runs, not for pull requests.
+# Builds are unsigned (macOS needs `xattr -cr`, Windows SmartScreen asks once). Nothing is released, committed or
+# published. Linux arm64 is not part of v1: the game ships no Linux arm64 runtime or natives.
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -23,6 +27,11 @@ env:
   # version once aqtinstall 3.4 is out.
   QT_VERSION: 6.11.3
   AQT_SOURCE: git+https://github.com/miurahr/aqtinstall.git@5a49f2b391ae8ee1d3c0dd87f8b33c1d49a4deb7
+  # Pinned tools for the AppImage, checked against these SHA-256 sums before they run.
+  LINUXDEPLOY_URL: https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage
+  LINUXDEPLOY_SHA256: c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d
+  LINUXDEPLOY_QT_URL: https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-qt-x86_64.AppImage
+  LINUXDEPLOY_QT_SHA256: 15106be885c1c48a021198e7e1e9a48ce9d02a86dd0a1848f00bdbf3c1c92724
 
 defaults:
   run:
@@ -44,7 +53,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          # One cache per platform for the app, shared by CI and the Build workflow; only main saves it
+          # One cache per platform for the app, only main saves it
           # (a pull request's cache cannot be used by main and only crowds out the useful ones).
           shared-key: core
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -90,7 +99,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          # One cache per platform for the app, shared by CI and the Build workflow; only main saves it
+          # One cache per platform for the app, only main saves it
           # (a pull request's cache cannot be used by main and only crowds out the useful ones).
           shared-key: app-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -99,14 +108,20 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-x11-0 libegl1 libfontconfig1 libdbus-1-3 libxcb-cursor0
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-x11-0 libegl1 libfontconfig1 libdbus-1-3 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-xkb1
 
       # The build script asks Qt for its paths with qmake: point it at the one install-qt-action installed.
       - name: Point the build at Qt's qmake
         run: echo "QMAKE=$QT_ROOT_DIR/bin/qmake" >> "$GITHUB_ENV"
 
       - name: Build
-        run: cargo build -p skradle-app --release
+        env:
+          # The crash reporter's project (a public client key, kept as a secret so forks do not report to it). Without
+          # the secret (forks, pull requests from bots) the reporter is compiled out; "Send crash reports" in Settings
+          # still switches it off for players.
+          SKRADLE_SENTRY_DSN: ${{ secrets.SKRADLE_SENTRY_DSN }}
+        run: cargo build -p skradle-app --release --locked
 
       - name: Unit tests
         run: cargo test -p skradle-app
@@ -142,3 +157,70 @@ jobs:
           name: app-${{ matrix.name }}
           path: shots
           if-no-files-found: ignore
+
+      # ---- packages (not for pull requests) ----------------------------------------------------------------------
+      - name: Work out the version
+        if: github.event_name != 'pull_request'
+        id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          base=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          if [ "$REF_TYPE" = tag ]; then version="${REF_NAME#v}"
+          else version="$base-${GITHUB_SHA::7}"; fi
+          case "$version" in *[!A-Za-z0-9._+-]*|"") echo "unusable version: $version" >&2; exit 1;; esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Packaging $version"
+
+      - name: Package (macOS .dmg)
+        if: github.event_name != 'pull_request' && runner.os == 'macOS'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir dist
+          packaging/macos.sh target/release/skradle "$VERSION" dist "${{ matrix.name }}"
+
+      - name: Package (Windows folder)
+        if: github.event_name != 'pull_request' && runner.os == 'Windows'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir dist
+          packaging/windows.sh target/release/skradle.exe "$VERSION" dist "${{ matrix.name }}"
+
+      - name: Package (Linux AppImage)
+        if: github.event_name != 'pull_request' && runner.os == 'Linux'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist tools
+          curl -fsSL -o tools/linuxdeploy-x86_64.AppImage "$LINUXDEPLOY_URL"
+          curl -fsSL -o tools/linuxdeploy-plugin-qt-x86_64.AppImage "$LINUXDEPLOY_QT_URL"
+          echo "$LINUXDEPLOY_SHA256  tools/linuxdeploy-x86_64.AppImage" | sha256sum -c -
+          echo "$LINUXDEPLOY_QT_SHA256  tools/linuxdeploy-plugin-qt-x86_64.AppImage" | sha256sum -c -
+          chmod +x tools/*.AppImage
+          LINUXDEPLOY_DIR="$PWD/tools" packaging/linux.sh target/release/skradle "$VERSION" dist "${{ matrix.name }}"
+
+      - name: Checksums
+        if: github.event_name != 'pull_request'
+        run: |
+          # The artifact is one folder (the download is the zip around it): the package, and SHA256SUMS.txt inside the
+          # same folder, listing every file in it (check with `sha256sum -c SHA256SUMS.txt` or `shasum -a 256 -c`).
+          folder=$(find dist -mindepth 1 -maxdepth 1 -type d | head -1)
+          [ -n "$folder" ] || { echo "no package folder was produced" >&2; exit 1; }
+          # A package must exist (the checksum file alone would make a 200-byte "build").
+          ls "$folder" | grep -E '\.(dmg|AppImage)$|^skradle\.exe$' || { echo "no package was produced" >&2; exit 1; }
+          (cd "$folder" && find . -type f ! -name SHA256SUMS.txt | sed 's|^\./||' | sort | while IFS= read -r f; do
+            sha256sum "$f" 2>/dev/null || shasum -a 256 "$f"
+          done > SHA256SUMS.txt)
+          head -5 "$folder/SHA256SUMS.txt"; echo "... $(wc -l < "$folder/SHA256SUMS.txt") files"
+
+      - name: Upload package
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: SKradle-${{ steps.version.outputs.version }}-${{ matrix.name }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 30

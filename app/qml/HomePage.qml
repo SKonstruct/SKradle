@@ -204,19 +204,46 @@ PageScaffold {
     }
 
     // ---- players online: one slim strip ------------------------------------------------------------------------
+    // Clicking it opens the history: the numbers over the last day, week and month.
     Card {
+        id: playersCard
         Layout.fillWidth: true
         Layout.topMargin: page.tight - Theme.gapSection
         implicitHeight: playersGrid.implicitHeight + 2 * Theme.s3
-        Accessible.role: Accessible.StaticText
-        Accessible.name: HomeFeed.playersState === "ok"
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+        Accessible.name: (HomeFeed.playersState === "ok"
             ? qsTr("About %1 players online right now (estimate)").arg(HomeFeed.players)
-            : qsTr("Players online: not available")
+            : qsTr("Players online: not available")) + ". " + qsTr("Show the history")
+        Accessible.onPressAction: playersDlg.openFrom(playersCard)
+        Keys.onReturnPressed: playersDlg.openFrom(playersCard)
+        Keys.onSpacePressed: playersDlg.openFrom(playersCard)
+        Rectangle {   // hover tint
+            anchors.fill: parent
+            radius: playersCard.radius
+            color: Theme.stateHover
+            opacity: playersArea.containsMouse ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Motion.fast } }
+        }
+        MouseArea {
+            id: playersArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: playersDlg.openFrom(playersCard)
+        }
+        FocusRing { visible: playersCard.activeFocus }
+        Icon {
+            anchors.right: parent.right; anchors.rightMargin: Theme.padCompact
+            anchors.verticalCenter: parent.verticalCenter
+            name: "chart"; size: 20
+            color: playersArea.containsMouse || playersCard.activeFocus ? Theme.accentFg : Theme.textSecondary
+        }
         GridLayout {
             id: playersGrid
             anchors.left: parent.left; anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: Theme.padCompact; anchors.rightMargin: Theme.padCompact
+            anchors.leftMargin: Theme.padCompact; anchors.rightMargin: Theme.padCompact + 32
             columns: page.wide ? 2 : 1
             columnSpacing: Theme.s5
             rowSpacing: Theme.s1
@@ -340,8 +367,7 @@ PageScaffold {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     spacing: Theme.s2
-                                    // The title opens the article: it looks like a link (brand colour, underline on hover, a small
-                                    // globe after it) and is one for the keyboard and screen readers.
+                                    // The title opens the article: it looks like a link (brand colour, underline on hover) and is one for the keyboard and screen readers.
                                     Item {
                                         id: titleLink
                                         Layout.fillWidth: true
@@ -366,7 +392,6 @@ PageScaffold {
                                                 maximumLineCount: 2
                                                 elide: Text.ElideRight
                                             }
-                                            Icon { visible: ev.linked; name: "globe"; size: 14; color: Theme.accentFg; Layout.alignment: Qt.AlignTop; Layout.topMargin: 3 }
                                         }
                                         MouseArea {
                                             id: titleArea
@@ -498,4 +523,9 @@ PageScaffold {
             onClicked: Qt.openUrlExternally("https://buymeacoffee.com/sirdankk")
         }
     }
+
+    // Screenshots: the history dialog.
+    function openPlayers() { playersDlg.openFrom(playersCard) }
+    function closePlayers() { playersDlg.close() }
+    PlayersDialog { id: playersDlg }
 }

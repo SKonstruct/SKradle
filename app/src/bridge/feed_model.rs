@@ -56,6 +56,12 @@ pub mod qobject {
         #[cxx_name = "refreshPlayers"]
         fn refresh_players(self: Pin<&mut HomeFeed>);
 
+        /// The players-online history for the dialog, as JSON (see `skradle_core::player_history::Snapshot`).
+        /// `tz_offset_min` is JavaScript's `Date.getTimezoneOffset()`, so the busiest hours are in the player's time.
+        #[qinvokable]
+        #[cxx_name = "historyJson"]
+        fn history_json(self: &HomeFeed, tz_offset_min: i32) -> QString;
+
         /// Fetches the events (not more often than every five minutes).
         #[qinvokable]
         #[cxx_name = "refreshEvents"]
@@ -91,11 +97,22 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use cxx_qt::{CxxQtThread, CxxQtType, Threading};
 use cxx_qt_lib::QString;
 use skradle_core::live_events::{self, Event, EventsApi, EventsError, EventsFeed, HttpEvents};
+use skradle_core::player_history;
 use skradle_core::steam_api::{
     self, HttpSteam, MinInterval, NewsFeed, NewsItem, PlayerEstimate, SteamApi, SteamError,
 };
 
 use crate::settings;
+
+fn now_secs() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0))
+}
+
+fn history_path() -> std::path::PathBuf {
+    settings::config_dir().join(player_history::FILE)
+}
 
 const NEWS_FIXTURE: &str = include_str!("../../../core/tests/fixtures/steam_news.json");
 
@@ -488,6 +505,16 @@ impl qobject::HomeFeed {
             .name("skradle-players".into())
             .spawn(move || {
                 let answer = steam_api::players_estimate(api().as_ref());
+                // Every fresh estimate is one point of the history (test runs never touch the player's file).
+                if let Ok(estimate) = &answer {
+                    if !crate::options::get().is_test_run() {
+                        player_history::record_sample(
+                            &history_path(),
+                            now_secs(),
+                            u32::try_from(estimate.total).unwrap_or(u32::MAX),
+                        );
+                    }
+                }
                 let _ = thread.queue(move |mut model| {
                     model.as_mut().rust_mut().players_busy = false;
                     match answer {
@@ -501,6 +528,21 @@ impl qobject::HomeFeed {
             self.as_mut().rust_mut().players_busy = false;
             self.set_players_state(QString::from("unavailable"));
         }
+    }
+
+    pub fn history_json(&self, tz_offset_min: i32) -> QString {
+        let now = now_secs();
+        let history = if crate::options::get().is_test_run() {
+            player_history::History::fixture(now)
+        } else {
+            player_history::History::load(&history_path())
+        };
+        let snapshot = player_history::snapshot(&history, now, tz_offset_min);
+        QString::from(
+            serde_json::to_string(&snapshot)
+                .unwrap_or_else(|_| "{}".into())
+                .as_str(),
+        )
     }
 
     pub fn force(mut self: Pin<&mut Self>, state: &QString) {

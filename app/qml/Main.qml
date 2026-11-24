@@ -194,7 +194,7 @@ ApplicationWindow {
     // ---- screenshot driver (skradle --shots <dir> [--prefix name]) -----------------------------------------------
     readonly property var shotNames: ["home-ready", "home-updating", "home-launching", "home-running", "home-error", "home-firstrun",
         "home-collapsed", "home-scrolled", "home-offline", "home-nonews", "home-noevents", "home-events-offline", "home-players-down",
-        "home-notes", "home-notes-all", "home-notes-min", "servers", "servers-dialog", "mods", "mods-search", "mods-drop",
+        "home-players", "home-notes", "home-notes-all", "home-notes-min", "servers", "servers-dialog", "mods", "mods-search", "mods-drop",
         "settings-general", "settings-game", "settings-files", "settings-graphics", "settings-graphics-running", "settings-integrations",
         "tools", "tools-web", "settings-about", "settings-reset", "toast-error", "toast-info", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
         "mods-selected", "mods-focus", "mods-tag", "mods-empty", "mods-nogame", "mods-confirm", "mods-issues", "mods-pack-update",
@@ -239,6 +239,7 @@ ApplicationWindow {
         const sv = pageItem(1); if (sv) sv.closeAll()
         const gp = pageItem(4); if (gp) { gp.closeCombo(); gp.closeReset(); gp.scroller.contentY = 0 }
         const tp = pageItem(3); if (tp) tp.shot("")
+        const hm = pageItem(0); if (hm) hm.closePlayers()
         HomeFeed.force("ok"); HomeFeed.forceEvents("present"); HomeFeed.forcePlayers("ok")
         notes.close()
         const md = pageItem(2); if (md) md.resetShot()
@@ -264,6 +265,7 @@ ApplicationWindow {
         case "home-noevents": go(0); HomeFeed.forceEvents("none"); break
         case "home-events-offline": go(0); HomeFeed.forceEvents("offline"); break
         case "home-players-down": go(0); HomeFeed.forcePlayers("unavailable"); break
+        case "home-players": go(0); Qt.callLater(() => { const p = pageItem(0); if (p) p.openPlayers() }); break
         case "home-notes": go(0); Qt.callLater(() => notes.show(null)); break
         case "home-notes-all": go(0); Qt.callLater(() => { notes.show(null); notes.setAll(true, false) }); break
         case "home-notes-min": go(0); Qt.callLater(() => { notes.show(null); notes.setAll(false, false) }); break

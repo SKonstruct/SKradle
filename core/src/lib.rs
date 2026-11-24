@@ -19,6 +19,7 @@ pub mod live_events;
 pub mod log;
 pub mod mods;
 pub mod net;
+pub mod player_history;
 pub mod presence;
 pub mod reset;
 pub mod runtime;
