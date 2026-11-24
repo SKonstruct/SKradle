@@ -2,6 +2,10 @@
 //! command-line flag (`--selftest`, `--shots`, ...), it attaches to that terminal so its messages are shown there;
 //! when its output is redirected (a file, a pipe, CI) the redirect is already in place and nothing is done.
 
+// The few Win32 calls below have no safe wrapper in the standard library; they stay in this one module under the
+// crate's `deny(unsafe_code)`.
+#![allow(unsafe_code)]
+
 /// Call first thing in `main`. Does nothing off Windows.
 pub fn attach_parent_for_flags() {
     #[cfg(windows)]
