@@ -223,7 +223,12 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          command -v makensis >/dev/null || choco install nsis -y --no-progress
+          # Chocolatey's feed fails now and then: try a few times before giving up.
+          for attempt in 1 2 3 4; do
+            command -v makensis >/dev/null && break
+            [ -x "/c/Program Files (x86)/NSIS/makensis.exe" ] && break
+            choco install nsis -y --no-progress || { echo "NSIS install failed (attempt $attempt)"; sleep $((attempt * 20)); }
+          done
           mkdir dist
           packaging/windows.sh target/release/skradle.exe "$VERSION" dist "${{ matrix.name }}"
 
