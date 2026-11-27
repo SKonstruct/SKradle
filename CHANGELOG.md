@@ -74,8 +74,8 @@ history has the rest.
   from the Knight Launcher service when it answers (asked once when the dialog opens, nothing about you in the request)
   and from this computer's own record otherwise.
 - **Tools**: *datdec* (export and import the game's `.dat` and `.xml` files) joins the editors, rebuilt by the weekly
-  workflow from its newest release; a *Community tools* list links SKapsule and SKradle (in the SKonstruct look: pink tint, logo, pink button), Kozmadeus and ThreeRingsSharp.
-- **Packages**: the macOS disk image has the drag-to-Applications window (dmgbuild) with community artwork (credited in the image) and a brand-coloured arrow, and the Windows installer shows the same artwork; Linux also gets a `.deb` and an `.rpm`
+  workflow from its newest release; a *Community tools* list links SKapsule and SKapsule-iOS (in the SKonstruct look: pink tint, logo, pink button), Kozmadeus and ThreeRingsSharp; the Open buttons of the websites and editors show each tool's own icon.
+- **Packages**: the macOS disk image has the drag-to-Applications window (dmgbuild) with community artwork (credited in the image) and a brand-coloured arrow, and the Windows installer shows the same artwork on its welcome and finish pages (sharp at every display scaling), asks its questions in the language of Windows, clears out the previous version's Qt files when updating over it, and refuses to run twice at once; Linux also gets a `.deb` and an `.rpm`
   (nfpm) next to the AppImage, and the `.deb` is installed and started in CI before it is uploaded.
 - **Tools**: the *Gate map viewer* (a fork SirDank runs on his own server) opens inside the launcher like the other sites.
 - **Windows installer** (Inno Setup, per user): licence page, light and dark mode like Windows, a desktop shortcut option,

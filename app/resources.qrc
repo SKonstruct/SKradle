@@ -10,5 +10,11 @@
     <file alias="icons/skradle-128.png">../assets/icons/skradle-128.png</file>
     <file alias="icons/skradle-256.png">../assets/icons/skradle-256.png</file>
     <file alias="icons/skradle-512.png">../assets/icons/skradle-512.png</file>
+    <file alias="toolicons/sk-ah.png">../assets/tools/sk-ah.png</file>
+    <file alias="toolicons/kozmas.png">../assets/tools/kozmas.png</file>
+    <file alias="toolicons/gatemap.png">../assets/tools/gatemap.png</file>
+    <file alias="toolicons/spiralview.png">../assets/tools/spiralview.png</file>
+    <file alias="toolicons/hammer.png">../assets/tools/hammer.png</file>
+    <file alias="toolicons/silverweave.png">../assets/tools/silverweave.png</file>
   </qresource>
 </RCC>

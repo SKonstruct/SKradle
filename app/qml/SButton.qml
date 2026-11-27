@@ -12,11 +12,13 @@ T.Button {
     property string variant: highlighted ? "primary" : "secondary"
     property string size: "md"
     property string glyph
+    property url iconSource          // a picture instead of the glyph (a tool's own app icon)
     property bool busy: false
     property int radius: Theme.rSm
 
     readonly property int boxHeight: size === "sm" ? Theme.hSm : size === "lg" ? Theme.hLg : Theme.hMd
     readonly property int iconPx: size === "sm" ? 16 : 18
+    readonly property bool hasPicture: iconSource.toString().length > 0 && !busy
 
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset, implicitContentWidth + leftPadding + rightPadding)
     implicitHeight: boxHeight
@@ -66,7 +68,7 @@ T.Button {
         layoutDirection: Qt.LeftToRight
         Icon {
             id: spin
-            visible: control.busy || control.glyph.length > 0
+            visible: control.busy || (control.glyph.length > 0 && !control.hasPicture)
             name: control.busy ? "refresh" : control.glyph
             size: control.iconPx
             color: control.fg
@@ -74,6 +76,18 @@ T.Button {
             // essential progress feedback: still turns under reduced motion
             RotationAnimator on rotation { from: 0; to: 360; duration: Motion.spin; loops: Animation.Infinite; running: control.busy && control.visible }
             onVisibleChanged: if (!control.busy) rotation = 0
+        }
+        Image {
+            visible: control.hasPicture
+            source: control.iconSource
+            width: control.iconPx + 4
+            height: width
+            sourceSize: Qt.size(width * 2, height * 2)
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
+            opacity: control.enabled ? 1 : 0.4
+            anchors.verticalCenter: parent.verticalCenter
         }
         Text {
             text: control.text

@@ -11,11 +11,11 @@ Item {
     // The website shown full page ("" for the list).
     property string webTool: ""
     readonly property var webTools: [
-        { id: "sk-ah", name: qsTr("Auction House"), site: "sk-ah.com", url: "https://sk-ah.com/",
+        { id: "sk-ah", icon: "sk-ah", name: qsTr("Auction House"), site: "sk-ah.com", url: "https://sk-ah.com/",
           hint: qsTr("Live Spiral Knights Auction House prices: search by item, UVs and price, and set alerts.") },
-        { id: "kozmas", name: qsTr("Kozmas"), site: "kozmas.gg", url: "https://www.kozmas.gg/",
+        { id: "kozmas", icon: "kozmas", name: qsTr("Kozmas"), site: "kozmas.gg", url: "https://www.kozmas.gg/",
           hint: qsTr("Find items, discover merchants with stock, and build your next costume.") },
-        { id: "gatemap", name: qsTr("Gate map viewer"), site: "dankware.alwaysdata.net", url: "https://dankware.alwaysdata.net/spiral-knights/gatemap-viewer",
+        { id: "gatemap", icon: "gatemap", name: qsTr("Gate map viewer"), site: "dankware.alwaysdata.net", url: "https://dankware.alwaysdata.net/spiral-knights/gatemap-viewer",
           hint: qsTr("Look through the Spiral Knights gate maps. A fork of a community viewer, run by SirDank.") }
     ]
     readonly property var current: { for (const t of webTools) if (t.id === webTool) return t; return null }
@@ -79,7 +79,7 @@ Item {
                         }
                         SButton {
                             text: qsTr("Open")
-                            glyph: "play"
+                            iconSource: "qrc:/qt/qml/com/skradle/app/toolicons/" + site.modelData.icon + ".png"
                             Accessible.name: qsTr("Open %1 here").arg(site.modelData.name)
                             onClicked: page.webTool = site.modelData.id
                         }
@@ -123,13 +123,13 @@ Item {
             Sep {}
             Repeater {
                 model: [
-                    { label: qsTr("Crucible scene editor"), hint: qsTr("The game's scene and template editor.") },
-                    { label: qsTr("Scene editor"), hint: qsTr("Edit scenes, maps and prefabs.") },
-                    { label: qsTr("Silverweave"), hint: qsTr("Try knight loadouts and items.") },
-                    { label: qsTr("Model Viewer"), hint: qsTr("Look at the game's models and animations.") },
-                    { label: qsTr("Particle Editor"), hint: qsTr("Edit the game's particle effects.") },
-                    { label: qsTr("Interface Tester"), hint: qsTr("Try the game's interface layouts.") },
-                    { label: qsTr("datdec"), hint: qsTr("Export and import the game's .dat and .xml files.") }
+                    { label: qsTr("Crucible scene editor"), icon: "hammer", hint: qsTr("The game's scene and template editor.") },
+                    { label: qsTr("Scene editor"), icon: "hammer", hint: qsTr("Edit scenes, maps and prefabs.") },
+                    { label: qsTr("Silverweave"), icon: "silverweave", hint: qsTr("Try knight loadouts and items.") },
+                    { label: qsTr("Model Viewer"), icon: "spiralview", hint: qsTr("Look at the game's models and animations.") },
+                    { label: qsTr("Particle Editor"), icon: "spiralview", hint: qsTr("Edit the game's particle effects.") },
+                    { label: qsTr("Interface Tester"), icon: "spiralview", hint: qsTr("Try the game's interface layouts.") },
+                    { label: qsTr("datdec"), icon: "", hint: qsTr("Export and import the game's .dat and .xml files.") }
                 ]
                 ColumnLayout {
                     id: tool
@@ -150,7 +150,9 @@ Item {
                         Item { Layout.fillWidth: true }
                         SButton {
                             text: qsTr("Open")
-                            glyph: "play"
+                            // the tool's own icon where there is one (datdec has none)
+                            iconSource: tool.modelData.icon !== "" ? "qrc:/qt/qml/com/skradle/app/toolicons/" + tool.modelData.icon + ".png" : ""
+                            glyph: tool.modelData.icon !== "" ? "" : "tools"
                             enabled: tool.blocker === ""
                             Accessible.name: qsTr("Open %1").arg(tool.modelData.label)
                             onClicked: GameTools.launchEditor(tool.index, GameModel.selectedPath)
@@ -168,9 +170,9 @@ Item {
             Repeater {
                 model: [
                     { label: "SKapsule", url: "https://github.com/SKonstruct/SKapsule", brand: true,
-                      hint: qsTr("The Spiral Knights launcher for Android and iOS, from the same team as SKradle.") },
-                    { label: "SKradle", url: "https://github.com/SKonstruct/SKradle", brand: true,
-                      hint: qsTr("This launcher, for Windows, macOS and Linux. Source code, releases and bug reports.") },
+                      hint: qsTr("The Spiral Knights launcher for Android, from the same team as SKradle.") },
+                    { label: "SKapsule-iOS", url: "https://github.com/SKonstruct/SKapsule-iOS", brand: true,
+                      hint: qsTr("The Spiral Knights launcher for iPhone and iPad, from the same team as SKradle.") },
                     { label: "Kozmadeus", url: "https://github.com/Crowfunder/Kozmadeus", brand: false,
                       hint: qsTr("Imports 3D models (.dae, .obj) into the game's model format. A Windows program (GPL-3.0); other systems run it from source.") },
                     { label: "ThreeRingsSharp", url: "https://github.com/EtiTheSpirit/ThreeRingsSharp", brand: false,
@@ -224,7 +226,7 @@ Item {
                 kind: "caption"
                 color: Theme.textSecondary
                 paragraph: true
-                text: qsTr("SKapsule and SKradle are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.")
+                text: qsTr("SKapsule and SKapsule-iOS are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.")
             }
         }
     }

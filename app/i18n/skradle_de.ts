@@ -2798,11 +2798,11 @@ Content-URL: %4</translation>
         <translation>Community-Werkzeuge</translation>
     </message>
     <message>
-        <source>The Spiral Knights launcher for Android and iOS, from the same team as SKradle.</source>
+        <source>The Spiral Knights launcher for Android, from the same team as SKradle.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>This launcher, for Windows, macOS and Linux. Source code, releases and bug reports.</source>
+        <source>The Spiral Knights launcher for iPhone and iPad, from the same team as SKradle.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2814,16 +2814,16 @@ Content-URL: %4</translation>
         <translation>Exportiert die Modelle und Animationen des Spiels als glTF für Blender und andere Werkzeuge. Ein Windows-Programm, das nicht mehr aktualisiert wird.</translation>
     </message>
     <message>
-        <source>SKapsule and SKradle are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Open on GitHub</source>
         <translation>Auf GitHub öffnen</translation>
     </message>
     <message>
         <source>Open %1 on GitHub</source>
         <translation>%1 auf GitHub öffnen</translation>
+    </message>
+    <message>
+        <source>SKapsule and SKapsule-iOS are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Reload the page</source>

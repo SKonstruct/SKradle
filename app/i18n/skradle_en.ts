@@ -2751,7 +2751,11 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>SKapsule and SKradle are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.</source>
+        <source>The Spiral Knights launcher for Android, from the same team as SKradle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Spiral Knights launcher for iPhone and iPad, from the same team as SKradle.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2799,14 +2803,6 @@ Content URL: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The Spiral Knights launcher for Android and iOS, from the same team as SKradle.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>This launcher, for Windows, macOS and Linux. Source code, releases and bug reports.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Imports 3D models (.dae, .obj) into the game&apos;s model format. A Windows program (GPL-3.0); other systems run it from source.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2820,6 +2816,10 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Open %1 on GitHub</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SKapsule and SKapsule-iOS are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
