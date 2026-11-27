@@ -290,6 +290,9 @@ pub fn plain_pack_error(raw: &str) -> String {
     let t = raw.to_lowercase();
     if t.contains("lists no mods") {
         tr("SirDank's Modpack is empty right now. Try again later.")
+    } else if t.contains("answered 403") || t.contains("answered 429") {
+        // GitHub's limit for requests without an account (60 an hour per address); the listing is read through its API
+        tr("GitHub is limiting requests from this connection, so SirDank's Modpack cannot be checked right now. Try again in about an hour.")
     } else if t.contains("cannot read the modpack listing")
         || ["connect", "network", "timed out", "dns", "https", "status"]
             .iter()
@@ -1144,6 +1147,12 @@ mod tests {
             plain_pack_error("cannot read the modpack listing: tls handshake")
                 .starts_with("Could not reach")
         );
+        for code in ["403", "429"] {
+            let text = plain_pack_error(&format!(
+                "cannot read the modpack listing: the server answered {code}"
+            ));
+            assert!(text.starts_with("GitHub is limiting") && !text.contains("internet"));
+        }
         assert!(plain_pack_file("sha256 mismatch").contains("damaged"));
         for text in [
             unusable(raw),

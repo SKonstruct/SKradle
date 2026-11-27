@@ -223,7 +223,7 @@ ApplicationWindow {
         "home-collapsed", "home-scrolled", "home-offline", "home-nonews", "home-noevents", "home-events-offline", "home-players-down",
         "home-notice", "home-players", "home-players-service", "home-players-hover", "home-notes", "home-notes-all", "home-notes-min", "servers", "servers-dialog", "mods", "mods-search", "mods-drop",
         "settings-general", "settings-game", "settings-files", "settings-graphics", "settings-graphics-running", "settings-integrations",
-        "tools", "tools-web", "settings-about", "settings-reset", "toast-error", "toast-info", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
+        "tools", "tools-community", "tools-web", "settings-about", "settings-reset", "toast-error", "toast-info", "focus", "focus-controls", "servers-menu", "settings-combo", "servers-myserver",
         "mods-selected", "mods-focus", "mods-tag", "mods-empty", "mods-nogame", "mods-confirm", "mods-issues", "mods-pack-update",
         "mods-pack-syncing", "mods-pack-report", "mods-pack-error", "mods-help",
         "mods-enabled", "mods-disabled", "mods-warning", "mods-combo", "mods-long", "mods-nomatch", "mods-scroll1", "mods-scroll2",
@@ -306,6 +306,7 @@ ApplicationWindow {
         case "settings-graphics-running": go(4); LaunchModel.force("running", 0); Qt.callLater(() => pageItem(4).scrollTo(3)); break
         case "settings-integrations": go(4); Qt.callLater(() => pageItem(4).scrollTo(4)); break
         case "tools": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.shot("") }); break
+        case "tools-community": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.shot("community") }); break
         case "tools-web": go(3); Qt.callLater(() => { const p = pageItem(3); if (p) p.shot("web") }); break
         case "settings-about": go(4); Qt.callLater(() => pageItem(4).scrollTo(5)); break
         case "toast-error": go(4); Qt.callLater(() => Data.toast(qsTr("Could not open the folder. Check that it still exists."), "error")); break

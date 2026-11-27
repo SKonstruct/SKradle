@@ -121,6 +121,8 @@ Built with love by [SirDank](https://dankware.alwaysdata.net/). SKradle stands o
   and [datdec](https://github.com/lucasluqui/datdec) by lucasluqui: the editors on the Tools page.
 - [Tortodrone](https://github.com/N0rule/Tortodrone): the private server engine SKradle manages.
 - [SirDank's Modpack](https://github.com/SirDank): the maintained modpack.
+- The installer artwork (the macOS disk image and the Windows installer): by Luan Nguyen ([ArtStation](https://www.artstation.com/artwork/oONQmB)),
+  widened to fit (`packaging/macos/background-art.jpg`) and credited in the images.
 - [Qt](https://www.qt.io/), [cxx-qt](https://github.com/KDAB/cxx-qt) and the Rust crates listed in `Cargo.lock`.
 
 > Unofficial fan project. Not affiliated with Grey Havens. Spiral Knights (c) Grey Havens, LLC.

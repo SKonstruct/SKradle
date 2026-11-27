@@ -1,6 +1,8 @@
 # dmgbuild settings for SKradle's disk image (see packaging/macos.sh): the app on the left, a shortcut to
 # /Applications on the right and an arrow between them, so installing is one drag.
-#   dmgbuild -s packaging/macos/dmg-settings.py -D app=<path to SKradle.app> -D icon=<skradle.icns> SKradle out.dmg
+#   dmgbuild -s packaging/macos/dmg-settings.py -D app=<path to SKradle.app> -D icon=<skradle.icns> \
+#            [-D background=<background.tiff>] SKradle out.dmg
+# The arrow image is drawn by render-background.py; macos.sh joins its two PNGs into a Retina TIFF and passes it here.
 import os
 
 app = defines["app"]  # noqa: F821  (dmgbuild provides `defines`)
@@ -10,7 +12,7 @@ format = "UDZO"
 files = [app]
 symlinks = {"Applications": "/Applications"}
 icon = defines.get("icon")  # noqa: F821
-background = "builtin-arrow"
+background = defines.get("background", "builtin-arrow")  # noqa: F821
 default_view = "icon-view"
 show_status_bar = False
 show_tab_view = False

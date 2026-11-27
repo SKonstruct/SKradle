@@ -597,6 +597,7 @@ PageScaffold {
         }
         SButton {
             size: "sm"
+            variant: "coffee"
             glyph: "coffee"
             text: qsTr("Buy me a coffee")
             onClicked: Qt.openUrlExternally("https://buymeacoffee.com/sirdankk")

@@ -23,7 +23,10 @@ Item {
     function refreshTools() { GameTools.refresh(GameModel.selectedPath) }
     function back() { webTool = "" }
     // Screenshots: shows a website full page.
-    function shot(name) { if (name === "web") webTool = "kozmas"; else webTool = "" }
+    function shot(name) {
+        if (name === "web") webTool = "kozmas"; else webTool = ""
+        if (name === "community") Qt.callLater(() => { const v = list.scroller; v.contentY = Math.max(0, v.contentHeight - v.height) })
+    }
 
     Component.onCompleted: { refreshTools(); EditorPack.check() }
     onVisibleChanged: { if (visible) refreshTools(); else webTool = "" }
@@ -48,6 +51,7 @@ Item {
 
     // ---- the list ------------------------------------------------------------------------------------------------
     PageScaffold {
+        id: list
         anchors.fill: parent
         visible: page.webTool === ""
         title: qsTr("Tools")
@@ -158,14 +162,19 @@ Item {
 
         SettingsSection {
             title: qsTr("Community tools")
+            // `brand: true` rows wear the SKonstruct look (assets/brand: pink accent, mint glyph) because they are our own
+            // apps. The other tools stay neutral: they have no brand kit of ours to match, and a colour of our choosing
+            // would suggest they are part of SKonstruct.
             Repeater {
                 model: [
-                    { label: "Kozmadeus", url: "https://github.com/Crowfunder/Kozmadeus",
+                    { label: "SKapsule", url: "https://github.com/SKonstruct/SKapsule", brand: true,
+                      hint: qsTr("The Spiral Knights launcher for Android and iOS, from the same team as SKradle.") },
+                    { label: "SKradle", url: "https://github.com/SKonstruct/SKradle", brand: true,
+                      hint: qsTr("This launcher, for Windows, macOS and Linux. Source code, releases and bug reports.") },
+                    { label: "Kozmadeus", url: "https://github.com/Crowfunder/Kozmadeus", brand: false,
                       hint: qsTr("Imports 3D models (.dae, .obj) into the game's model format. A Windows program (GPL-3.0); other systems run it from source.") },
-                    { label: "ThreeRingsSharp", url: "https://github.com/EtiTheSpirit/ThreeRingsSharp",
-                      hint: qsTr("Exports the game's models and animations as glTF for Blender and other tools. A Windows program that is no longer updated.") },
-                    { label: qsTr("Item tracker"), url: "https://github.com/Tranzorro/spiral_knights_tracking",
-                      hint: qsTr("A community list of the game's items (JSON, free to use) and a companion app to track your collection.") }
+                    { label: "ThreeRingsSharp", url: "https://github.com/EtiTheSpirit/ThreeRingsSharp", brand: false,
+                      hint: qsTr("Exports the game's models and animations as glTF for Blender and other tools. A Windows program that is no longer updated.") }
                 ]
                 ColumnLayout {
                     id: community
@@ -174,26 +183,48 @@ Item {
                     Layout.fillWidth: true
                     spacing: 0
                     Sep { visible: community.index > 0 }
-                    SettingRow {
-                        label: community.modelData.label
-                        hint: community.modelData.hint
-                        Item { Layout.fillWidth: true }
-                        SButton {
-                            text: qsTr("Open on GitHub")
-                            glyph: "github"
-                            variant: "ghost"
-                            Accessible.name: qsTr("Open %1 on GitHub").arg(community.modelData.label)
-                            onClicked: Qt.openUrlExternally(community.modelData.url)
+                    Item {
+                        Layout.fillWidth: true
+                        implicitHeight: row.implicitHeight + 2 * Theme.rowV
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.s2; anchors.rightMargin: Theme.s2
+                            radius: Theme.rSm
+                            color: Theme.accentTint
+                            visible: community.modelData.brand
+                        }
+                        SettingRow {
+                            id: row
+                            // not inside a layout here, so the row's own margins do not apply: place it by hand
+                            x: Theme.s5
+                            y: Theme.rowV
+                            width: parent.width - 2 * Theme.s5
+                            label: community.modelData.label
+                            hint: community.modelData.hint
+                            Item { Layout.fillWidth: true }
+                            Logo {
+                                visible: community.modelData.brand
+                                size: 28
+                                Accessible.ignored: true
+                            }
+                            SButton {
+                                text: qsTr("Open on GitHub")
+                                glyph: "github"
+                                variant: community.modelData.brand ? "primary" : "ghost"
+                                Accessible.name: qsTr("Open %1 on GitHub").arg(community.modelData.label)
+                                onClicked: Qt.openUrlExternally(community.modelData.url)
+                            }
                         }
                     }
                 }
             }
             Txt {
                 Layout.fillWidth: true
+                Layout.leftMargin: Theme.s5; Layout.rightMargin: Theme.s5; Layout.topMargin: Theme.s1; Layout.bottomMargin: Theme.s2
                 kind: "caption"
                 color: Theme.textSecondary
                 paragraph: true
-                text: qsTr("These are made by other people and open in your browser. They are not part of SKradle or the game.")
+                text: qsTr("SKapsule and SKradle are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.")
             }
         }
     }

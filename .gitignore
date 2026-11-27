@@ -1,10 +1,8 @@
 # OS / editors
 .DS_Store
 .idea/
-# VS Code: personal settings stay local; the shared debug setup is committed
+# VS Code: personal settings stay local; the debug setup to copy in lives in scripts/
 .vscode/*
-!.vscode/launch.json
-!.vscode/tasks.json
 !.vscode/extensions.json
 *.swp
 

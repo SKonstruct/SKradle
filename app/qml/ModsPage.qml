@@ -356,11 +356,10 @@ Item {
 
             Txt {
                 Layout.fillWidth: true
-                visible: page.all.length > 1
+                visible: page.all.length > 1 && !ModsModel.autoSort
                 kind: "caption"
                 color: Theme.textSecondary
-                text: ModsModel.autoSort ? qsTr("The order is set automatically: a mod lower in the list wins when two change the same file. Turn that off in Settings > Files to order the mods yourself.")
-                    : page.filtering ? qsTr("Clear the search and filters to change the order.")
+                text: page.filtering ? qsTr("Clear the search and filters to change the order.")
                     : qsTr("Drag the handle (or press Alt with the arrow keys) to change the order. A mod lower in the list wins when two change the same file.")
             }
 

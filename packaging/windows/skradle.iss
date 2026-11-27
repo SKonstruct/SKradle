@@ -45,6 +45,11 @@ OutputBaseFilename=SKradle-{#Version}-{#Platform}-installer
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern dynamic
+; The community artwork (credited in the image) on the welcome and finish pages and the logo on the others, in three and
+; four sizes: Setup picks the one that suits the display scaling. Drawn by render-wizard-images.py; paths are relative
+; to this file.
+WizardImageFile=wizard-164.bmp,wizard-246.bmp,wizard-328.bmp
+WizardSmallImageFile=wizard-small-58.bmp,wizard-small-77.bmp,wizard-small-97.bmp,wizard-small-124.bmp
 ShowLanguageDialog=no
 LanguageDetectionMethod=uilanguage
 CloseApplications=yes

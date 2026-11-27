@@ -941,10 +941,6 @@
         <translation>Atalhos de teclado</translation>
     </message>
     <message>
-        <source>The order is set automatically: a mod lower in the list wins when two change the same file. Turn that off in Settings &gt; Files to order the mods yourself.</source>
-        <translation>A ordem é definida automaticamente: um mod mais abaixo na lista prevalece quando dois alteram o mesmo arquivo. Desative isso em Configurações &gt; Arquivos para ordenar os mods manualmente.</translation>
-    </message>
-    <message>
         <source>Clear the search and filters to change the order.</source>
         <translation>Limpe a busca e os filtros para alterar a ordem.</translation>
     </message>
@@ -2802,6 +2798,14 @@ URL do conteúdo: %4</translation>
         <translation>Ferramentas da comunidade</translation>
     </message>
     <message>
+        <source>The Spiral Knights launcher for Android and iOS, from the same team as SKradle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This launcher, for Windows, macOS and Linux. Source code, releases and bug reports.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Imports 3D models (.dae, .obj) into the game&apos;s model format. A Windows program (GPL-3.0); other systems run it from source.</source>
         <translation>Importa modelos 3D (.dae, .obj) para o formato de modelo do jogo. Um programa para Windows (GPL-3.0); outros sistemas o executam a partir do código-fonte.</translation>
     </message>
@@ -2810,12 +2814,8 @@ URL do conteúdo: %4</translation>
         <translation>Exporta os modelos e animações do jogo como glTF para o Blender e outras ferramentas. Um programa para Windows que não recebe mais atualizações.</translation>
     </message>
     <message>
-        <source>Item tracker</source>
-        <translation>Rastreador de itens</translation>
-    </message>
-    <message>
-        <source>A community list of the game&apos;s items (JSON, free to use) and a companion app to track your collection.</source>
-        <translation>Uma lista da comunidade com os itens do jogo (JSON, livre para uso) e um aplicativo complementar para acompanhar sua coleção.</translation>
+        <source>SKapsule and SKradle are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Open on GitHub</source>
@@ -2824,10 +2824,6 @@ URL do conteúdo: %4</translation>
     <message>
         <source>Open %1 on GitHub</source>
         <translation>Abrir %1 no GitHub</translation>
-    </message>
-    <message>
-        <source>These are made by other people and open in your browser. They are not part of SKradle or the game.</source>
-        <translation>Estas são feitas por outras pessoas e abrem no seu navegador. Elas não fazem parte do SKradle nem do jogo.</translation>
     </message>
     <message>
         <source>Reload the page</source>
@@ -2930,6 +2926,10 @@ URL do conteúdo: %4</translation>
     <message>
         <source>Game files are missing (%1). Repair the game before joining a private server.</source>
         <translation>Faltam arquivos do jogo (%1). Repare o jogo antes de entrar em um servidor privado.</translation>
+    </message>
+    <message>
+        <source>GitHub is limiting requests from this connection, so SirDank&apos;s Modpack cannot be checked right now. Try again in about an hour.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>It contains a link, which is not allowed</source>

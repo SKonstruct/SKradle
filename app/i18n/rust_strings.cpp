@@ -10,6 +10,7 @@
     QT_TRANSLATE_NOOP("rust", "Could not reach SirDank's Modpack. Check your internet connection and try again."),
     QT_TRANSLATE_NOOP("rust", "Could not start the updater: %1"),
     QT_TRANSLATE_NOOP("rust", "Game files are missing (%1). Repair the game before joining a private server."),
+    QT_TRANSLATE_NOOP("rust", "GitHub is limiting requests from this connection, so SirDank's Modpack cannot be checked right now. Try again in about an hour."),
     QT_TRANSLATE_NOOP("rust", "It contains a link, which is not allowed"),
     QT_TRANSLATE_NOOP("rust", "It has a file with an unsafe path"),
     QT_TRANSLATE_NOOP("rust", "It is not a .zip, .jar or .modpack file"),

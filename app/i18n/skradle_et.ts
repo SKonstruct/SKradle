@@ -941,10 +941,6 @@
         <translation>Kiirklahvid</translation>
     </message>
     <message>
-        <source>The order is set automatically: a mod lower in the list wins when two change the same file. Turn that off in Settings &gt; Files to order the mods yourself.</source>
-        <translation>Järjekord määratakse automaatselt: kui kaks modi muudavad sama faili, jääb peale loendis allpool asuv mod. Lülita see jaotises Seaded &gt; Failid välja, et modid ise järjestada.</translation>
-    </message>
-    <message>
         <source>Clear the search and filters to change the order.</source>
         <translation>Järjestuse muutmiseks tühjenda otsing ja filtrid.</translation>
     </message>
@@ -2692,11 +2688,11 @@ Content URL: %4</source>
     </message>
     <message>
         <source>Gate map viewer</source>
-        <translation>Gate'i kaartide vaatur</translation>
+        <translation>Gate&apos;i kaartide vaatur</translation>
     </message>
     <message>
         <source>Look through the Spiral Knights gate maps. A fork of a community viewer, run by SirDank.</source>
-        <translation>Sirvi Spiral Knightsi Gate'i kaarte. Kogukonnavaaturi haru, mida haldab SirDank.</translation>
+        <translation>Sirvi Spiral Knightsi Gate&apos;i kaarte. Kogukonnavaaturi haru, mida haldab SirDank.</translation>
     </message>
     <message>
         <source>Open-source tools by Three Rings (Clyde), spiralview and datdec, downloaded once (about 25 MB) and kept up to date.</source>
@@ -2799,6 +2795,14 @@ Content URL: %4</source>
         <translation>Kogukonna tööriistad</translation>
     </message>
     <message>
+        <source>The Spiral Knights launcher for Android and iOS, from the same team as SKradle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This launcher, for Windows, macOS and Linux. Source code, releases and bug reports.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Imports 3D models (.dae, .obj) into the game&apos;s model format. A Windows program (GPL-3.0); other systems run it from source.</source>
         <translation>Impordib 3D-mudeleid (.dae, .obj) mängu mudelivormingusse. Windowsi programm (GPL-3.0); teistes süsteemides tuleb seda käivitada lähtekoodist.</translation>
     </message>
@@ -2807,12 +2811,8 @@ Content URL: %4</source>
         <translation>Ekspordib mängu mudelid ja animatsioonid glTF-vormingus Blenderi ja teiste tööriistade jaoks. Windowsi programm, mida enam ei uuendata.</translation>
     </message>
     <message>
-        <source>Item tracker</source>
-        <translation>Esemete jälgija</translation>
-    </message>
-    <message>
-        <source>A community list of the game&apos;s items (JSON, free to use) and a companion app to track your collection.</source>
-        <translation>Kogukonna koostatud mängu esemete nimekiri (JSON, vabalt kasutatav) ja kaasrakendus oma kogu jälgimiseks.</translation>
+        <source>SKapsule and SKradle are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Open on GitHub</source>
@@ -2821,10 +2821,6 @@ Content URL: %4</source>
     <message>
         <source>Open %1 on GitHub</source>
         <translation>Ava %1 GitHubis</translation>
-    </message>
-    <message>
-        <source>These are made by other people and open in your browser. They are not part of SKradle or the game.</source>
-        <translation>Need on teiste loodud tööriistad ja need avanevad sinu brauseris. Need ei ole SKradle&apos;i ega mängu osa.</translation>
     </message>
     <message>
         <source>Reload the page</source>
@@ -2927,6 +2923,10 @@ Content URL: %4</source>
     <message>
         <source>Game files are missing (%1). Repair the game before joining a private server.</source>
         <translation>Mängufailid puuduvad (%1). Paranda mäng enne privaatserveriga liitumist.</translation>
+    </message>
+    <message>
+        <source>GitHub is limiting requests from this connection, so SirDank&apos;s Modpack cannot be checked right now. Try again in about an hour.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>It contains a link, which is not allowed</source>

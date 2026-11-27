@@ -1,4 +1,6 @@
 {
+  // Kept in scripts/ with the shell scripts that do the same. VS Code reads this file from .vscode/: copy it there
+  // (together with tasks.json / launch.json) to debug from the editor. scripts/run.sh, test.sh and selftest.sh cover the rest.
   // The debug build the launch configurations run first. It needs Qt: QMAKE must point at Qt's qmake (see app/README.md).
   "version": "2.0.0",
   "tasks": [

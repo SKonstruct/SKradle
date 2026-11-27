@@ -200,7 +200,7 @@ link (a link at the target is replaced, never followed); a file where a folder i
   player's file with the same name as a pack file is replaced by the pack's version.
 - An empty or unreadable listing is an error and changes nothing. One failing file is reported and does not stop the
   others.
-- GitHub's unauthenticated API allows 60 requests per hour per address; a refused request is reported as an error.
+- GitHub's unauthenticated API allows 60 requests per hour per address; a refused request (403 or 429) is reported as "GitHub is limiting requests from this connection", not as a network problem; the count resets after an hour.
 
 ## In the app
 

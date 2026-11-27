@@ -3,7 +3,8 @@ import com.skradle.app
 import QtQuick.Templates as T
 
 // Our button. variant: primary (brand pink, ONE per region) | secondary (neutral, bordered) | ghost (text only)
-//   | danger (ghost, red text) | danger-primary (filled red, for irreversible confirmations).
+//   | danger (ghost, red text) | danger-primary (filled red, for irreversible confirmations)
+//   | coffee (Buy Me a Coffee yellow, dark text; the donate button only).
 // size: sm (28) | md (36, default) | lg (44). busy: a spinner replaces the glyph, the label stays, clicks are ignored.
 // `highlighted: true` is a synonym for variant primary.
 T.Button {
@@ -37,6 +38,7 @@ T.Button {
     readonly property color fg: !enabled ? Theme.textTertiary
         : solid ? Theme.accentText
         : variant === "danger" ? Theme.danger
+        : variant === "coffee" ? Theme.ink
         : Theme.text
     readonly property bool live: hovered && enabled && !busy
 
@@ -50,6 +52,7 @@ T.Button {
         radius: control.radius
         color: !control.enabled ? (control.solid ? Theme.track : "transparent")
             : control.primary ? (control.down ? Theme.accentPressed : control.live ? Theme.accentHover : Theme.accent)
+            : control.variant === "coffee" ? (control.down ? Theme.coffeePressed : control.live ? Theme.coffeeHover : Theme.coffee)
             : control.filledDanger ? (control.down ? Theme.dangerFillPressed : control.live ? Theme.dangerFillHover : Theme.dangerFill)
             : control.variant === "secondary" ? (control.down ? Theme.statePress : control.live ? Theme.stateHover : Theme.raised)
             : (control.down ? Theme.statePress : control.live ? Theme.stateHover : "transparent")

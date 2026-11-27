@@ -60,7 +60,13 @@ rm -f "$dmg"
 # is plain (the app alone), which installs just as well.
 dmgbuild=${DMGBUILD:-$(command -v dmgbuild || true)}
 if [ -n "$dmgbuild" ]; then
-  "$dmgbuild" -s "$root/packaging/macos/dmg-settings.py" -D "app=$app" -D "icon=$root/assets/icons/skradle.icns" SKradle "$dmg" >/dev/null
+  # the window's background: the 1x and 2x PNGs (packaging/macos/render-background.py) as one Retina TIFF; if tiffutil
+  # fails, dmgbuild's plain arrow is used
+  bg="$work/background.tiff"
+  tiffutil -cathidpicheck "$root/packaging/macos/background.png" "$root/packaging/macos/background@2x.png" -out "$bg" 2>/dev/null \
+    || rm -f "$bg"
+  bg_args=(); [ -s "$bg" ] && bg_args=(-D "background=$bg")
+  "$dmgbuild" -s "$root/packaging/macos/dmg-settings.py" -D "app=$app" -D "icon=$root/assets/icons/skradle.icns" "${bg_args[@]}" SKradle "$dmg" >/dev/null
 else
   echo "packaging/macos.sh: dmgbuild not found, making a plain disk image" >&2
   hdiutil create -volname SKradle -srcfolder "$app" -ov -format UDZO "$dmg" >/dev/null

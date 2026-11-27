@@ -16,6 +16,18 @@ cargo test  -p skradle-app
 cargo run   -p skradle-app --release
 ```
 
+The scripts in [`scripts/`](../scripts) do the same without exporting anything: `env.sh` (sourced by the others) finds a Qt 6.8+
+(`QMAKE`, `qmake6`/`qmake` on `PATH`, `$QT_ROOT_DIR`, `~/Qt`, `/opt/Qt`) and cargo; they need bash (macOS, Linux, Git Bash).
+
+| Script | Does |
+| --- | --- |
+| `build.sh [--release]` | `cargo build -p skradle-app` |
+| `run.sh [--release] [--dark] [--reduce-motion] [--software] [--scratch] [-- args]` | builds and starts the app; the options are the debug configurations of `scripts/launch.json` (`--scratch` uses a throw-away settings and mods folder) |
+| `selftest.sh [--release] [--reduce-motion\|--full-motion]` | the self-test, in both motion modes by default |
+| `test.sh [core\|app\|all] [filter]` | unit tests |
+| `shots.sh [dir]` | screenshots, dark and light, at both window sizes |
+| `check.sh` | the whole pass once: fmt, clippy, all tests, self-test in both motion modes |
+
 Qt modules used: Core, Gui, Qml, Quick, QuickControls2, QuickShapes, QuickDialogs2, QuickVectorImage (the logo) and
 the optional **WebView** (see below). `lrelease` from the same Qt install compiles the translations; without it the
 build still works and the UI stays English (a build warning says so).
@@ -40,12 +52,13 @@ The old prototype's `--bench` frame-time recorder was not ported (it needed rend
 
 ## Debugging in VS Code
 
-`.vscode/launch.json` has debug configurations for CodeLLDB (`vadimcn.vscode-lldb`; the folder recommends it): the app,
-the app in dark with reduced motion, with the software renderer, with a scratch settings and mods folder (so debugging
-never touches yours), the self-test, and unit tests for `skradle-core` and `skradle-app`. Each app configuration first
-runs the `build skradle (debug)` task. The build needs Qt: start VS Code from a shell where `QMAKE` is Qt's `qmake` and
-Qt's `bin` folder is on `PATH` (see Building above), or the build task fails with a clear message. Breakpoints work in
-the Rust code; QML errors appear in the Debug Console (`QT_FORCE_STDERR_LOGGING=1`).
+[`scripts/launch.json`](../scripts/launch.json) and [`scripts/tasks.json`](../scripts/tasks.json) hold the VS Code debug
+configurations for CodeLLDB (`vadimcn.vscode-lldb`; `.vscode/` recommends it). VS Code reads them from `.vscode/`, so copy
+both there to use them: the app, the app in dark with reduced motion, with the software renderer, with a scratch settings and
+mods folder (so debugging never touches yours), the self-test, and unit tests for `skradle-core` and `skradle-app`. Each app
+configuration first runs the `build skradle (debug)` task. The build needs Qt: start VS Code from a shell where `QMAKE` is
+Qt's `qmake` and Qt's `bin` folder is on `PATH` (see Building above), or the build task fails with a clear message.
+Breakpoints work in the Rust code; QML errors appear in the Debug Console (`QT_FORCE_STDERR_LOGGING=1`).
 
 ## Structure
 

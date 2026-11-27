@@ -35,6 +35,10 @@ QtObject {
     readonly property color accentFocus: accentFg
     readonly property color mint: "#C0DEDC"
     readonly property color mintOutline: "#75A09C"
+    // Buy Me a Coffee yellow (the donate button only); `ink` text on it is 13:1
+    readonly property color coffee: "#FFDD00"
+    readonly property color coffeeHover: "#FFE54D"
+    readonly property color coffeePressed: "#F0CE00"
 
     // ---- surfaces ---------------------------------------------------------------------------------------------
     // Dark depth comes from surface steps and the hairline; light adds one small neutral shadow (Elevation.qml).

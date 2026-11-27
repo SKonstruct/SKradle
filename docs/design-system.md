@@ -32,7 +32,7 @@ Elevation: `Card { elevation }` 0 flat, 1 card (light: one faint line, dark: non
 | Component | API | Notes |
 |---|---|---|
 | `Txt` | `kind: display|title|heading|body|caption|micro`, `numeric`, `mono`, `paragraph` | The only text element. Line height is the font's natural one; `paragraph: true` opts wrapped copy in to looser leading. `numeric` = tabular figures (ping, sizes, counts, ports). `mono` for addresses and paths |
-| `SButton` | `variant: primary|secondary|ghost|danger|danger-primary`, `size: sm|md|lg`, `glyph`, `busy`, `highlighted` (= primary) | One `primary` per region. `busy` shows a spinner in place of the glyph, keeps the label, ignores clicks. Icons all-or-none inside a row |
+| `SButton` | `variant: primary|secondary|ghost|danger|danger-primary|coffee`, `size: sm|md|lg`, `glyph`, `busy`, `highlighted` (= primary) | One `primary` per region. `coffee` (Buy Me a Coffee yellow, dark text) is for the Home donate button only. `busy` shows a spinner in place of the glyph, keeps the label, ignores clicks. Icons all-or-none inside a row |
 | `IconButton` | `glyph`, `tip` (required: tooltip and accessible name), `size: sm|md`, `iconSize`, `toggledOn` | 28 or 36 square |
 | `Chip` | `text`, `badge`, `selected` | Filter toggle, 28 high, check when selected. For one choice among 2-5 use `Segmented` |
 | `Segmented` | `model: [{id, label, badge}]`, `currentId`, `label`, signal `picked(id)` | Joined single choice, arrow keys move it |

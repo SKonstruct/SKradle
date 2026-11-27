@@ -926,10 +926,6 @@
         <translation>鍵盤快速鍵</translation>
     </message>
     <message>
-        <source>The order is set automatically: a mod lower in the list wins when two change the same file. Turn that off in Settings &gt; Files to order the mods yourself.</source>
-        <translation>順序已設為自動排列：當兩個模組修改同一個檔案時，清單中較下方的模組會覆蓋前者。若要自行排列模組順序，請在「設定」＞「檔案」中關閉此功能。</translation>
-    </message>
-    <message>
         <source>Clear the search and filters to change the order.</source>
         <translation>請先清除搜尋條件與篩選器以變更順序。</translation>
     </message>
@@ -2778,6 +2774,14 @@ Content URL: %4</source>
         <translation>社群工具</translation>
     </message>
     <message>
+        <source>The Spiral Knights launcher for Android and iOS, from the same team as SKradle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This launcher, for Windows, macOS and Linux. Source code, releases and bug reports.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Imports 3D models (.dae, .obj) into the game&apos;s model format. A Windows program (GPL-3.0); other systems run it from source.</source>
         <translation>將3D模型（.dae、.obj）匯入為遊戲的模型格式。這是Windows程式（GPL-3.0）；其他系統需從原始碼執行。</translation>
     </message>
@@ -2786,12 +2790,8 @@ Content URL: %4</source>
         <translation>將遊戲的模型與動畫匯出為glTF格式，以供Blender等工具使用。此為已停止更新的Windows程式。</translation>
     </message>
     <message>
-        <source>Item tracker</source>
-        <translation>物品追蹤器</translation>
-    </message>
-    <message>
-        <source>A community list of the game&apos;s items (JSON, free to use) and a companion app to track your collection.</source>
-        <translation>由社群維護的遊戲物品清單（JSON，免費使用）以及用來追蹤您收藏的輔助應用程式。</translation>
+        <source>SKapsule and SKradle are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Open on GitHub</source>
@@ -2800,10 +2800,6 @@ Content URL: %4</source>
     <message>
         <source>Open %1 on GitHub</source>
         <translation>在GitHub上開啟%1</translation>
-    </message>
-    <message>
-        <source>These are made by other people and open in your browser. They are not part of SKradle or the game.</source>
-        <translation>這些工具由其他人製作，並會在您的瀏覽器中開啟。它們並非SKradle或遊戲的一部分。</translation>
     </message>
     <message>
         <source>Reload the page</source>
@@ -2906,6 +2902,10 @@ Content URL: %4</source>
     <message>
         <source>Game files are missing (%1). Repair the game before joining a private server.</source>
         <translation>缺少遊戲檔案（%1）。加入私人伺服器前請先修復遊戲。</translation>
+    </message>
+    <message>
+        <source>GitHub is limiting requests from this connection, so SirDank&apos;s Modpack cannot be checked right now. Try again in about an hour.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>It contains a link, which is not allowed</source>

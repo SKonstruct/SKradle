@@ -926,10 +926,6 @@
         <translation>キーボードショートカット</translation>
     </message>
     <message>
-        <source>The order is set automatically: a mod lower in the list wins when two change the same file. Turn that off in Settings &gt; Files to order the mods yourself.</source>
-        <translation>順番は自動的に設定されます。2つのModが同じファイルを変更する場合は、リストの下にあるものが優先されます。自分でModを並べ替えるには、設定＞ファイルでオフにしてください。</translation>
-    </message>
-    <message>
         <source>Clear the search and filters to change the order.</source>
         <translation>順番を変更するには、検索とフィルターをクリアしてください。</translation>
     </message>
@@ -2781,6 +2777,14 @@ Content URL: %4</source>
         <translation>コミュニティツール</translation>
     </message>
     <message>
+        <source>The Spiral Knights launcher for Android and iOS, from the same team as SKradle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This launcher, for Windows, macOS and Linux. Source code, releases and bug reports.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Imports 3D models (.dae, .obj) into the game&apos;s model format. A Windows program (GPL-3.0); other systems run it from source.</source>
         <translation>3Dモデル（.dae、.obj）をゲームのモデル形式にインポートします。Windows用プログラム（GPL-3.0）で、他のシステムではソースから実行します。</translation>
     </message>
@@ -2789,12 +2793,8 @@ Content URL: %4</source>
         <translation>ゲームのモデルとアニメーションをBlenderやその他のツール向けにglTFとしてエクスポートします。すでに更新が終了しているWindows用プログラムです。</translation>
     </message>
     <message>
-        <source>Item tracker</source>
-        <translation>アイテムトラッカー</translation>
-    </message>
-    <message>
-        <source>A community list of the game&apos;s items (JSON, free to use) and a companion app to track your collection.</source>
-        <translation>ゲームのアイテムのコミュニティリスト（JSON、無料で使用可能）と、コレクションを記録できるコンパニオンアプリです。</translation>
+        <source>SKapsule and SKradle are made by the SKonstruct team. The other tools are made by other people. All of them open in your browser, and none is part of the game.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Open on GitHub</source>
@@ -2803,10 +2803,6 @@ Content URL: %4</source>
     <message>
         <source>Open %1 on GitHub</source>
         <translation>GitHubで%1を開く</translation>
-    </message>
-    <message>
-        <source>These are made by other people and open in your browser. They are not part of SKradle or the game.</source>
-        <translation>これらは第三者によって作られたもので、ブラウザで開きます。SKradleやゲームの一部ではありません。</translation>
     </message>
     <message>
         <source>Reload the page</source>
@@ -2909,6 +2905,10 @@ Content URL: %4</source>
     <message>
         <source>Game files are missing (%1). Repair the game before joining a private server.</source>
         <translation>ゲームファイルが不足しています（%1）。プライベートサーバーに参加する前にゲームを修復してください。</translation>
+    </message>
+    <message>
+        <source>GitHub is limiting requests from this connection, so SirDank&apos;s Modpack cannot be checked right now. Try again in about an hour.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>It contains a link, which is not allowed</source>

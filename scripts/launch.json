@@ -1,4 +1,6 @@
 {
+  // Kept in scripts/ with the shell scripts that do the same. VS Code reads this file from .vscode/: copy it there
+  // (together with tasks.json / launch.json) to debug from the editor. scripts/run.sh, test.sh and selftest.sh cover the rest.
   // Debug SKradle with CodeLLDB (extension vadimcn.vscode-lldb). The app crate needs a Qt 6.10+ install: before
   // starting VS Code set QMAKE to Qt's qmake (for example /path/to/Qt/6.11.3/macos/bin/qmake) and put Qt's bin folder
   // on PATH, see app/README.md. The "build skradle (debug)" task runs first, so a debug session always runs the code
