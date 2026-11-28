@@ -111,7 +111,10 @@ from the bytecode and never tried.
    planner picks the first runtime that satisfies the game, which is the game's own `java_vm` (or the player's Java
    path override, which always wins). On: the agent needs a Java that can load it (24 or newer with
    `java.instrument`); the game's own trimmed runtime cannot. The direct launch uses such a runtime and passes the agent as JVM arguments, never through
-   `extra.txt`. With none available the game starts without it and the plan carries a warning.
+   `extra.txt`. With none available the game starts without it and the plan carries a warning. The agent is read from
+   `<data dir>/SKradle/skgfx/skgfx-agent.jar`. Downloading it is not built yet (it waits for the signed module index; skgfx
+   publishes the jar as a GitHub Release for each `v*` tag). Until then `scripts/agent.sh` builds it from the sibling
+   `skgfx` checkout and installs it there.
 
 `execute` stops at the first failing step: nothing after it runs and the game is not started on a half-applied state.
 `servers::update_pending` compares two `getdown.txt` versions; the launch feeds it the recorded version. Nothing recorded
