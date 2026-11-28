@@ -53,6 +53,10 @@ DisableWelcomePage=no
 ; none is stretched. Drawn by render-wizard-images.py; paths are relative to this file.
 WizardImageFile=wizard-202.png,wizard-269.png,wizard-336.png,wizard-430.png,wizard-534.png
 WizardSmallImageFile=wizard-small-58.png,wizard-small-77.png,wizard-small-97.png,wizard-small-124.png,wizard-small-159.png
+; With "dynamic", dark mode swaps in Inno's own dark images unless the DynamicDark directives name others (6.6+), so
+; the same artwork is given for dark too.
+WizardImageFileDynamicDark=wizard-202.png,wizard-269.png,wizard-336.png,wizard-430.png,wizard-534.png
+WizardSmallImageFileDynamicDark=wizard-small-58.png,wizard-small-77.png,wizard-small-97.png,wizard-small-124.png,wizard-small-159.png
 ShowLanguageDialog=no
 LanguageDetectionMethod=uilanguage
 CloseApplications=yes

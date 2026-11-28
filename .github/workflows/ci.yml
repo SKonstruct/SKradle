@@ -154,6 +154,8 @@ jobs:
           # (a pull request's cache cannot be used by main and only crowds out the useful ones).
           shared-key: app-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
+          # The release build is the slowest step: keep what it compiled even when a later step (a flaky self-test) fails.
+          cache-on-failure: true
 
       - name: Install Linux system libraries for Qt
         if: runner.os == 'Linux'
@@ -215,6 +217,7 @@ jobs:
           name: SKradle-${{ steps.version.outputs.version }}-${{ matrix.name }}-screenshots
           path: shots
           if-no-files-found: ignore
+          retention-days: 7
 
       # The package job wraps this binary once the tests have passed (not for pull requests).
       - name: Upload the binary
@@ -371,6 +374,8 @@ jobs:
           path: dist
           if-no-files-found: error
           retention-days: 30
+          # Installers are already compressed: zipping them again only costs time.
+          compression-level: 0
 
   # A version tag publishes the installers (as they are, not zipped: the launcher's update downloads them by name and
   # checks GitHub's SHA-256 of each) with one SHA256SUMS.txt. Needs every package; runs only for tags.
